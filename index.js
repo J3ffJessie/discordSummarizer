@@ -1,20 +1,19 @@
 require('dotenv').config(); // Load environment variables from .env file
 const { Client, GatewayIntentBits } = require('discord.js');
-const { OpenAI } = require('openai'); // Make sure you've configured OpenAI as before
+const axios = require('axios');  // Import axios for HTTP requests
 const cron = require('node-cron'); // For scheduling tasks
 
-// Your bot and OpenAI setup as before
-const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+// Initialize Discord client
+const client = new Client({
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
 
   // Schedule the summarization task at a specific time
-  cron.schedule('*/5 * * * *', async () => {  // Runs every day at 9:00 AM server time
-    const channelId = process.env.CHANNEL_ID;  // Replace with the actual channel ID
+  cron.schedule('*/5 * * * *', async () => {  // Runs every 5 minutes
+    const channelId = process.env.CHANNEL_ID;  // Channel ID from the environment file
 
     try {
       // Fetch messages from the channel (let's get the last 100 messages for example)
@@ -24,7 +23,7 @@ client.once('ready', () => {
       // Combine the messages into a single string for summarization
       const userMessages = messages.map(msg => `${msg.author.username}: ${msg.content}`).join("\n");
 
-      // Generate the summary from OpenAI
+      // Generate the summary using Ollama
       const summary = await generateSummary(userMessages);
 
       // Create a thread in the channel and post the summary
@@ -41,24 +40,19 @@ client.once('ready', () => {
   });
 });
 
-// Function to generate summary using OpenAI API
+// Function to generate summary using Ollama
 async function generateSummary(userMessages) {
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-3.5-turbo',
+    const response = await axios.post(process.env.API_URL, {
+      model: 'tinyllama',  // Example model (ensure this matches the model you're using)
       messages: [
-        {
-          role: 'system',
-          content: 'You are a helpful assistant that summarizes Discord conversations.',
-        },
-        {
-          role: 'user',
-          content: `Summarize the following messages:\n\n${userMessages}`,
-        },
+        { role: 'user', content: `Summarize the following messages:\n\n${userMessages}` }
       ],
+      stream: false  // Set to true if you want a streamed response, false for full response
     });
 
-    return completion.choices[0]?.message?.content?.trim();
+    // Return the summary from Ollama's response
+    return response.data.message.content.trim();
   } catch (error) {
     console.error('Error during summarization:', error);
     return 'Sorry, there was an error generating the summary.';
