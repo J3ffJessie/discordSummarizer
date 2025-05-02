@@ -1,0 +1,22 @@
+{
+  "name": "discord-summarizer",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@discordjs/rest": "^2.5.0",
+    "discord-api-types": "^0.38.2",
+    "discord.js": "^14.19.2",
+    "dotenv": "^16.5.0",
+    "node-cron": "^3.0.3",
+    "node-sum": "^2.0.1",
+    "openai": "^4.96.2",
+    "summarizer": "^1.0.0"
+  }
+}
