@@ -1,62 +1,110 @@
-require('dotenv').config(); // Load environment variables from .env file
-const { Client, GatewayIntentBits } = require('discord.js');
-const axios = require('axios');  // Import axios for HTTP requests
-const cron = require('node-cron'); // For scheduling tasks
+require("dotenv").config();
+const { Client, GatewayIntentBits } = require("discord.js");
+const axios = require("axios");
+const cron = require("node-cron");
+
+// Helper: convert timestamp to Discord snowflake
+function timestampToSnowflake(timestamp) {
+  const discordEpoch = 1420070400000n;
+  return ((BigInt(timestamp) - discordEpoch) << 22n).toString();
+}
 
 // Initialize Discord client
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+  ],
 });
 
-client.once('ready', () => {
+client.on("error", (error) => {
+  console.error("Discord client error:", error);
+});
+
+client.once("ready", () => {
   console.log(`Logged in as ${client.user.tag}`);
 
-  // Schedule the summarization task at a specific time
-  cron.schedule('*/5 * * * *', async () => {  // Runs every 5 minutes
-    const channelId = process.env.CHANNEL_ID;  // Channel ID from the environment file
+  // Run every 5 minutes
+  cron.schedule("*/5 * * * *", async () => {
+    const channelId = process.env.CHANNEL_ID;
 
     try {
-      // Fetch messages from the channel (let's get the last 100 messages for example)
       const channel = await client.channels.fetch(channelId);
-      const messages = await channel.messages.fetch({ limit: 100 });
+      const fiveHoursAgo = Date.now() - 5 * 60 * 60 * 1000;
+      const afterSnowflake = timestampToSnowflake(fiveHoursAgo);
 
-      // Combine the messages into a single string for summarization
-      const userMessages = messages.map(msg => `${msg.author.username}: ${msg.content}`).join("\n");
-
-      // Generate the summary using Ollama
-      const summary = await generateSummary(userMessages);
-
-      // Create a thread in the channel and post the summary
-      const thread = await channel.threads.create({
-        name: `Summary - ${new Date().toLocaleDateString()}`,
-        autoArchiveDuration: 60,
+      const messages = await channel.messages.fetch({
+        limit: 100,
+        after: afterSnowflake,
       });
 
-      await thread.send(summary);
+      if (messages.size === 0) {
+        console.log("No new messages to summarize");
+        return;
+      }
 
+      const userMessages = messages
+        .map((msg) => `${msg.author.username}: ${msg.content}`)
+        .filter((content) => content.trim().length > 0)
+        .join("\n");
+
+      const summary = await generateSummary(userMessages);
+
+      const thread = await channel.threads.create({
+        name: `Summary for ${new Date().toLocaleString()}`,
+        autoArchiveDuration: 60,
+        reason: "Automated channel summary",
+      });
+
+      await thread.send({
+        content: `**Channel Summary**\n\n${summary}\n\n*Summarized ${messages.size} messages*`,
+      });
     } catch (error) {
-      console.error('Error summarizing and creating thread:', error);
+      console.error("Error in summarization routine:", error);
     }
   });
 });
 
-// Function to generate summary using Ollama
 async function generateSummary(userMessages) {
-  try {
-    const response = await axios.post(process.env.API_URL, {
-      model: 'tinyllama',  // Example model (ensure this matches the model you're using)
-      messages: [
-        { role: 'user', content: `Summarize the following messages:\n\n${userMessages}` }
-      ],
-      stream: false  // Set to true if you want a streamed response, false for full response
-    });
+  const maxRetries = 3;
+  let attempts = 0;
 
-    // Return the summary from Ollama's response
-    return response.data.message.content.trim();
-  } catch (error) {
-    console.error('Error during summarization:', error);
-    return 'Sorry, there was an error generating the summary.';
+  while (attempts < maxRetries) {
+    try {
+      const response = await axios.post(process.env.API_URL, {
+        model: "tinyllama",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a helpful assistant that summarizes Discord conversations into a single, concise paragraph highlighting overall sentiment, important updates, and key actions.",
+          },
+          {
+            role: "user",
+            content: `Summarize the following conversation without listing each message. Capture overall tone, any key events, and action items:\n\n${userMessages}`,
+          },
+        ],
+        stream: false,
+      });
+
+      return response.data.message.content.trim();
+    } catch (error) {
+      attempts++;
+      console.error(`Summarization attempt ${attempts} failed:`, error);
+      if (attempts === maxRetries) {
+        return "Sorry, there was an error generating the summary. Please try again later.";
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempts));
+    }
   }
 }
 
-client.login(process.env.BOT_TOKEN);
+client.on("disconnect", () => {
+  console.log("Bot disconnected from Discord. Attempting to reconnect...");
+});
+
+client.login(process.env.BOT_TOKEN).catch((error) => {
+  console.error("Failed to login:", error);
+  process.exit(1);
+});
