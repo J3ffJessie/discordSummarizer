@@ -101,7 +101,7 @@ async function generateSummary(userMessages) {
           },
           {
             role: "user",
-            content: `Here is a real conversation from a Discord channel:\n\n${userMessages}\n\nSummarize the key points as a concise paragraph. Include major themes, decisions made, any questions asked, and highlight specific contributions from users if relevant.`,
+            content: `Here is a real conversation from a Discord channel:\n\n${userMessages}\n\nSummarize the key points as a concise paragraph. Do not include any opinions or personal comments. Just summarize the conversation.`,
           },
         ],
         stream: false,
