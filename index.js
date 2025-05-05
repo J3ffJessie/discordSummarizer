@@ -93,7 +93,9 @@ async function generateSummary(userMessages) {
   while (attempts < maxRetries) {
     try {
       const response = await axios.post(process.env.API_URL, {
-        model: "tinyllama",
+        // model: "tinyllama",
+        model: "mistral",
+        temperature: 0.2,
         messages: [
           {
             role: "system",
