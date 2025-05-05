@@ -5,56 +5,123 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
-// Messages for Alice, Bob, and Charlie
+// Technical Participants: Alice & Dana
 const aliceMessages = [
-  "Hey Bob, have you had a chance to check the latest updates?",
-  "The UI tweaks are looking really clean. Great job on that!",
-  "I'm seeing some weird behavior in the API responses though.",
-  "I’ll document the new flow after our meeting today.",
-  "We should probably sync tomorrow before the deploy.",
-  "Do you think we need more test coverage for the new feature?",
-  "I was thinking about how we could improve error handling in the app.",
-  "I'll review the code tonight and send over my thoughts.",
-  "Looking forward to pushing these updates to production!",
-  "Have you started looking into the next sprint's tasks?"
+  "Hey Dana, did you see the recent update to the GraphQL schema?",
+  "I'm thinking we should switch from REST to gRPC for internal services.",
+  "Some endpoints are still returning 500s — can you check the logs?",
+  "I've added unit tests for the new controller logic.",
+  "What do you think about introducing feature flags for the beta rollout?",
+  "The auth middleware still needs some cleanup.",
+  "I'll write a wiki page to document the DB migration steps.",
+  "Do we want to cache the dashboard stats?",
+  "Linting failed on the latest merge. Mind checking?",
+  "I suspect our rate limiting isn't working as expected.",
+  "Anyone else seeing that memory leak on staging?",
+  "Let’s make sure every service has a health check before launch.",
+  "I'll try adding retry logic to the API client.",
+  "We should create a Jenkins job for this pipeline.",
+  "The log aggregation is missing from service B.",
+  "Should we move all config to a shared env repo?",
+  "I'll look into Prometheus alerts tomorrow.",
+  "Mind reviewing the cleanup script for orphaned records?",
+  "I'm wrapping up the integration test suite now.",
+  "The feature toggle API is almost ready for review."
 ];
 
+const danaMessages = [
+  "Good call on the GraphQL — the schema needs simplification too.",
+  "Yeah, gRPC sounds great. Let’s do a spike on that.",
+  "Sure, I’ll grep the logs for anything suspicious.",
+  "Nice, I’ll review your test coverage later today.",
+  "Feature flags are a must — I’ll add a toggling mechanism.",
+  "Agreed — the middleware is messy. I'll refactor it.",
+  "Thanks for the docs — that’ll help onboarding.",
+  "We can memoize the stats method for better performance.",
+  "I'll fix the linting error in the sidebar component.",
+  "You're right — rate limiting needs revisiting.",
+  "Yup, the leak happens only under load.",
+  "I’ll add readiness and liveness probes to our Helm charts.",
+  "Retry logic sounds good — exponential backoff?",
+  "I'll add the Jenkins config file now.",
+  "Oh, I totally missed logging for that service. Thanks!",
+  "Yeah, let’s centralize all our env vars.",
+  "I’ll test the Prometheus alert rules this afternoon.",
+  "Sure, I’ll check the script and run it on QA.",
+  "Awesome — that test suite will save us later.",
+  "I'll do a final code pass and merge it in."
+];
+
+// Casual Participants: Bob & Eli
 const bobMessages = [
-  "Hey Alice! Just saw your commits — looks solid to me.",
-  "Thanks! I tried to simplify the layout based on your feedback.",
-  "Hmm, I'll take a look at the API — could be a caching issue.",
-  "Cool, let me know if you need help with the documentation.",
-  "Agreed, a sync would help. How’s 10 AM for you?",
-  "I’m excited about the new feature. Let’s make sure we’re aligned before the demo.",
-  "I’ll ping you later about the deployment steps.",
-  "Just realized we need to update the readme for the new changes.",
-  "I’ll follow up on the open PRs after our meeting.",
-  "The testing was smooth, but I’ll double-check the edge cases."
+  "Hey Eli! How was your weekend?",
+  "We went hiking upstate — the fall colors were unreal.",
+  "Did you watch that new sci-fi movie on Netflix?",
+  "The twins started soccer practice this week!",
+  "We’re planning a family BBQ next Saturday — you're invited!",
+  "I finally finished that mystery novel I told you about.",
+  "The kids are obsessed with LEGOs lately.",
+  "I tried making sourdough again… still needs work.",
+  "We watched *Elemental* — super cute animation.",
+  "I picked up biking again — feels great to be outside more.",
+  "We saw a bald eagle while kayaking last weekend!",
+  "Dinner at Mom’s was full of dad jokes as usual.",
+  "I’m teaching my daughter to ride a bike — wish me luck.",
+  "We binged *The Bear* — that kitchen stress is real.",
+  "I might sign up for that local pottery class.",
+  "Our garden finally sprouted tomatoes!",
+  "I’ve been decluttering — garage sale next weekend.",
+  "My dog figured out how to open the fridge...",
+  "We went apple picking and left with 3 full bags.",
+  "I took my parents to that jazz café — they loved it."
 ];
 
-const charlieMessages = [
-  "Hey Alice, Bob! Hope you're both doing well today.",
-  "I’ve been thinking about the new feature — we might need a more robust solution.",
-  "I'm working on the backend integration. Should be ready by the end of the week.",
-  "By the way, I’ve noticed some inconsistencies in the UI during testing.",
-  "I’ll create a testing checklist to ensure we don’t miss any critical flows.",
-  "How are you both feeling about the upcoming sprint planning?",
-  "I’ll jump on the meeting agenda once we finalize the feature set.",
-  "Just finished setting up the staging environment. It's all green now.",
-  "I’ve added a couple of ideas to the backlog for future releases.",
-  "Looking forward to collaborating on the deployment tomorrow!"
+const eliMessages = [
+  "Hey Bob! Weekend was chill, just caught up on sleep.",
+  "Nice! I’ve been meaning to do a hike soon.",
+  "Yes! I watched it too — the ending was wild.",
+  "Soccer already? That’s awesome. Busy schedule ahead!",
+  "I’ll be there — love a good BBQ.",
+  "Ohh, how was the ending? Worth the buildup?",
+  "LEGOs are timeless. I still have my old sets.",
+  "Sourdough is an art form. I’m still learning too.",
+  "I loved *Elemental*! The characters were so lovable.",
+  "That’s great! I need to dust off my old bike.",
+  "No way — a bald eagle? That’s epic.",
+  "Haha, classic Dad! Glad you had fun.",
+  "Good luck! Helmet and bandaids ready?",
+  "That show stressed me out in the best way.",
+  "Do it! Pottery sounds super therapeutic.",
+  "Fresh tomatoes — now I’m craving bruschetta.",
+  "Garage sale? Count me in for the weird knick-knacks.",
+  "LOL your dog is too smart for their own good.",
+  "Apple overload! Time for pie?",
+  "Jazz café? Sounds fancy — send me the name!"
 ];
 
-// Combine and alternate messages from Alice, Bob, and Charlie
-const sampleMessages = [];
-for (let i = 0; i < 30; i++) {
-  const msg = i % 3 === 0
-    ? `Alice: ${aliceMessages[i % aliceMessages.length]}`
-    : i % 3 === 1
-    ? `Bob: ${bobMessages[i % bobMessages.length]}`
-    : `Charlie: ${charlieMessages[i % charlieMessages.length]}`;
-  sampleMessages.push(msg);
+// Combine all messages and randomize order
+const allMessages = [];
+
+function labelMessages(sender, messages) {
+  return messages.map(msg => `${sender}: ${msg}`);
 }
+
+allMessages.push(
+  ...labelMessages("Alice", aliceMessages),
+  ...labelMessages("Dana", danaMessages),
+  ...labelMessages("Bob", bobMessages),
+  ...labelMessages("Eli", eliMessages)
+);
+
+// Shuffle messages randomly
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+shuffle(allMessages);
 
 async function sendCyclicMessages() {
   const channelId = process.env.CHANNEL_ID;
@@ -62,13 +129,13 @@ async function sendCyclicMessages() {
   try {
     const channel = await client.channels.fetch(channelId);
 
-    for (let i = 0; i < sampleMessages.length; i++) {
+    for (let i = 0; i < allMessages.length; i++) {
       await new Promise(resolve => setTimeout(resolve, 2000));
-      await channel.send(sampleMessages[i]);
-      console.log(`Sent message ${i + 1} of ${sampleMessages.length}`);
+      await channel.send(allMessages[i]);
+      console.log(`Sent message ${i + 1} of ${allMessages.length}`);
     }
 
-    console.log('All messages sent successfully.');
+    console.log('All 80 messages sent successfully.');
   } catch (error) {
     console.error('Error sending messages:', error);
   }

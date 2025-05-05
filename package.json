@@ -11,10 +11,12 @@
   "description": "",
   "dependencies": {
     "@discordjs/rest": "^2.5.0",
+    "@langchain/community": "^0.3.42",
     "axios": "^1.9.0",
     "discord-api-types": "^0.38.2",
     "discord.js": "^14.19.2",
     "dotenv": "^16.5.0",
+    "langchain": "^0.3.24",
     "node-cron": "^3.0.3",
     "node-sum": "^2.0.1",
     "openai": "^4.96.2",

@@ -9,6 +9,24 @@ function timestampToSnowflake(timestamp) {
   return ((BigInt(timestamp) - discordEpoch) << 22n).toString();
 }
 
+// Helper: split long messages under 2000 chars
+function splitMessage(content, limit = 1900) {
+  const chunks = [];
+  let current = "";
+
+  content.split("\n").forEach(line => {
+    if ((current + "\n" + line).length > limit) {
+      chunks.push(current);
+      current = line;
+    } else {
+      current += "\n" + line;
+    }
+  });
+
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 // Initialize Discord client
 const client = new Client({
   intents: [
@@ -57,9 +75,11 @@ client.once("ready", () => {
         reason: "Automated channel summary",
       });
 
-      await thread.send({
-        content: `**Channel Summary**\n\n${summary}\n\n*Summarized ${messages.size} messages*`,
-      });
+      const chunks = splitMessage(`**Channel Summary**\n\n${summary}\n\n*Summarized ${messages.size} messages*`);
+      for (const chunk of chunks) {
+        await thread.send({ content: chunk });
+      }
+
     } catch (error) {
       console.error("Error in summarization routine:", error);
     }
@@ -77,12 +97,11 @@ async function generateSummary(userMessages) {
         messages: [
           {
             role: "system",
-            content:
-              "You are a helpful assistant that summarizes Discord conversations into a single, concise paragraph highlighting overall sentiment, important updates, and key actions.",
+            content: "You are a meeting assistant who summarizes actual conversation content. Focus on identifying major topics discussed, decisions made, action items, and tone. Avoid inventing content or giving generic descriptions.",
           },
           {
             role: "user",
-            content: `Summarize the following conversation without listing each message. Capture overall tone, any key events, and action items:\n\n${userMessages}`,
+            content: `Here is a real conversation from a Discord channel:\n\n${userMessages}\n\nSummarize the key points as a concise paragraph. Include major themes, decisions made, any questions asked, and highlight specific contributions from users if relevant.`,
           },
         ],
         stream: false,
@@ -99,6 +118,7 @@ async function generateSummary(userMessages) {
     }
   }
 }
+
 
 client.on("disconnect", () => {
   console.log("Bot disconnected from Discord. Attempting to reconnect...");
