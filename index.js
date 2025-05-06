@@ -93,21 +93,21 @@ async function generateSummary(userMessages) {
   while (attempts < maxRetries) {
     try {
       const response = await axios.post(process.env.API_URL, {
-        // model: "tinyllama",
         model: "mistral",
         temperature: 0.2,
         messages: [
-          {
-            role: "system",
-            content: "You are a meeting assistant who summarizes actual conversation content. Focus on identifying major topics discussed, decisions made, action items, and tone. Avoid inventing content or giving generic descriptions.",
-          },
-          {
-            role: "user",
-            content: `Here is a real conversation from a Discord channel:\n\n${userMessages}\n\nSummarize the key points as a concise paragraph. Do not include any opinions or personal comments. Just summarize the conversation.`,
-          },
+            {
+                role: "system",
+                content: "You are a meeting assistant who summarizes actual conversation content. You must always format your responses as bullet points using '-' or '•' characters. Never use numbers. Focus on identifying major topics discussed, decisions made, action items, and tone. Avoid inventing content or giving generic descriptions."
+            },
+            {
+                role: "user",
+                content: `Here is a real conversation from a Discord channel:\n\n${userMessages}\n\nCreate a summary using ONLY bullet points (with '-' or '•' characters). Each point should be a distinct topic, decision, or action item. Do not use numbers, paragraphs, or additional commentary. Start each bullet point on a new line.`
+            }
         ],
-        stream: false,
-      });
+        stream: false
+    });
+    
 
       return response.data.message.content.trim();
     } catch (error) {
