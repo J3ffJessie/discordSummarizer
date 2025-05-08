@@ -1,10 +1,12 @@
-require('dotenv').config();
+require('dotenv').config(); // Load environment variables from .env file
 const { Client, GatewayIntentBits } = require('discord.js');
 
+// Initialize Discord client
 const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
+<<<<<<< HEAD
 // Technical Participants: Alice & Dana
 const aliceMessages = [
   "Hey Dana, did you see the recent update to the GraphQL schema?",
@@ -125,10 +127,16 @@ shuffle(allMessages);
 
 async function sendCyclicMessages() {
   const channelId = process.env.CHANNEL_ID;
+=======
+// Create dummy messages
+async function sendDummyMessages() {
+  const channelId = process.env.CHANNEL_ID;  // Get channel ID from .env file
+>>>>>>> parent of e36fc90 (Updated response protocol from tinyllama to be more conversational. Made edits to dummy.jsto provide more conversational messages that would be in a real discord channel. Created a chat cleanup script so that I could remove all the previous messages to make the AI read through the conversational piece without unneccessary messages)
 
   try {
     const channel = await client.channels.fetch(channelId);
 
+<<<<<<< HEAD
     for (let i = 0; i < allMessages.length; i++) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       await channel.send(allMessages[i]);
@@ -136,14 +144,22 @@ async function sendCyclicMessages() {
     }
 
     console.log('All 80 messages sent successfully.');
+=======
+    // Sending some dummy messages to the channel
+    for (let i = 0; i < 10; i++) {
+      await channel.send(`Dummy message ${i + 1}`);
+    }
+
+    console.log('Dummy messages sent successfully.');
+>>>>>>> parent of e36fc90 (Updated response protocol from tinyllama to be more conversational. Made edits to dummy.jsto provide more conversational messages that would be in a real discord channel. Created a chat cleanup script so that I could remove all the previous messages to make the AI read through the conversational piece without unneccessary messages)
   } catch (error) {
-    console.error('Error sending messages:', error);
+    console.error('Error sending dummy messages:', error);
   }
 }
 
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
-  sendCyclicMessages();
+  sendDummyMessages();  // Call the function to send dummy messages
 });
 
-client.login(process.env.BOT_TOKEN);
+client.login(process.env.BOT_TOKEN);  // Log in using the bot token from .env file

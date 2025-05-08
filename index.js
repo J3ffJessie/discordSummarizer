@@ -1,13 +1,7 @@
-require("dotenv").config();
-const { Client, GatewayIntentBits } = require("discord.js");
-const axios = require("axios");
-const cron = require("node-cron");
-
-// Helper: convert timestamp to Discord snowflake
-function timestampToSnowflake(timestamp) {
-  const discordEpoch = 1420070400000n;
-  return ((BigInt(timestamp) - discordEpoch) << 22n).toString();
-}
+require('dotenv').config(); // Load environment variables from .env file
+const { Client, GatewayIntentBits } = require('discord.js');
+const axios = require('axios');  // Import axios for HTTP requests
+const cron = require('node-cron'); // For scheduling tasks
 
 // Helper: split long messages under 2000 chars
 function splitMessage(content, limit = 1900) {
@@ -29,50 +23,31 @@ function splitMessage(content, limit = 1900) {
 
 // Initialize Discord client
 const client = new Client({
-  intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
-  ],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
-client.on("error", (error) => {
-  console.error("Discord client error:", error);
-});
-
-client.once("ready", () => {
+client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
 
-  // Run every 5 minutes
-  cron.schedule("*/5 * * * *", async () => {
-    const channelId = process.env.CHANNEL_ID;
+  // Schedule the summarization task at a specific time
+  cron.schedule('*/5 * * * *', async () => {  // Runs every 5 minutes
+    const channelId = process.env.CHANNEL_ID;  // Channel ID from the environment file
 
     try {
+      // Fetch messages from the channel (last 100 messages)
       const channel = await client.channels.fetch(channelId);
-      const fiveHoursAgo = Date.now() - 5 * 60 * 60 * 1000;
-      const afterSnowflake = timestampToSnowflake(fiveHoursAgo);
+      const messages = await channel.messages.fetch({ limit: 100 });
 
-      const messages = await channel.messages.fetch({
-        limit: 100,
-        after: afterSnowflake,
-      });
+      // Combine the messages into a single string for summarization
+      const userMessages = messages.map(msg => `${msg.author.username}: ${msg.content}`).join("\n");
 
-      if (messages.size === 0) {
-        console.log("No new messages to summarize");
-        return;
-      }
-
-      const userMessages = messages
-        .map((msg) => `${msg.author.username}: ${msg.content}`)
-        .filter((content) => content.trim().length > 0)
-        .join("\n");
-
+      // Generate the summary using Ollama
       const summary = await generateSummary(userMessages);
 
+      // Create a thread in the channel and post the summary
       const thread = await channel.threads.create({
-        name: `Summary for ${new Date().toLocaleString()}`,
+        name: `Summary - ${new Date().toLocaleDateString()}`,
         autoArchiveDuration: 60,
-        reason: "Automated channel summary",
       });
 
       const chunks = splitMessage(`**Channel Summary**\n\n${summary}\n\n*Summarized ${messages.size} messages*`);
@@ -81,11 +56,12 @@ client.once("ready", () => {
       }
 
     } catch (error) {
-      console.error("Error in summarization routine:", error);
+      console.error('Error summarizing and creating thread:', error);
     }
   });
 });
 
+// Function to generate summary using Ollama with retries
 async function generateSummary(userMessages) {
   const maxRetries = 3;
   let attempts = 0;
@@ -93,21 +69,20 @@ async function generateSummary(userMessages) {
   while (attempts < maxRetries) {
     try {
       const response = await axios.post(process.env.API_URL, {
-        model: "mistral",
+        model: "mistral", // Replace with your model if different
         temperature: 0.2,
         messages: [
-            {
-                role: "system",
-                content: "You are a meeting assistant who summarizes actual conversation content. You must always format your responses as bullet points using '-' or '•' characters. Never use numbers. Focus on identifying major topics discussed, decisions made, action items, and tone. Avoid inventing content or giving generic descriptions."
-            },
-            {
-                role: "user",
-                content: `Here is a real conversation from a Discord channel:\n\n${userMessages}\n\nCreate a summary using ONLY bullet points (with '-' or '•' characters). Each point should be a distinct topic, decision, or action item. Do not use numbers, paragraphs, or additional commentary. Start each bullet point on a new line.`
-            }
+          {
+            role: "system",
+            content: "You are a meeting assistant who summarizes actual conversation content. You must always format your responses as bullet points using '-' or '•' characters. Never use numbers. Focus on identifying major topics discussed, decisions made, action items, and tone. Avoid inventing content or giving generic descriptions."
+          },
+          {
+            role: "user",
+            content: `Here is a real conversation from a Discord channel:\n\n${userMessages}\n\nCreate a summary using ONLY bullet points (with '-' or '•' characters). Each point should be a distinct topic, decision, or action item. Do not use numbers, paragraphs, or additional commentary. Start each bullet point on a new line.`
+          }
         ],
         stream: false
-    });
-    
+      });
 
       return response.data.message.content.trim();
     } catch (error) {
@@ -116,11 +91,10 @@ async function generateSummary(userMessages) {
       if (attempts === maxRetries) {
         return "Sorry, there was an error generating the summary. Please try again later.";
       }
-      await new Promise((resolve) => setTimeout(resolve, 1000 * attempts));
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
     }
   }
 }
-
 
 client.on("disconnect", () => {
   console.log("Bot disconnected from Discord. Attempting to reconnect...");
