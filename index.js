@@ -70,39 +70,6 @@ client.once("ready", () => {
 });
 
 // Function to generate summary using Ollama with retries
-// async function generateSummary(userMessages) {
-//   const maxRetries = 3;
-//   let attempts = 0;
-
-//   while (attempts < maxRetries) {
-//     try {
-//       const response = await axios.post(process.env.API_URL, {
-//         model: "mistral", // Replace with your model if different
-//         temperature: 0.2,
-//         messages: [
-//           {
-//             role: "system",
-//             content: "You are a meeting assistant who summarizes actual conversation content. You must always format your responses as bullet points using '-' or '•' characters. Never use numbers. Focus on identifying major topics discussed, decisions made, action items, and tone. Avoid inventing content or giving generic descriptions."
-//           },
-//           {
-//             role: "user",
-//             content: `Here is a real conversation from a Discord channel:\n\n${userMessages}\n\nCreate a summary using ONLY bullet points (with '-' or '•' characters). Each point should be a distinct topic, decision, or action item. Do not use numbers, paragraphs, or additional commentary. Start each bullet point on a new line.`
-//           }
-//         ],
-//         stream: false
-//       });
-
-//       return response.data.message.content.trim();
-//     } catch (error) {
-//       attempts++;
-//       console.error(`Summarization attempt ${attempts} failed:`, error);
-//       if (attempts === maxRetries) {
-//         return "Sorry, there was an error generating the summary. Please try again later.";
-//       }
-//       await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
-//     }
-//   }
-// }
 async function generateSummary(userMessages) {
   const maxRetries = 3;
   let attempts = 0;
