@@ -6,7 +6,6 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent]
 });
 
-<<<<<<< HEAD
 // Technical Participants: Alice & Dana
 const aliceMessages = [
   "Hey Dana, did you see the recent update to the GraphQL schema?",
@@ -101,21 +100,19 @@ const eliMessages = [
   "Jazz café? Sounds fancy — send me the name!"
 ];
 
-// Combine all messages and randomize order
-const allMessages = [];
-
+// Combine and label messages
 function labelMessages(sender, messages) {
   return messages.map(msg => `${sender}: ${msg}`);
 }
 
-allMessages.push(
+const allMessages = [
   ...labelMessages("Alice", aliceMessages),
   ...labelMessages("Dana", danaMessages),
   ...labelMessages("Bob", bobMessages),
   ...labelMessages("Eli", eliMessages)
-);
+];
 
-// Shuffle messages randomly
+// Shuffle function
 function shuffle(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -125,41 +122,32 @@ function shuffle(array) {
 
 shuffle(allMessages);
 
+// Limit to 50 messages
+const limitedMessages = allMessages.slice(0, 50);
+
+// Send messages every 2 seconds
 async function sendCyclicMessages() {
   const channelId = process.env.CHANNEL_ID;
-=======
-// Create dummy messages
-async function sendDummyMessages() {
-  const channelId = process.env.CHANNEL_ID;  // Get channel ID from .env file
->>>>>>> parent of e36fc90 (Updated response protocol from tinyllama to be more conversational. Made edits to dummy.jsto provide more conversational messages that would be in a real discord channel. Created a chat cleanup script so that I could remove all the previous messages to make the AI read through the conversational piece without unneccessary messages)
 
   try {
     const channel = await client.channels.fetch(channelId);
 
-<<<<<<< HEAD
-    for (let i = 0; i < allMessages.length; i++) {
+    for (let i = 0; i < limitedMessages.length; i++) {
       await new Promise(resolve => setTimeout(resolve, 2000));
-      await channel.send(allMessages[i]);
-      console.log(`Sent message ${i + 1} of ${allMessages.length}`);
+      await channel.send(limitedMessages[i]);
+      console.log(`Sent message ${i + 1} of ${limitedMessages.length}`);
     }
 
-    console.log('All 80 messages sent successfully.');
-=======
-    // Sending some dummy messages to the channel
-    for (let i = 0; i < 10; i++) {
-      await channel.send(`Dummy message ${i + 1}`);
-    }
-
-    console.log('Dummy messages sent successfully.');
->>>>>>> parent of e36fc90 (Updated response protocol from tinyllama to be more conversational. Made edits to dummy.jsto provide more conversational messages that would be in a real discord channel. Created a chat cleanup script so that I could remove all the previous messages to make the AI read through the conversational piece without unneccessary messages)
+    console.log('50 messages sent successfully.');
   } catch (error) {
     console.error('Error sending dummy messages:', error);
   }
 }
 
+// On bot ready
 client.once('ready', () => {
   console.log(`Logged in as ${client.user.tag}`);
-  sendDummyMessages();  // Call the function to send dummy messages
+  sendCyclicMessages();
 });
 
-client.login(process.env.BOT_TOKEN);  // Log in using the bot token from .env file
+client.login(process.env.BOT_TOKEN);
