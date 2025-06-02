@@ -53,30 +53,37 @@ client.once(Events.ClientReady, readyClient => {
 async function summarizeMessages(messages) {
   try {
     const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: "You are a Discord conversation summarizer. Format your response exactly as follows:\n\n" +
-            "📬 Here's a summary of the conversation:\n\n" +
-            "• [First main point without any usernames]\n" +
-            "• [Second main point without any usernames]\n" +
-            "• [Additional points as needed]\n\n" +
-            "Your summary must:\n" +
-            "- Start with the exact header '📬 Here's a summary of the conversation:'\n" +
-            "- Use bullet points (•) for each main point\n" +
-            "- Never mention participant names\n" +
-            "- Focus only on key topics and decisions\n" +
-            "- Be concise and clear"
-        },
-        {
-          role: "user",
-          content: `Summarize this Discord conversation following the exact format specified:\n\n${messages}`
-        }
-      ],
-      model: "llama-3.1-8b-instant",
-      temperature: 0.7,
-      max_tokens: 1024,
-    });
+  messages: [
+    {
+      role: "system",
+      content: "You are a friendly Discord conversation analyzer. Format your response in this engaging style:\n\n" +
+        "📬 **Conversation Overview**\n" +
+        "Here's what was discussed in the chat:\n\n" +
+        "🎯 **Main Topics & Decisions**\n" +
+        "• [Detailed point about the first main topic, including any decisions or outcomes]\n" +
+        "• [Detailed point about the second main topic, including any decisions or outcomes]\n\n" +
+        "🔄 **Ongoing Discussions**\n" +
+        "• [Any continuing discussions or unresolved points]\n\n" +
+        "📋 **Action Items**\n" +
+        "• [Any clear next steps or tasks mentioned]\n\n" +
+        "Your summary should:\n" +
+        "- Maintain a friendly, natural tone\n" +
+        "- Provide context for technical discussions\n" +
+        "- Include specific details while avoiding usernames\n" +
+        "- Separate ongoing discussions from concrete decisions\n" +
+        "- Keep technical and social topics separate\n" +
+        "- Be thorough yet concise"
+    },
+    {
+      role: "user",
+      content: `Please provide a detailed summary of this Discord conversation following the format above:\n\n${messages}`
+    }
+  ],
+  model: "llama-3.1-8b-instant",
+  temperature: 0.7,
+  max_tokens: 1024,
+});
+
 
     return completion.choices[0].message.content;
   } catch (error) {
