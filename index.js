@@ -33,7 +33,7 @@ async function summarizeMessages(messages) {
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that summarizes Discord conversations. Provide concise, clear summaries that capture the main points and any decisions made."
+          content: "You are a helpful assistant that summarizes Discord conversations. Provide concise, clear summaries that capture the main points and any decisions made, without mentioning any participant names."
         },
         {
           role: "user",
@@ -57,9 +57,10 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'summarize') {
-    await interaction.deferReply({ flags: 1 << 6 }); // ephemeral reply
-
     try {
+      // Defer reply once
+      await interaction.deferReply({ flags: 1 << 6 }); // ephemeral reply
+
       // Fetch messages
       const messages = await interaction.channel.messages.fetch({ limit: 100 });
 
@@ -93,12 +94,18 @@ client.on(Events.InteractionCreate, async interaction => {
           content: '❌ I couldn’t DM you the summary. Do you have DMs disabled?',
         });
       }
-
     } catch (error) {
       console.error('Error processing command:', error);
-      await interaction.editReply({
-        content: '❌ Sorry, something went wrong while summarizing.',
-      });
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({
+          content: '❌ Sorry, something went wrong while summarizing.',
+        });
+      } else {
+        await interaction.reply({
+          content: '❌ Sorry, something went wrong while summarizing.',
+          ephemeral: true,
+        });
+      }
     }
   }
 });
