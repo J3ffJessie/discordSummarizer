@@ -1,4 +1,5 @@
 // Import required dependencies
+const http = require('http');
 const { Client, GatewayIntentBits, Events } = require('discord.js');
 const dotenv = require('dotenv');
 const Groq = require('groq-sdk');
@@ -56,7 +57,7 @@ client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'summarize') {
-    await interaction.deferReply({ flags: 1 << 6 });
+    await interaction.deferReply({ flags: 1 << 6 }); // ephemeral reply
 
     try {
       // Fetch messages
@@ -113,3 +114,16 @@ process.on('unhandledRejection', error => {
 
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN);
+
+// --- Minimal HTTP server for Render port binding ---
+
+const port = process.env.PORT || 3000;
+
+const server = http.createServer((req, res) => {
+  res.writeHead(200);
+  res.end('Discord summarizer bot is running.');
+});
+
+server.listen(port, () => {
+  console.log(`HTTP server listening on port ${port}`);
+});
