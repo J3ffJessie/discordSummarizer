@@ -22,7 +22,7 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// Define slash commands
+// Register slash commands
 const commands = [
   new SlashCommandBuilder()
     .setName('summarize')
@@ -30,7 +30,6 @@ const commands = [
     .toJSON()
 ];
 
-// Register slash commands
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
@@ -51,7 +50,6 @@ client.once(Events.ClientReady, readyClient => {
   console.log(`Ready! Logged in as ${readyClient.user.tag}`);
 });
 
-// Function to summarize messages using Groq
 async function summarizeMessages(messages) {
   try {
     const completion = await groq.chat.completions.create({
@@ -72,7 +70,7 @@ async function summarizeMessages(messages) {
         },
         {
           role: "user",
-          content: `Please summarize the conversation:\n\n${messages}`
+          content: `Summarize this Discord conversation following the exact format specified:\n\n${messages}`
         }
       ],
       model: "llama-3.1-8b-instant",
@@ -93,8 +91,8 @@ client.on(Events.InteractionCreate, async interaction => {
 
   if (interaction.commandName === 'summarize') {
     try {
-      // Defer reply immediately to prevent timeout
-      await interaction.deferReply({ ephemeral: true });
+      // Use the flags property instead of ephemeral
+      await interaction.deferReply({ flags: 64 }); // 64 is the ephemeral flag
 
       // Fetch messages
       const messages = await interaction.channel.messages.fetch({ limit: 100 });
@@ -121,18 +119,23 @@ client.on(Events.InteractionCreate, async interaction => {
         await interaction.editReply('✅ Summary sent to your DMs!');
       } catch (dmError) {
         console.error('Failed to send DM:', dmError);
-        await interaction.editReply('❌ Could not send you a DM. Please check if you have DMs enabled for this server.');
+        // If DM fails, edit the deferred reply with the error message
+        await interaction.editReply({
+          content: '❌ Could not send you a DM. Please check if you have DMs enabled for this server.',
+        });
       }
     } catch (error) {
       console.error('Error processing command:', error);
-      // Only try to reply if we haven't already
+      
       if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ 
+        await interaction.reply({
           content: '❌ An error occurred while processing your request.',
-          ephemeral: true 
+          flags: 64  // Using flags instead of ephemeral
         });
-      } else {
-        await interaction.editReply('❌ An error occurred while processing your request.');
+      } else if (interaction.deferred) {
+        await interaction.editReply({
+          content: '❌ An error occurred while processing your request.'
+        });
       }
     }
   }
@@ -147,12 +150,8 @@ process.on('unhandledRejection', error => {
   console.error('Unhandled promise rejection:', error);
 });
 
-// Login to Discord
-client.login(process.env.DISCORD_TOKEN);
-
-// --- Minimal HTTP server for Render port binding ---
+// Create HTTP server for Render
 const port = process.env.PORT || 3000;
-
 const server = http.createServer((req, res) => {
   res.writeHead(200);
   res.end('Discord summarizer bot is running.');
@@ -161,3 +160,6 @@ const server = http.createServer((req, res) => {
 server.listen(port, () => {
   console.log(`HTTP server listening on port ${port}`);
 });
+
+// Login to Discord
+client.login(process.env.DISCORD_TOKEN);
