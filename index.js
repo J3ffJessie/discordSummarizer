@@ -37,7 +37,7 @@ async function summarizeMessages(messages) {
         },
         {
           role: "user",
-          content: `Please summarize this Discord conversation:\n\n${messages}`
+          content: `Please summarize this Discord conversation highlighting the main topic points and without mentioning any participant names:\n\n${messages}`
         }
       ],
       model: "llama-3.1-8b-instant",
