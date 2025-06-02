@@ -1,6 +1,6 @@
 // Import required dependencies
 const http = require('http');
-const { Client, GatewayIntentBits, Events } = require('discord.js');
+const { Client, GatewayIntentBits, Events, REST, Routes, SlashCommandBuilder } = require('discord.js');
 const dotenv = require('dotenv');
 const Groq = require('groq-sdk');
 
@@ -13,6 +13,7 @@ const client = new Client({
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.DirectMessages,
   ]
 });
 
@@ -21,36 +22,36 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+// Define slash commands
+const commands = [
+  new SlashCommandBuilder()
+    .setName('summarize')
+    .setDescription('Summarize recent messages in this channel')
+    .toJSON()
+];
+
+// Register slash commands
+const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+
+(async () => {
+  try {
+    console.log('Started refreshing application (/) commands.');
+    await rest.put(
+      Routes.applicationCommands(process.env.CLIENT_ID),
+      { body: commands },
+    );
+    console.log('Successfully reloaded application (/) commands.');
+  } catch (error) {
+    console.error('Error registering slash commands:', error);
+  }
+})();
+
 // Handle ready event
 client.once(Events.ClientReady, readyClient => {
   console.log(`Ready! Logged in as ${readyClient.user.tag}`);
 });
 
 // Function to summarize messages using Groq
-// async function summarizeMessages(messages) {
-//   try {
-//     const completion = await groq.chat.completions.create({
-//       messages: [
-//         {
-//           role: "system",
-//           content: "You are a helpful assistant that summarizes Discord conversations. Provide concise, clear summaries that capture the main points and any decisions made, without mentioning any participant names."
-//         },
-//         {
-//           role: "user",
-//           content: `Please summarize this Discord conversation highlighting the main topic points and without mentioning any participant names:\n\n${messages}`
-//         }
-//       ],
-//       model: "llama-3.1-8b-instant",
-//       temperature: 0.7,
-//       max_tokens: 1024,
-//     });
-
-//     return completion.choices[0].message.content;
-//   } catch (error) {
-//     console.error('Error in summarization:', error);
-//     throw error;
-//   }
-// }
 async function summarizeMessages(messages) {
   try {
     const completion = await groq.chat.completions.create({
@@ -71,7 +72,7 @@ async function summarizeMessages(messages) {
         },
         {
           role: "user",
-          content: `Summarize this Discord conversation following the exact format specified:\n\n${messages}`
+          content: `Please summarize the conversation:\n\n${messages}`
         }
       ],
       model: "llama-3.1-8b-instant",
@@ -86,15 +87,14 @@ async function summarizeMessages(messages) {
   }
 }
 
-
 // Handle slash commands
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'summarize') {
     try {
-      // Defer reply once
-      await interaction.deferReply({ flags: 1 << 6 }); // ephemeral reply
+      // Defer reply immediately to prevent timeout
+      await interaction.deferReply({ ephemeral: true });
 
       // Fetch messages
       const messages = await interaction.channel.messages.fetch({ limit: 100 });
@@ -113,33 +113,26 @@ client.on(Events.InteractionCreate, async interaction => {
 
       try {
         // Send summary chunks via DM
-        for (let i = 0; i < chunks.length; i++) {
-          const content = i === 0
-            ? `📬 Here's a summary of the conversation:\n\n${chunks[i]}`
-            : chunks[i];
-          await interaction.user.send(content);
+        for (const chunk of chunks) {
+          await interaction.user.send(chunk);
         }
 
-        await interaction.editReply({
-          content: '✅ Summary sent via DM!',
-        });
+        // Edit the deferred reply
+        await interaction.editReply('✅ Summary sent to your DMs!');
       } catch (dmError) {
-        console.error('❌ Failed to send DM:', dmError);
-        await interaction.editReply({
-          content: '❌ I couldn’t DM you the summary. Do you have DMs disabled?',
-        });
+        console.error('Failed to send DM:', dmError);
+        await interaction.editReply('❌ Could not send you a DM. Please check if you have DMs enabled for this server.');
       }
     } catch (error) {
       console.error('Error processing command:', error);
-      if (interaction.deferred || interaction.replied) {
-        await interaction.editReply({
-          content: '❌ Sorry, something went wrong while summarizing.',
+      // Only try to reply if we haven't already
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ 
+          content: '❌ An error occurred while processing your request.',
+          ephemeral: true 
         });
       } else {
-        await interaction.reply({
-          content: '❌ Sorry, something went wrong while summarizing.',
-          ephemeral: true,
-        });
+        await interaction.editReply('❌ An error occurred while processing your request.');
       }
     }
   }
@@ -158,7 +151,6 @@ process.on('unhandledRejection', error => {
 client.login(process.env.DISCORD_TOKEN);
 
 // --- Minimal HTTP server for Render port binding ---
-
 const port = process.env.PORT || 3000;
 
 const server = http.createServer((req, res) => {
