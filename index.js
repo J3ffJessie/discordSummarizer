@@ -86,13 +86,14 @@ async function summarizeMessages(messages) {
 }
 
 // Handle slash commands
+// Handle slash commands
 client.on(Events.InteractionCreate, async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === 'summarize') {
     try {
-      // Use the flags property instead of ephemeral
-      await interaction.deferReply({ flags: 64 }); // 64 is the ephemeral flag
+      // Defer reply immediately to prevent timeout
+      await interaction.deferReply({ ephemeral: true });
 
       // Fetch messages
       const messages = await interaction.channel.messages.fetch({ limit: 100 });
@@ -115,31 +116,40 @@ client.on(Events.InteractionCreate, async interaction => {
           await interaction.user.send(chunk);
         }
 
-        // Edit the deferred reply
-        await interaction.editReply('✅ Summary sent to your DMs!');
+        // Use editReply instead of reply since we already deferred
+        await interaction.editReply({
+          content: '✅ Summary sent to your DMs!',
+          ephemeral: true
+        });
+
       } catch (dmError) {
         console.error('Failed to send DM:', dmError);
-        // If DM fails, edit the deferred reply with the error message
+        // Use editReply for the error message too
         await interaction.editReply({
           content: '❌ Could not send you a DM. Please check if you have DMs enabled for this server.',
+          ephemeral: true
         });
       }
     } catch (error) {
       console.error('Error processing command:', error);
       
       if (!interaction.replied && !interaction.deferred) {
+        // Only use reply if we haven't deferred or replied yet
         await interaction.reply({
           content: '❌ An error occurred while processing your request.',
-          flags: 64  // Using flags instead of ephemeral
+          ephemeral: true
         });
-      } else if (interaction.deferred) {
+      } else {
+        // Use editReply if we've already deferred
         await interaction.editReply({
-          content: '❌ An error occurred while processing your request.'
+          content: '❌ An error occurred while processing your request.',
+          ephemeral: true
         });
       }
     }
   }
 });
+
 
 // Error handling
 client.on('error', error => {
