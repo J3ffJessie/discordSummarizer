@@ -27,17 +27,51 @@ client.once(Events.ClientReady, readyClient => {
 });
 
 // Function to summarize messages using Groq
+// async function summarizeMessages(messages) {
+//   try {
+//     const completion = await groq.chat.completions.create({
+//       messages: [
+//         {
+//           role: "system",
+//           content: "You are a helpful assistant that summarizes Discord conversations. Provide concise, clear summaries that capture the main points and any decisions made, without mentioning any participant names."
+//         },
+//         {
+//           role: "user",
+//           content: `Please summarize this Discord conversation highlighting the main topic points and without mentioning any participant names:\n\n${messages}`
+//         }
+//       ],
+//       model: "llama-3.1-8b-instant",
+//       temperature: 0.7,
+//       max_tokens: 1024,
+//     });
+
+//     return completion.choices[0].message.content;
+//   } catch (error) {
+//     console.error('Error in summarization:', error);
+//     throw error;
+//   }
+// }
 async function summarizeMessages(messages) {
   try {
     const completion = await groq.chat.completions.create({
       messages: [
         {
           role: "system",
-          content: "You are a helpful assistant that summarizes Discord conversations. Provide concise, clear summaries that capture the main points and any decisions made, without mentioning any participant names."
+          content: "You are a Discord conversation summarizer. Format your response exactly as follows:\n\n" +
+            "📬 Here's a summary of the conversation:\n\n" +
+            "• [First main point without any usernames]\n" +
+            "• [Second main point without any usernames]\n" +
+            "• [Additional points as needed]\n\n" +
+            "Your summary must:\n" +
+            "- Start with the exact header '📬 Here's a summary of the conversation:'\n" +
+            "- Use bullet points (•) for each main point\n" +
+            "- Never mention participant names\n" +
+            "- Focus only on key topics and decisions\n" +
+            "- Be concise and clear"
         },
         {
           role: "user",
-          content: `Please summarize this Discord conversation highlighting the main topic points and without mentioning any participant names:\n\n${messages}`
+          content: `Summarize this Discord conversation following the exact format specified:\n\n${messages}`
         }
       ],
       model: "llama-3.1-8b-instant",
@@ -51,6 +85,7 @@ async function summarizeMessages(messages) {
     throw error;
   }
 }
+
 
 // Handle slash commands
 client.on(Events.InteractionCreate, async interaction => {
