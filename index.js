@@ -265,66 +265,60 @@ client.on(Events.InteractionCreate, async (interaction) => {
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
 
-  // --- LinkedIn job search command ---
   if (message.content.startsWith("!jobs")) {
     const parts = message.content.trim().split(" ");
-    // Accept comma-separated keywords, or default to "technology"
-    const keywords = (parts[1] ? parts[1].split(",") : ["technology"]).map(k => k.trim());
-
-    await message.channel.send(`🔍 Searching LinkedIn jobs for: ${keywords.join(", ")}. Please wait...`);
-
-    for (const keyword of keywords) {
-      await sendLinkedInJobsToChannel(message.channel, keyword);
-    }
+    const query = parts.slice(1).join(" ") || "technology jobs";
+    await message.channel.send(`🔍 Searching jobs for: ${query}. Please wait...`);
+    await sendJobsToChannel(message.channel, query);
     return;
   }
 });
 
-// Fetch LinkedIn jobs using RapidAPI
-async function fetchLinkedInJobs(keyword, page = 1) {
+// Fetch jobs from JSearch API
+async function fetchJobs(query = "technology jobs", page = 1, num_pages = 1, date_posted = "all") {
   try {
     const response = await fetch(
-      `https://fresh-linkedin-scraper-api.p.rapidapi.com/api/v1/job/search?keyword=${encodeURIComponent(keyword)}&page=${page}`,
+      `https://jsearch.p.rapidapi.com/search?query=${encodeURIComponent(query)}&page=${page}&num_pages=${num_pages}&date_posted=${date_posted}`,
       {
         method: "GET",
         headers: {
           "x-rapidapi-key": process.env.RAPIDAPI_KEY,
-          "x-rapidapi-host": process.env.RAPIDAPI_HOST,
+          "x-rapidapi-host": "jsearch.p.rapidapi.com",
         },
       }
     );
-    if (!response.ok) throw new Error("Failed to fetch LinkedIn jobs");
+    if (!response.ok) throw new Error("Failed to fetch jobs from JSearch");
     const data = await response.json();
     return data;
   } catch (error) {
-    console.error("LinkedIn Job Search API error:", error.message);
+    console.error("JSearch API error:", error.message);
     return null;
   }
 }
 
-// Send LinkedIn jobs as embeds to a channel
-async function sendLinkedInJobsToChannel(channel, keyword, page = 1) {
-  const data = await fetchLinkedInJobs(keyword, page);
+// Send jobs as embeds to a Discord channel
+async function sendJobsToChannel(channel, query = "technology jobs") {
+  const data = await fetchJobs(query);
 
   if (!data || !Array.isArray(data.data) || data.data.length === 0) {
-    await channel.send(`⚠️ No LinkedIn jobs found for "${keyword}".`);
+    await channel.send(`⚠️ No jobs found for "${query}".`);
     return;
   }
 
-  for (const job of data.data.slice(0, 10)) { // Limit to 5 jobs per request
-    const logoUrl = job.company?.logo?.[0]?.url || null; // Use the first logo if available
-
+  console.log('Fetched jobs:', data.data);
+  for (const job of data.data.slice(0, 15)) { // Limit to 5 jobs per request
     const embed = new EmbedBuilder()
-      .setTitle(job.title || "No title")
-      .setURL(job.url || null)
+      .setTitle(job.job_title || "No title")
+      .setURL(job.job_apply_link || job.job_google_link || null)
       .addFields(
-        { name: "Company", value: job.company?.name || "N/A", inline: true },
-        { name: "Posted", value: job.listed_at ? new Date(job.listed_at).toLocaleString() : "N/A", inline: true }
+        { name: "Company", value: job.employer_name || "N/A", inline: true },
+        { name: "Location", value: job.job_city ? `${job.job_city}, ${job.job_country}` : "N/A", inline: true },
+        { name: "Posted", value: job.job_posted_at_datetime_utc ? new Date(job.job_posted_at_datetime_utc).toLocaleString() : "N/A", inline: true }
       )
-      .setColor(0x0077b5);
+      .setColor(0x00ae86);
 
-    if (logoUrl) {
-      embed.setThumbnail(logoUrl);
+    if (job.employer_logo) {
+      embed.setThumbnail(job.employer_logo);
     }
 
     await channel.send({ embeds: [embed] });
