@@ -1,8 +1,19 @@
 // Import required dependencies
-const http = require('http');
-const { Client, GatewayIntentBits, Events, REST, Routes, SlashCommandBuilder } = require('discord.js');
-const dotenv = require('dotenv');
-const Groq = require('groq-sdk');
+const http = require("http");
+const {
+  Client,
+  GatewayIntentBits,
+  Events,
+  REST,
+  Routes,
+  SlashCommandBuilder,
+  EmbedBuilder,
+} = require("discord.js");
+const dotenv = require("dotenv");
+const Groq = require("groq-sdk");
+const axios = require("axios");
+const cron = require("node-cron");
+const fetch = require("node-fetch"); // Add this at the top with your other requires
 
 // Load environment variables
 dotenv.config();
@@ -14,7 +25,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
-  ]
+  ],
 });
 
 // Initialize Groq client
@@ -25,132 +36,225 @@ const groq = new Groq({
 // Register slash commands
 const commands = [
   new SlashCommandBuilder()
-    .setName('summarize')
-    .setDescription('Summarize recent messages in this channel')
-    .toJSON()
+    .setName("summarize")
+    .setDescription("Summarize recent messages in this channel")
+    .toJSON(),
 ];
 
-const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
 
 (async () => {
   try {
-    console.log('Started refreshing application (/) commands.');
-    await rest.put(
-      Routes.applicationCommands(process.env.CLIENT_ID),
-      { body: commands },
-    );
-    console.log('Successfully reloaded application (/) commands.');
+    console.log("Started refreshing application (/) commands.");
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), {
+      body: commands,
+    });
+    console.log("Successfully reloaded application (/) commands.");
   } catch (error) {
-    console.error('Error registering slash commands:', error);
+    console.error("Error registering slash commands:", error);
   }
 })();
 
-// Handle ready event
-client.once(Events.ClientReady, readyClient => {
+let jobChannelId = null; // Will store ID of job-listings channel
+
+// Ready event
+client.once(Events.ClientReady, async (readyClient) => {
   console.log(`Ready! Logged in as ${readyClient.user.tag}`);
+
+  // Find the "job-listings" channel across all guilds the bot is in
+  for (const [guildId, guild] of client.guilds.cache) {
+    try {
+      const fullGuild = await guild.fetch();
+      const channel = fullGuild.channels.cache.find(
+        (ch) => ch.name === "job-list" && ch.isTextBased()
+      );
+
+      if (channel) {
+        jobChannelId = channel.id;
+        console.log(
+          `✅ Job listing channel found: ${channel.name} (${channel.id}) in guild ${fullGuild.name}`
+        );
+        break; // Stop after finding first match
+      }
+    } catch (err) {
+      console.warn(`Failed to fetch channels for guild ID ${guildId}:`, err);
+    }
+  }
+
+  if (!jobChannelId) {
+    console.warn('⚠️ Could not find a "job-listings" channel in any guild.');
+  }
 });
 
+// Summarization function (unchanged)
 async function summarizeMessages(messages) {
   try {
     const completion = await groq.chat.completions.create({
-  messages: [
-    {
-      role: "system",
-      content: "You are a friendly Discord conversation analyzer. Format your response in this engaging style:\n\n" +
-        "📬 **Conversation Overview**\n" +
-        "Here's what was discussed in the chat:\n\n" +
-        "🎯 **Main Topics & Decisions**\n" +
-        "• [Detailed point about the first main topic, including any decisions or outcomes]\n" +
-        "• [Detailed point about the second main topic, including any decisions or outcomes]\n\n" +
-        "🔄 **Ongoing Discussions**\n" +
-        "• [Any continuing discussions or unresolved points]\n\n" +
-        "📋 **Action Items**\n" +
-        "• [Any clear next steps or tasks mentioned]\n\n" +
-        "Your summary should:\n" +
-        "- Maintain a friendly, natural tone\n" +
-        "- Provide context for technical discussions\n" +
-        "- Include specific details while avoiding usernames\n" +
-        "- Separate ongoing discussions from concrete decisions\n" +
-        "- Keep technical and social topics separate\n" +
-        "- Be thorough yet concise"
-    },
-    {
-      role: "user",
-      content: `Please provide a detailed summary of this Discord conversation following the format above:\n\n${messages}`
-    }
-  ],
-  model: "llama-3.1-8b-instant",
-  temperature: 0.7,
-  max_tokens: 1024,
-});
-
+      messages: [
+        {
+          role: "system",
+          content:
+            "You are a friendly Discord conversation analyzer. Format your response in this engaging style:\n\n" +
+            "📬 **Conversation Overview**\n" +
+            "Here's what was discussed in the chat:\n\n" +
+            "🎯 **Main Topics & Decisions**\n" +
+            "• [Detailed point about the first main topic, including any decisions or outcomes]\n" +
+            "• [Detailed point about the second main topic, including any decisions or outcomes]\n\n" +
+            "🔄 **Ongoing Discussions**\n" +
+            "• [Any continuing discussions or unresolved points]\n\n" +
+            "📋 **Action Items**\n" +
+            "• [Any clear next steps or tasks mentioned]",
+        },
+        {
+          role: "user",
+          content: `Please provide a detailed summary of this Discord conversation following the format above:\n\n${messages}`,
+        },
+      ],
+      model: "llama-3.1-8b-instant",
+      temperature: 0.7,
+      max_tokens: 1024,
+    });
 
     return completion.choices[0].message.content;
   } catch (error) {
-    console.error('Error in summarization:', error);
+    console.error("Error in summarization:", error);
     throw error;
   }
 }
 
-// Handle slash commands
-// Handle slash commands
-client.on(Events.InteractionCreate, async interaction => {
+// Fetch real job listings from RemoteOK API
+async function fetchJobListings() {
+  try {
+    const response = await fetch("https://remoteok.com/api");
+    if (!response.ok) throw new Error("Failed to fetch job listings");
+    const data = await response.json();
+
+    // The first element is metadata, skip it
+    const jobs = data
+      .slice(1)
+      .filter(
+        (job) =>
+          job.position &&
+          job.company &&
+          (job.location || job.country) &&
+          job.url
+      )
+      .slice(0, 10) // Limit to 10 jobs
+      .map((job) => ({
+        title: job.position,
+        company: job.company,
+        location: job.location || job.country || "Remote",
+        salary: job.salary || "N/A",
+        url: job.url.startsWith("http")
+          ? job.url
+          : `https://remoteok.com${job.url}`,
+      }));
+
+    return jobs;
+  } catch (error) {
+    console.error("RemoteOK job listing error:", error.message);
+    return [];
+  }
+}
+
+// Send job listings as embeds to a channel
+async function sendJobListingsToChannel(channel) {
+  const jobs = await fetchJobListings();
+
+  if (jobs.length === 0) {
+    await channel.send("⚠️ No job listings available at the moment.");
+    return;
+  }
+
+  for (const job of jobs) {
+    const embed = new EmbedBuilder()
+      .setTitle(job.title || "No title")
+      .setURL(job.url || null)
+      .addFields(
+        { name: "Company", value: job.company || "N/A", inline: true },
+        { name: "Location", value: job.location || "N/A", inline: true },
+        { name: "Salary/Contract", value: job.salary || "N/A", inline: true }
+      )
+      .setColor(0x00ae86);
+
+    await channel.send({ embeds: [embed] });
+  }
+}
+
+// Schedule weekly job listing every Monday at 9am CST
+cron.schedule(
+  "0 9 * * 1",
+  async () => {
+    if (!jobChannelId) {
+      console.log(
+        "No job-listings channel found. Skipping scheduled job listings."
+      );
+      return;
+    }
+
+    console.log("📆 Running weekly job listing fetch...");
+    try {
+      const channel = await client.channels.fetch(jobChannelId);
+      if (channel && channel.isTextBased()) {
+        await sendJobListingsToChannel(channel);
+      }
+    } catch (error) {
+      console.error("Error posting listings to channel:", error);
+    }
+  },
+  {
+    timezone: "America/Chicago",
+  }
+);
+
+// Handle slash command interaction (unchanged)
+client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
-  if (interaction.commandName === 'summarize') {
+  if (interaction.commandName === "summarize") {
     try {
-      // Defer reply immediately to prevent timeout
       await interaction.deferReply({ ephemeral: true });
-
-      // Fetch messages
       const messages = await interaction.channel.messages.fetch({ limit: 100 });
 
-      // Format messages for summarization
       const formattedMessages = messages
         .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-        .map(msg => `${msg.author.username}: ${msg.content}`)
-        .join('\n');
+        .map((msg) => `${msg.author.username}: ${msg.content}`)
+        .join("\n");
 
-      // Get summary from Groq
       const summary = await summarizeMessages(formattedMessages);
-
-      // Split summary into safe chunks (≤1900 characters)
-      const chunks = summary.match(/[\s\S]{1,1900}/g) || ['No summary available.'];
+      const chunks = summary.match(/[\s\S]{1,1900}/g) || [
+        "No summary available.",
+      ];
 
       try {
-        // Send summary chunks via DM
         for (const chunk of chunks) {
           await interaction.user.send(chunk);
         }
 
-        // Use editReply instead of reply since we already deferred
         await interaction.editReply({
-          content: '✅ Summary sent to your DMs!',
-          ephemeral: true
+          content: "✅ Summary sent to your DMs!",
+          ephemeral: true,
         });
-
       } catch (dmError) {
-        console.error('Failed to send DM:', dmError);
-        // Use editReply for the error message too
+        console.error("Failed to send DM:", dmError);
         await interaction.editReply({
-          content: '❌ Could not send you a DM. Please check if you have DMs enabled for this server.',
-          ephemeral: true
+          content:
+            "❌ Could not send you a DM. Please check if you have DMs enabled for this server.",
+          ephemeral: true,
         });
       }
     } catch (error) {
-      console.error('Error processing command:', error);
-      
+      console.error("Error processing command:", error);
+
       if (!interaction.replied && !interaction.deferred) {
-        // Only use reply if we haven't deferred or replied yet
         await interaction.reply({
-          content: '❌ An error occurred while processing your request.',
-          ephemeral: true
+          content: "❌ An error occurred while processing your request.",
+          ephemeral: true,
         });
       } else {
-        // Use editReply if we've already deferred
         await interaction.editReply({
-          content: '❌ An error occurred while processing your request.',
-          ephemeral: true
+          content: "❌ An error occurred while processing your request.",
+          ephemeral: true,
         });
       }
     }
@@ -158,20 +262,89 @@ client.on(Events.InteractionCreate, async interaction => {
 });
 
 
-// Error handling
-client.on('error', error => {
-  console.error('Discord client error:', error);
+client.on(Events.MessageCreate, async (message) => {
+  if (message.author.bot) return;
+
+  // --- LinkedIn job search command ---
+  if (message.content.startsWith("!jobs")) {
+    const parts = message.content.trim().split(" ");
+    // Accept comma-separated keywords, or default to "technology"
+    const keywords = (parts[1] ? parts[1].split(",") : ["technology"]).map(k => k.trim());
+
+    await message.channel.send(`🔍 Searching LinkedIn jobs for: ${keywords.join(", ")}. Please wait...`);
+
+    for (const keyword of keywords) {
+      await sendLinkedInJobsToChannel(message.channel, keyword);
+    }
+    return;
+  }
 });
 
-process.on('unhandledRejection', error => {
-  console.error('Unhandled promise rejection:', error);
+// Fetch LinkedIn jobs using RapidAPI
+async function fetchLinkedInJobs(keyword, page = 1) {
+  try {
+    const response = await fetch(
+      `https://fresh-linkedin-scraper-api.p.rapidapi.com/api/v1/job/search?keyword=${encodeURIComponent(keyword)}&page=${page}`,
+      {
+        method: "GET",
+        headers: {
+          "x-rapidapi-key": process.env.RAPIDAPI_KEY,
+          "x-rapidapi-host": process.env.RAPIDAPI_HOST,
+        },
+      }
+    );
+    if (!response.ok) throw new Error("Failed to fetch LinkedIn jobs");
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error("LinkedIn Job Search API error:", error.message);
+    return null;
+  }
+}
+
+// Send LinkedIn jobs as embeds to a channel
+async function sendLinkedInJobsToChannel(channel, keyword, page = 1) {
+  const data = await fetchLinkedInJobs(keyword, page);
+
+  if (!data || !Array.isArray(data.data) || data.data.length === 0) {
+    await channel.send(`⚠️ No LinkedIn jobs found for "${keyword}".`);
+    return;
+  }
+
+  for (const job of data.data.slice(0, 10)) { // Limit to 5 jobs per request
+    const logoUrl = job.company?.logo?.[0]?.url || null; // Use the first logo if available
+
+    const embed = new EmbedBuilder()
+      .setTitle(job.title || "No title")
+      .setURL(job.url || null)
+      .addFields(
+        { name: "Company", value: job.company?.name || "N/A", inline: true },
+        { name: "Posted", value: job.listed_at ? new Date(job.listed_at).toLocaleString() : "N/A", inline: true }
+      )
+      .setColor(0x0077b5);
+
+    if (logoUrl) {
+      embed.setThumbnail(logoUrl);
+    }
+
+    await channel.send({ embeds: [embed] });
+  }
+}
+
+// Error handling
+client.on("error", (error) => {
+  console.error("Discord client error:", error);
+});
+
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled promise rejection:", error);
 });
 
 // Create HTTP server for Render
 const port = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
   res.writeHead(200);
-  res.end('Discord summarizer bot is running.');
+  res.end("Discord summarizer bot is running.");
 });
 
 server.listen(port, () => {
