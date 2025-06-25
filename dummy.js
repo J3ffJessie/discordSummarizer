@@ -127,18 +127,33 @@ const limitedMessages = allMessages.slice(0, 50);
 
 // Send messages every 2 seconds
 async function sendCyclicMessages() {
-  const channelId = process.env.CHANNEL_ID;
-
+  const guildId = process.env.GUILD_ID;
   try {
-    const channel = await client.channels.fetch(channelId);
+    // Use the cached guild object
+    const guild = client.guilds.cache.get(guildId);
+    if (!guild) {
+      console.error('Guild not found in cache. Is the bot in the server?');
+      return;
+    }
+    console.log('guild.channels:', guild.channels);
 
-    for (let i = 0; i < limitedMessages.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      await channel.send(limitedMessages[i]);
-      console.log(`Sent message ${i + 1} of ${limitedMessages.length}`);
+    const channels = Array.from(guild.channels.cache.values()).filter(
+      ch => ch.isTextBased() && ch.viewable && !ch.isThread()
+    );
+
+    if (channels.length === 0) {
+      console.error('No text channels found in the guild.');
+      return;
     }
 
-    console.log('50 messages sent successfully.');
+    for (let i = 0; i < limitedMessages.length; i++) {
+      const randomChannel = channels[Math.floor(Math.random() * channels.length)];
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      await randomChannel.send(limitedMessages[i]);
+      console.log(`Sent message ${i + 1} of ${limitedMessages.length} to #${randomChannel.name}`);
+    }
+
+    console.log('50 messages sent successfully across random channels.');
   } catch (error) {
     console.error('Error sending dummy messages:', error);
   }
