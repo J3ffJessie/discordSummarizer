@@ -1,23 +1,48 @@
 function findLocation(text) {
   const lowerText = text.toLowerCase();
+  const foundCities = [];
+  const foundCountries = [];
 
-  // Check for city
+  // Check for cities (whole word/phrase match, case-insensitive)
   for (const city of cities) {
-    // city is a string, not an object
-    if (lowerText.includes(city.toLowerCase())) {
-      return { matchFound: true, type: "city", name: city };
+    const pattern = new RegExp(`\\b${city.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (pattern.test(text)) {
+      foundCities.push(city);
     }
   }
 
-  // Check for country
+  // Check for countries (whole word/phrase match, case-insensitive)
   for (const country of countries) {
-    if (lowerText.includes(country.toLowerCase())) {
-      return { matchFound: true, type: "country", name: country };
+    const pattern = new RegExp(`\\b${country.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (pattern.test(text)) {
+      foundCountries.push(country);
     }
   }
 
-  return { matchFound: false };
+  // Remove any cities that are also in the foundCountries list
+  const filteredCities = foundCities.filter(city => !foundCountries.includes(city));
+
+  // Try to extract "Where: ..." field if present
+  let whereMatch = text.match(/Where:\s*([^💜\n]+)/i);
+  let extractedLocation = null;
+  if (whereMatch) {
+    extractedLocation = whereMatch[1].trim(); // e.g., "Birmingham, AL"
+  }
+
+  // Prefer country over city if both are found
+  if (foundCountries.length > 0) {
+    return { matchFound: true, type: "country", name: foundCountries[0], names: foundCountries, extractedLocation };
+  }
+  if (filteredCities.length > 0) {
+    return { matchFound: true, type: "city", name: filteredCities[0], names: filteredCities, extractedLocation };
+  }
+  // If we extracted a location from "Where:" but didn't match a known city/country
+  if (extractedLocation) {
+    return { matchFound: true, type: "unknown", name: extractedLocation, names: [], extractedLocation };
+  }
+  return { matchFound: false, extractedLocation };
 }
+
 const cities = [
   "'Ain Abessa",
   "'Ain Abid",
@@ -44545,25 +44570,5 @@ const countries = [
   "Zambia",
   "Zimbabwe",
 ];
-
-function findLocation(text) {
-  const lowerText = text.toLowerCase();
-
-  // Check for city
-  for (const city of cities) {
-    if (lowerText.includes(city.name.toLowerCase())) {
-      return { matchFound: true, type: "city", ...city };
-    }
-  }
-
-  // Check for country
-  for (const country of countries) {
-    if (lowerText.includes(country.toLowerCase())) {
-      return { matchFound: true, type: "country", name: country };
-    }
-  }
-
-  return { matchFound: false };
-}
 
 module.exports = { cities, countries, findLocation };

@@ -206,10 +206,9 @@ client.on(Events.MessageCreate, async (message) => {
     console.log(
       `[${new Date().toISOString()}] Location mention detected:`,
       {
-        user: message.author.tag,
-        type: locationResult.type,
-        name: locationResult.name || locationResult.city,
-        content: message.content
+      user: message.member?.displayName || message.author.username,
+      type: locationResult.type,
+      name: locationResult.name || locationResult.city,
       }
     );
   }
