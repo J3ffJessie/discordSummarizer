@@ -294,19 +294,19 @@ client.on(Events.MessageCreate, async (message) => {
     return;
   }
 
-  // Passive location detection for all messages
-  const locationResult = findLocation(message.content);
+  // // Passive location detection for all messages
+  // const locationResult = findLocation(message.content);
 
-  if (locationResult.matchFound) {
-    console.log(
-      `[${new Date().toISOString()}] Location mention detected:`,
-      {
-        user: message.member?.displayName || message.author.username,
-        type: locationResult.type,
-        name: locationResult.name || locationResult.city,
-      }
-    );
-  }
+  // if (locationResult.matchFound) {
+  //   console.log(
+  //     `[${new Date().toISOString()}] Location mention detected:`,
+  //     {
+  //       user: message.member?.displayName || message.author.username,
+  //       type: locationResult.type,
+  //       name: locationResult.name || locationResult.city,
+  //     }
+  //   );
+  // }
 });
 client.on("error", (error) => {
   console.error("Discord client error:", error);
