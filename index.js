@@ -156,8 +156,12 @@ async function gatherServerConversationsAndSummarize(guild) {
     }
   }
 
-  // Optionally truncate if too long for LLM
-  const combined = allMessages.slice(-500).join('\n'); // Last 500 messages across channels
+  // Combine all messages into a single string
+  let combined = allMessages.join('\n');
+  // Truncate to last 16,000 characters to stay under token limit
+  if (combined.length > 16000) {
+    combined = combined.slice(-16000);
+  }
 
   const summary = await summarizeMessages(combined);
   return summary;
@@ -166,19 +170,52 @@ async function gatherServerConversationsAndSummarize(guild) {
 
 client.on(Events.MessageCreate, async (message) => {
   // Ignore bot messages
-  // if (message.author.bot) return;
+  if (message.author.bot) return;
 
-  // Replace with your target channel ID. Check to make it dynamic later if Jason sets up a specific channel or copy the intros id from Torc.
-  const targetChannelId = "1387791462745247904";
-  if (message.channel.id === targetChannelId) {
-    // Check for city in message
-    const cityResult = findCity(message.content);
-    if (cityResult.matchFound) {
-      await message.reply(
-        `🏙️ Detected city: **${cityResult.name}** (${cityResult.region}, ${cityResult.country})`
-      );
+  // Respond to !location command by searching recent messages for locations
+  if (message.content.trim().startsWith("!location")) {
+    // Get the number of messages to search, default to 30
+    const args = message.content.trim().split(" ");
+    let searchLimit = 30;
+    if (args.length > 1 && !isNaN(Number(args[1]))) {
+      searchLimit = Math.min(Number(args[1]), 100);
     }
 
+    try {
+      const messages = await message.channel.messages.fetch({ limit: searchLimit });
+      const foundLocations = [];
+
+      messages.forEach(msg => {
+        const locationResult = findLocation(msg.content);
+        if (locationResult.matchFound) {
+          foundLocations.push({
+            user: msg.member?.displayName || msg.author.username,
+            text: msg.content,
+            ...locationResult
+          });
+        }
+      });
+
+      if (foundLocations.length === 0) {
+        console.log(`[${new Date().toISOString()}] No known locations found in the recent messages.`);
+      } else {
+        foundLocations
+          .filter(loc => loc.user !== "Chat Summary")
+          .forEach(loc => {
+            console.log(
+              `[${new Date().toISOString()}] Location mention detected:`,
+              {
+                user: loc.user,
+                type: loc.type,
+                name: loc.name || loc.city,
+              }
+            );
+          });
+      }
+    } catch (err) {
+      console.error("Error searching for locations:", err);
+    }
+    return;
   }
 
   // The !server command is still useful for on-demand summaries,
@@ -200,15 +237,16 @@ client.on(Events.MessageCreate, async (message) => {
     return;
   }
 
+  // Passive location detection for all messages
   const locationResult = findLocation(message.content);
 
   if (locationResult.matchFound) {
     console.log(
       `[${new Date().toISOString()}] Location mention detected:`,
       {
-      user: message.member?.displayName || message.author.username,
-      type: locationResult.type,
-      name: locationResult.name || locationResult.city,
+        user: message.member?.displayName || message.author.username,
+        type: locationResult.type,
+        name: locationResult.name || locationResult.city,
       }
     );
   }
