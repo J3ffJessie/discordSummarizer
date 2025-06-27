@@ -207,19 +207,9 @@ client.on(Events.MessageCreate, async (message) => {
           .forEach(loc => {
             if (!loggedUsernames.has(loc.user)) {
               appendLocationToLog({
-                timestamp: new Date().toISOString(),
-                user: loc.user,
                 type: loc.type,
                 name: loc.name || loc.city,
               });
-              // console.log(
-              //   `[${new Date().toISOString()}]`,
-              //   {
-              //     user: loc.user,
-              //     type: loc.type,
-              //     name: loc.name || loc.city,
-              //   }
-              // );
             }
           });
       }
@@ -235,6 +225,7 @@ client.on(Events.MessageCreate, async (message) => {
   // even if you also run server summarization on a schedule via cron.
   if (message.content.trim() === "!server") {
     const statusMsg = await message.channel.send("⏳ Gathering and summarizing conversations across all channels. Please wait...");
+    setTimeout(() => statusMsg.delete().catch(() => {}), 500);
     try {
       const summary = await gatherServerConversationsAndSummarize(message.guild);
       const chunks = summary.match(/[\s\S]{1,1900}/g) || ["No summary available."];
@@ -242,14 +233,63 @@ client.on(Events.MessageCreate, async (message) => {
         await message.author.send(chunk);
       }
       const doneMsg = await message.channel.send("✅ Server summary sent to your DMs!");
-      setTimeout(() => doneMsg.delete().catch(() => {}), 500); // Delete after 10 seconds
+      setTimeout(() => doneMsg.delete().catch(() => {}), 500);
     } catch (error) {
       console.error("Error summarizing server:", error);
       const errorMsg = await message.channel.send("❌ Error summarizing server conversations.");
       setTimeout(() => errorMsg.delete().catch(() => {}), 500);
     }
-    setTimeout(() => statusMsg.delete().catch(() => {}), 500);
-    // Delete the user's command message after a short delay (e.g., 2 seconds)
+    // Delete the user's command message after a short delay
+    setTimeout(() => message.delete().catch(() => {}), 500);
+    return;
+  }
+
+  // Respond to !downloadlocations command by sending the log file
+  if (message.content.trim() === "!downloadlocations") {
+    if (fs.existsSync(LOG_FILE)) {
+      // Read and parse the log file
+      const lines = fs.readFileSync(LOG_FILE, 'utf-8').split('\n').filter(Boolean);
+      const entries = lines.map(line => {
+        try {
+          return JSON.parse(line);
+        } catch {
+          return null;
+        }
+      }).filter(Boolean);
+
+      // Separate into cities and countries
+      const cities = entries.filter(e => e.type === "city").map(e => e.name);
+      const countries = entries.filter(e => e.type === "country").map(e => e.name);
+
+      // Remove duplicates and sort
+      const uniqueCities = Array.from(new Set(cities)).sort();
+      const uniqueCountries = Array.from(new Set(countries)).sort();
+
+      // Prepare the sorted data
+      const sortedData = {
+        cities: uniqueCities,
+        countries: uniqueCountries
+      };
+
+      // Write to a temporary file
+      const tempFile = path.join(__dirname, 'locations_sorted.json');
+      fs.writeFileSync(tempFile, JSON.stringify(sortedData, null, 2));
+
+      // Send the sorted file to the user's DMs
+      await message.author.send({
+        files: [tempFile]
+      });
+
+      // Optionally delete the temp file after sending
+      fs.unlinkSync(tempFile);
+
+      // Confirmation message in channel, auto-delete
+      const replyMsg = await message.reply("📄 Sorted log file sent to your DMs!");
+      setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+    } else {
+      const replyMsg = await message.reply("No log file found.");
+      setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+    }
     setTimeout(() => message.delete().catch(() => {}), 500);
     return;
   }
