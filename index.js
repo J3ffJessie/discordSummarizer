@@ -15,6 +15,8 @@ const axios = require("axios");
 const cron = require("node-cron");
 const fuzz = require("fuzzball");
 const { findLocation } = require('./locations');
+const fs = require('fs');
+const path = require('path');
 
 // Load environment variables
 dotenv.config();
@@ -174,9 +176,9 @@ client.on(Events.MessageCreate, async (message) => {
 
   // Respond to !location command by searching recent messages for locations
   if (message.content.trim().startsWith("!location")) {
-    // Get the number of messages to search, default to 30
+    // Get the number of messages to search, default to 100
     const args = message.content.trim().split(" ");
-    let searchLimit = 30;
+    let searchLimit = 100;
     if (args.length > 1 && !isNaN(Number(args[1]))) {
       searchLimit = Math.min(Number(args[1]), 100);
     }
@@ -199,17 +201,26 @@ client.on(Events.MessageCreate, async (message) => {
       if (foundLocations.length === 0) {
         console.log(`[${new Date().toISOString()}] No known locations found in the recent messages.`);
       } else {
+        const loggedUsernames = readLoggedUsernames();
         foundLocations
           .filter(loc => loc.user !== "Chat Summary")
           .forEach(loc => {
-            console.log(
-              `[${new Date().toISOString()}] Location mention detected:`,
-              {
+            if (!loggedUsernames.has(loc.user)) {
+              appendLocationToLog({
+                timestamp: new Date().toISOString(),
                 user: loc.user,
                 type: loc.type,
                 name: loc.name || loc.city,
-              }
-            );
+              });
+              // console.log(
+              //   `[${new Date().toISOString()}]`,
+              //   {
+              //     user: loc.user,
+              //     type: loc.type,
+              //     name: loc.name || loc.city,
+              //   }
+              // );
+            }
           });
       }
     } catch (err) {
@@ -278,3 +289,23 @@ server.listen(port, () => {
 
 // Login to Discord
 client.login(process.env.DISCORD_TOKEN);
+
+const LOG_FILE = path.join(__dirname, 'locations.log');
+
+function readLoggedUsernames() {
+  if (!fs.existsSync(LOG_FILE)) return new Set();
+  const lines = fs.readFileSync(LOG_FILE, 'utf-8').split('\n').filter(Boolean);
+  // Extract usernames from each line (assuming JSON log)
+  return new Set(lines.map(line => {
+    try {
+      const entry = JSON.parse(line);
+      return entry.user;
+    } catch {
+      return null;
+    }
+  }).filter(Boolean));
+}
+
+function appendLocationToLog(location) {
+  fs.appendFileSync(LOG_FILE, JSON.stringify(location) + '\n');
+}
