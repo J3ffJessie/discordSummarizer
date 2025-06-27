@@ -215,25 +215,31 @@ client.on(Events.MessageCreate, async (message) => {
     } catch (err) {
       console.error("Error searching for locations:", err);
     }
+    // Delete the user's command message after a short delay (e.g., 2 seconds)
+    setTimeout(() => message.delete().catch(() => {}), 500);
     return;
   }
 
   // The !server command is still useful for on-demand summaries,
   // even if you also run server summarization on a schedule via cron.
   if (message.content.trim() === "!server") {
-    await message.channel.send("⏳ Gathering and summarizing conversations across all channels. Please wait...");
+    const statusMsg = await message.channel.send("⏳ Gathering and summarizing conversations across all channels. Please wait...");
     try {
       const summary = await gatherServerConversationsAndSummarize(message.guild);
-      // Split summary if too long for Discord
       const chunks = summary.match(/[\s\S]{1,1900}/g) || ["No summary available."];
       for (const chunk of chunks) {
         await message.author.send(chunk);
       }
-      await message.channel.send("✅ Server summary sent to your DMs!");
+      const doneMsg = await message.channel.send("✅ Server summary sent to your DMs!");
+      setTimeout(() => doneMsg.delete().catch(() => {}), 500); // Delete after 10 seconds
     } catch (error) {
       console.error("Error summarizing server:", error);
-      await message.channel.send("❌ Error summarizing server conversations.");
+      const errorMsg = await message.channel.send("❌ Error summarizing server conversations.");
+      setTimeout(() => errorMsg.delete().catch(() => {}), 500);
     }
+    setTimeout(() => statusMsg.delete().catch(() => {}), 500);
+    // Delete the user's command message after a short delay (e.g., 2 seconds)
+    setTimeout(() => message.delete().catch(() => {}), 500);
     return;
   }
 
