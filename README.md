@@ -14,9 +14,6 @@ A Discord bot that summarizes conversations, detects location mentions, and mana
   Summarizes recent conversations across all text channels in the server and sends the summary to your DMs.
 
 ### 2. Location Mention Detection
-- **Passive Detection**  
-  Automatically scans every message for known city or country names (using fuzzy matching). Logs detected locations for later review.
-
 - **Manual Search (`!location [N]`)**  
   Searches the last N (default 100, max 100) messages in the current channel for location mentions. Newly detected locations are logged.
 
@@ -71,7 +68,7 @@ A Discord bot that summarizes conversations, detects location mentions, and mana
 
 - The bot ignores messages from other bots.
 - Summaries are sent via DM for privacy.
-- Location detection is passive and also available via command.
+- Location detection is available via command.
 - The bot creates a simple HTTP server for health checks (useful for deployment platforms like Render).
 
 ---
