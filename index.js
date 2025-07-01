@@ -1,4 +1,5 @@
 // Import required dependencies
+/** @type {*} */
 const http = require("http");
 const {
   Client,
@@ -59,7 +60,13 @@ const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
 })();
 
 
-// Summarization function (unchanged)
+// Summarization function 
+/**
+ * Summarizes a list of Discord messages.
+ *
+ * @param {*} messages
+ * @return {*} 
+ */
 async function summarizeMessages(messages) {
   try {
     const completion = await groq.chat.completions.create({
@@ -86,7 +93,56 @@ async function summarizeMessages(messages) {
   }
 }
 
-// Handle slash command interaction (unchanged)
+
+/**
+ * Summarizes a list of Discord messages from the entire server.
+ *
+ * @param {*} messages
+ * @return {*} 
+ */
+async function serverSummarize(messages) {
+  console.log("Starting server summarization...");
+  
+  try {
+    const completion = await groq.chat.completions.create({
+      messages: [
+    {
+      role: "system",
+      content: "You are a friendly Discord conversation analyzer. Format your response in this engaging style:\n\n" +
+        "📬 **Conversation Overview**\n" +
+        "Here's what was discussed in the chat:\n\n" +
+        "🎯 **Main Topics & Decisions**\n" +
+        "• [Detailed point about the first main topic, including any decisions or outcomes]\n" +
+        "• [Detailed point about the second main topic, including any decisions or outcomes]\n\n" +
+        "🔄 **Ongoing Discussions**\n" +
+        "• [Any continuing discussions or unresolved points]\n\n" +
+        "📋 **Action Items**\n" +
+        "• [Any clear next steps or tasks mentioned]\n\n" +
+        "Your summary should:\n" +
+        "- Maintain a friendly, natural tone\n" +
+        "- Provide context for technical discussions\n" +
+        "- Include specific details while avoiding usernames\n" +
+        "- Separate ongoing discussions from concrete decisions\n" +
+        "- Keep technical and social topics separate\n" +
+        "- Be thorough yet concise"
+    },
+    {
+      role: "user",
+      content: `Please provide a detailed summary of this Discord conversation following the format above:\n\n${messages}`
+    },
+      ],
+      model: "llama-3.1-8b-instant",
+      temperature: 0.7,
+      max_tokens: 1024,
+    });
+    return completion.choices[0].message.content;
+  } catch (error) {
+    console.error("Error in server summarization:", error);
+    throw error;
+  }
+}
+
+// Handle slash command interaction for summarize that summarizes that channel's messages for the last 100 messages
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -140,14 +196,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
-// Gather and summarize all server conversations
-async function gatherServerConversationsAndSummarize(guild) {
+// Gather and summarize all server conversations for the last 100 messages in each channel
+async function gatherServerConversationsAndSummarize(guild, useServerSummarize = false) {
   let allMessages = [];
 
   for (const channel of guild.channels.cache.values()) {
     if (channel.isTextBased() && channel.viewable && !channel.isThread()) {
       try {
-        const messages = await channel.messages.fetch({ limit: 30 }); // Adjust as needed
+        const messages = await channel.messages.fetch({ limit: 100 }); // Adjust as needed
         const formatted = messages
           .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
           .map(msg => `[${channel.name}] ${msg.member?.displayName || msg.author.username}: ${msg.content}`);
@@ -165,17 +221,32 @@ async function gatherServerConversationsAndSummarize(guild) {
     combined = combined.slice(-16000);
   }
 
-  const summary = await summarizeMessages(combined);
-  return summary;
+  if (useServerSummarize) {
+    const summary = await serverSummarize(combined);
+    return summary;
+  } else {
+    const summary = await summarizeMessages(combined);
+    return summary;
+  }
 }
 
+// List of allowed user IDs that can run the location and download commands 
+const ALLOWED_USER_IDS = [
+  '1048620443474608178', // Replace with actual Discord user IDs
+  '280096257282670592'
+];
 
 client.on(Events.MessageCreate, async (message) => {
   // Ignore bot messages
   if (message.author.bot) return;
 
-  // Respond to !location command by searching recent messages for locations
+  // !location command (restricted) summarizes locations from the last 100 messages in the channel 
   if (message.content.trim().startsWith("!location")) {
+    if (!ALLOWED_USER_IDS.includes(message.author.id)) {
+      await message.reply("❌ You do not have permission to use this command.");
+      setTimeout(() => message.delete().catch(() => {}), 2000);
+      return;
+    }
     // Get the number of messages to search, default to 100
     const args = message.content.trim().split(" ");
     let searchLimit = 100;
@@ -213,21 +284,27 @@ client.on(Events.MessageCreate, async (message) => {
             }
           });
       }
+      // Notify the user that the data has been summarized
+      const replyMsg = await message.reply("✅ Location data has been summarized and logged.");
+      setTimeout(() => replyMsg.delete().catch(() => {}), 3000);
     } catch (err) {
       console.error("Error searching for locations:", err);
     }
-    // Delete the user's command message after a short delay (e.g., 2 seconds)
     setTimeout(() => message.delete().catch(() => {}), 500);
     return;
   }
 
-  // The !server command is still useful for on-demand summaries,
-  // even if you also run server summarization on a schedule via cron.
+  // !server command (restricted)
   if (message.content.trim() === "!server") {
+    if (!ALLOWED_USER_IDS.includes(message.author.id)) {
+      await message.reply("❌ You do not have permission to use this command.");
+      setTimeout(() => message.delete().catch(() => {}), 2000);
+      return;
+    }
     const statusMsg = await message.channel.send("⏳ Gathering and summarizing conversations across all channels. Please wait...");
     setTimeout(() => statusMsg.delete().catch(() => {}), 500);
     try {
-      const summary = await gatherServerConversationsAndSummarize(message.guild);
+      const summary = await gatherServerConversationsAndSummarize(message.guild, true); // Pass true to use serverSummarize
       const chunks = summary.match(/[\s\S]{1,1900}/g) || ["No summary available."];
       for (const chunk of chunks) {
         await message.author.send(chunk);
@@ -239,13 +316,18 @@ client.on(Events.MessageCreate, async (message) => {
       const errorMsg = await message.channel.send("❌ Error summarizing server conversations.");
       setTimeout(() => errorMsg.delete().catch(() => {}), 500);
     }
-    // Delete the user's command message after a short delay
     setTimeout(() => message.delete().catch(() => {}), 500);
     return;
   }
 
-  // Respond to !downloadlocations command by sending the log file
+  // !downloadlocations command (restricted) reads the location log file checks for duplicates, sorts, and sends the data to the user in a DM for download
   if (message.content.trim() === "!downloadlocations") {
+    if (!ALLOWED_USER_IDS.includes(message.author.id)) {
+      await message.reply("❌ You do not have permission to use this command.");
+      setTimeout(() => message.delete().catch(() => {}), 2000);
+      return;
+    }
+
     if (fs.existsSync(LOG_FILE)) {
       // Read and parse the log file
       const lines = fs.readFileSync(LOG_FILE, 'utf-8').split('\n').filter(Boolean);
@@ -293,21 +375,9 @@ client.on(Events.MessageCreate, async (message) => {
     setTimeout(() => message.delete().catch(() => {}), 500);
     return;
   }
-
-  // // Passive location detection for all messages
-  // const locationResult = findLocation(message.content);
-
-  // if (locationResult.matchFound) {
-  //   console.log(
-  //     `[${new Date().toISOString()}] Location mention detected:`,
-  //     {
-  //       user: message.member?.displayName || message.author.username,
-  //       type: locationResult.type,
-  //       name: locationResult.name || locationResult.city,
-  //     }
-  //   );
-  // }
 });
+
+
 client.on("error", (error) => {
   console.error("Discord client error:", error);
 });
