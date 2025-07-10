@@ -299,6 +299,29 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
+  // !server command (restricted)
+//  if (message.content.trim() === "!server") {
+//   const statusMsg = await message.channel.send("⏳ Gathering and summarizing conversations across all channels. Please wait...");
+//   setTimeout(() => statusMsg.delete().catch(() => {}), 500);
+
+//   try {
+//     const summary = await gatherServerConversationsAndSummarize(message.guild, true); // Pass true to use serverSummarize
+//     const chunks = summary.match(/[\s\S]{1,1900}/g) || ["No summary available."];
+//     for (const chunk of chunks) {
+//       await message.author.send(chunk);
+//     }
+//     const doneMsg = await message.channel.send("✅ Server summary sent to your DMs!");
+//     setTimeout(() => doneMsg.delete().catch(() => {}), 500);
+//   } catch (error) {
+//     console.error("Error summarizing server:", error);
+//     const errorMsg = await message.channel.send("❌ Error summarizing server conversations.");
+//     setTimeout(() => errorMsg.delete().catch(() => {}), 500);
+//   }
+
+//   setTimeout(() => message.delete().catch(() => {}), 500);
+//   return;
+// }
+
 // ⏰ Cron Job — Monday 10 UTC = 5 AM EDT
 cron.schedule("0 10 * * 1", async () => {
   try {
