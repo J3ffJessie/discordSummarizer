@@ -15,7 +15,7 @@ const dotenv = require("dotenv");
 const Groq = require("groq-sdk");
 const axios = require("axios");
 const cron = require("node-cron");
-const fuzz = require("fuzzball");
+
 const { findLocation } = require('./locations');
 const fs = require('fs');
 const path = require('path');
@@ -51,7 +51,7 @@ const commands = [
     .toJSON(),
 ];
 
-const TARGET_CHANNEL_ID = "1387976135282921512"; // Replace with your target channel ID
+const TARGET_CHANNEL_ID = "1392954859803644014"; // Replace with your target channel ID for weekly summaries
 
 const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_TOKEN);
 
@@ -94,6 +94,7 @@ async function summarizeMessages(messages) {
   }
 }
 
+// Server summarization function 
 async function serverSummarize(messages) {
   console.log("Starting server summarization...");
   try {
@@ -169,6 +170,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   }
 });
 
+// Helper to gather conversations across all channels in a server
 async function gatherServerConversationsAndSummarize(guild, useServerSummarize = false) {
   let allMessages = [];
 
