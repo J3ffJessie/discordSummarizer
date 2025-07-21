@@ -327,7 +327,7 @@ client.on(Events.MessageCreate, async (message) => {
 // ⏰ Cron Job — Monday 10 UTC = 5 AM EDT
 cron.schedule("0 10 * * 1", async () => {
   try {
-    const guild = client.guilds.cache.get('1380702425433899170');
+    const guild = client.guilds.cache.get('1392954859803644014');
     if (!guild) return console.error("Guild not found.");
 
     const summary = await gatherServerConversationsAndSummarize(guild, true);
