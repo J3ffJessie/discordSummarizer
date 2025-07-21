@@ -299,30 +299,45 @@ client.on(Events.MessageCreate, async (message) => {
     setTimeout(() => message.delete().catch(() => {}), 500);
     return;
   }
-});
 
   // !server command (restricted)
-//  if (message.content.trim() === "!server") {
-//   const statusMsg = await message.channel.send("⏳ Gathering and summarizing conversations across all channels. Please wait...");
-//   setTimeout(() => statusMsg.delete().catch(() => {}), 500);
+  if (message.content.trim() === "!server") {
+    if (!ALLOWED_USER_IDS.includes(message.author.id)) {
+      await message.reply("❌ You do not have permission to use this command.");
+      setTimeout(() => message.delete().catch(() => {}), 2000);
+      return;
+    }
 
-//   try {
-//     const summary = await gatherServerConversationsAndSummarize(message.guild, true); // Pass true to use serverSummarize
-//     const chunks = summary.match(/[\s\S]{1,1900}/g) || ["No summary available."];
-//     for (const chunk of chunks) {
-//       await message.author.send(chunk);
-//     }
-//     const doneMsg = await message.channel.send("✅ Server summary sent to your DMs!");
-//     setTimeout(() => doneMsg.delete().catch(() => {}), 500);
-//   } catch (error) {
-//     console.error("Error summarizing server:", error);
-//     const errorMsg = await message.channel.send("❌ Error summarizing server conversations.");
-//     setTimeout(() => errorMsg.delete().catch(() => {}), 500);
-//   }
+    const statusMsg = await message.channel.send("⏳ Gathering and summarizing conversations across all channels. Please wait...");
+    setTimeout(() => statusMsg.delete().catch(() => {}), 500);
 
-//   setTimeout(() => message.delete().catch(() => {}), 500);
-//   return;
-// }
+    try {
+      const guild = message.guild;
+      const summary = await gatherServerConversationsAndSummarize(guild, true); // Use serverSummarize
+      const chunks = summary.match(/[\s\S]{1,1900}/g) || ["No summary available."];
+
+      // Send summary to the same channel as the cron job (TARGET_CHANNEL_ID)
+      const targetChannel = guild.channels.cache.get("1392954859803644014");
+      if (targetChannel && targetChannel.type === ChannelType.GuildText) {
+        for (const chunk of chunks) {
+          await targetChannel.send(chunk);
+          await delay(1000);
+        }
+        const doneMsg = await message.channel.send("✅ Server summary sent to the summary channel!");
+        setTimeout(() => doneMsg.delete().catch(() => {}), 500);
+      } else {
+        await message.channel.send("❌ Could not find the summary channel.");
+      }
+    } catch (error) {
+      console.error("Error summarizing server:", error);
+      const errorMsg = await message.channel.send("❌ Error summarizing server conversations.");
+      setTimeout(() => errorMsg.delete().catch(() => {}), 500);
+    }
+
+    setTimeout(() => message.delete().catch(() => {}), 500);
+    return;
+  }
+});
 
 // ⏰ Cron Job — Monday 10 UTC = 5 AM EDT
 cron.schedule("0 10 * * 1", async () => {
