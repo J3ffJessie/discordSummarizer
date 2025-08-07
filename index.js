@@ -16,16 +16,16 @@ const Groq = require("groq-sdk");
 const axios = require("axios");
 const cron = require("node-cron");
 
-const { findLocation } = require('./locations');
-const fs = require('fs');
-const path = require('path');
+const { findLocation } = require("./locations");
+const fs = require("fs");
+const path = require("path");
 
 // Load environment variables
 dotenv.config();
 
 // Delay helper to respect rate limits
 function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 // Initialize Discord client with necessary intents
@@ -48,6 +48,10 @@ const commands = [
   new SlashCommandBuilder()
     .setName("summarize")
     .setDescription("Summarize recent messages in this channel")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("events")
+    .setDescription("Get upcoming events for the next 7 days")
     .toJSON(),
 ];
 
@@ -94,7 +98,7 @@ async function summarizeMessages(messages) {
   }
 }
 
-// Server summarization function 
+// Server summarization function
 async function serverSummarize(messages) {
   console.log("Starting server summarization...");
   try {
@@ -102,12 +106,12 @@ async function serverSummarize(messages) {
       messages: [
         {
           role: "system",
-          content: `You are a friendly Discord conversation analyzer. Format your response in this engaging style:\n\n📬 **Conversation Overview**\nHere's what was discussed in the chat:\n\n🎯 **Main Topics & Decisions**\n• [Detailed point about the first main topic, including any decisions or outcomes]\n• [Detailed point about the second main topic, including any decisions or outcomes]\n\n🔄 **Ongoing Discussions**\n• [Any continuing discussions or unresolved points]\n\n📋 **Action Items**\n• [Any clear next steps or tasks mentioned]\n\nYour summary should:\n- Maintain a friendly, natural tone\n- Provide context for technical discussions\n- Include specific details while avoiding usernames\n- Separate ongoing discussions from concrete decisions\n- Keep technical and social topics separate\n- Be thorough yet concise`
+          content: `You are a friendly Discord conversation analyzer. Format your response in this engaging style:\n\n📬 **Conversation Overview**\nHere's what was discussed in the chat:\n\n🎯 **Main Topics & Decisions**\n• [Detailed point about the first main topic, including any decisions or outcomes]\n• [Detailed point about the second main topic, including any decisions or outcomes]\n\n🔄 **Ongoing Discussions**\n• [Any continuing discussions or unresolved points]\n\n📋 **Action Items**\n• [Any clear next steps or tasks mentioned]\n\nYour summary should:\n- Maintain a friendly, natural tone\n- Provide context for technical discussions\n- Include specific details while avoiding usernames\n- Separate ongoing discussions from concrete decisions\n- Keep technical and social topics separate\n- Be thorough yet concise`,
         },
         {
           role: "user",
-          content: `Please provide a detailed summary of this Discord conversation following the format above:\n\n${messages}`
-        }
+          content: `Please provide a detailed summary of this Discord conversation following the format above:\n\n${messages}`,
+        },
       ],
       model: "llama-3.1-8b-instant",
       temperature: 0.7,
@@ -120,6 +124,27 @@ async function serverSummarize(messages) {
   }
 }
 
+// Fetch upcoming events helper
+async function fetchUpcomingEvents() {
+  try {
+    const response = await axios.get("https://guild.host/api/next/torc-dev/events/upcoming");
+
+    const edges = response.data.events.edges;
+
+    // ✅ Sort by startAt in ascending order (soonest first)
+    edges.sort((a, b) => new Date(a.node.startAt) - new Date(b.node.startAt));
+
+    const events = edges.map(edge => edge.node);
+    return events;
+
+  } catch (error) {
+    console.error("Error fetching events:", error);
+    return [];
+  }
+}
+
+
+
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -130,11 +155,16 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
       const formattedMessages = messages
         .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-        .map((msg) => `${msg.member?.displayName || msg.author.username}: ${msg.content}`)
+        .map(
+          (msg) =>
+            `${msg.member?.displayName || msg.author.username}: ${msg.content}`
+        )
         .join("\n");
 
       const summary = await summarizeMessages(formattedMessages);
-      const chunks = summary.match(/[\s\S]{1,1900}/g) || ["No summary available."];
+      const chunks = summary.match(/[\s\S]{1,1900}/g) || [
+        "No summary available.",
+      ];
 
       try {
         for (const chunk of chunks) {
@@ -149,7 +179,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
       } catch (dmError) {
         console.error("Failed to send DM:", dmError);
         await interaction.editReply({
-          content: "❌ Could not send you a DM. Please check if you have DMs enabled for this server.",
+          content:
+            "❌ Could not send you a DM. Please check if you have DMs enabled for this server.",
           ephemeral: true,
         });
       }
@@ -167,11 +198,104 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
       }
     }
+  } else if (interaction.commandName === "events") {
+  try {
+    await interaction.reply({
+      content: "📬 Check your DMs for upcoming events!",
+      ephemeral: true,
+    });
+
+    const upcomingEvents = await fetchUpcomingEvents();
+
+    if (upcomingEvents.length === 0) {
+      await interaction.followUp({
+        content: "No upcoming events found.",
+        ephemeral: true,
+      });
+      return;
+    }
+
+    const embeds = upcomingEvents.slice(0, 10).map((event) => {
+      const embed = new EmbedBuilder()
+        .setTitle(event.name)
+        .setURL(event.fullUrl)
+        .setDescription(
+          event.description
+            ? event.description.substring(0, 200) +
+              (event.description.length > 200 ? "..." : "")
+            : "No description"
+        )
+        .addFields(
+          {
+            name: "Start Time",
+            value: new Date(event.startAt).toLocaleString("en-US", {
+              timeZone: event.timeZone,
+            }),
+            inline: true,
+          },
+          {
+            name: "End Time",
+            value: new Date(event.endAt).toLocaleString("en-US", {
+              timeZone: event.timeZone,
+            }),
+            inline: true,
+          },
+          {
+            name: "Visibility",
+            value: event.visibility,
+            inline: true,
+          }
+        )
+        .setColor("#0099ff")
+        .setTimestamp(new Date(event.startAt))
+        .setFooter({ text: "torc-dev events" });
+
+      // Include social card image if available
+      if (
+        event.uploadedSocialCard &&
+        event.uploadedSocialCard.url
+      ) {
+        embed.setImage(event.uploadedSocialCard.url);
+      }
+
+      return embed;
+    });
+
+    // Try sending to user's DM
+    try {
+      await interaction.user.send({
+        content: " Here are the upcoming events:",
+        embeds,
+      });
+    } catch (dmError) {
+      console.error("Could not DM user:", dmError);
+      await interaction.followUp({
+        content: "❌ I couldn't send you a DM. Please enable DMs and try again.",
+        ephemeral: true,
+      });
+    }
+  } catch (error) {
+    console.error("Error handling /events command:", error);
+    if (!interaction.replied && !interaction.deferred) {
+      await interaction.reply({
+        content: "❌ Failed to fetch events.",
+        ephemeral: true,
+      });
+    } else {
+      await interaction.followUp({
+        content: "❌ Failed to fetch events.",
+        ephemeral: true,
+      });
+    }
   }
+}
 });
 
 // Helper to gather conversations across all channels in a server
-async function gatherServerConversationsAndSummarize(guild, useServerSummarize = false) {
+async function gatherServerConversationsAndSummarize(
+  guild,
+  useServerSummarize = false
+) {
   let allMessages = [];
 
   for (const channel of guild.channels.cache.values()) {
@@ -180,15 +304,23 @@ async function gatherServerConversationsAndSummarize(guild, useServerSummarize =
         const messages = await channel.messages.fetch({ limit: 100 });
         const formatted = messages
           .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
-          .map(msg => `[${channel.name}] ${msg.member?.displayName || msg.author.username}: ${msg.content}`);
+          .map(
+            (msg) =>
+              `[${channel.name}] ${
+                msg.member?.displayName || msg.author.username
+              }: ${msg.content}`
+          );
         allMessages.push(...formatted);
       } catch (err) {
-        console.warn(`Could not fetch messages for #${channel.name}:`, err.message);
+        console.warn(
+          `Could not fetch messages for #${channel.name}:`,
+          err.message
+        );
       }
     }
   }
 
-  let combined = allMessages.join('\n');
+  let combined = allMessages.join("\n");
   if (combined.length > 16000) {
     combined = combined.slice(-16000);
   }
@@ -200,10 +332,7 @@ async function gatherServerConversationsAndSummarize(guild, useServerSummarize =
   }
 }
 
-const ALLOWED_USER_IDS = [
-  '1048620443474608178',
-  '280096257282670592'
-];
+const ALLOWED_USER_IDS = ["1048620443474608178", "280096257282670592"];
 
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
@@ -222,16 +351,18 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     try {
-      const messages = await message.channel.messages.fetch({ limit: searchLimit });
+      const messages = await message.channel.messages.fetch({
+        limit: searchLimit,
+      });
       const foundLocations = [];
 
-      messages.forEach(msg => {
+      messages.forEach((msg) => {
         const locationResult = findLocation(msg.content);
         if (locationResult.matchFound) {
           foundLocations.push({
             user: msg.member?.displayName || msg.author.username,
             text: msg.content,
-            ...locationResult
+            ...locationResult,
           });
         }
       });
@@ -239,15 +370,20 @@ client.on(Events.MessageCreate, async (message) => {
       if (foundLocations.length > 0) {
         const loggedUsernames = readLoggedUsernames();
         foundLocations
-          .filter(loc => loc.user !== "Chat Summary")
-          .forEach(loc => {
+          .filter((loc) => loc.user !== "Chat Summary")
+          .forEach((loc) => {
             if (!loggedUsernames.has(loc.user)) {
-              appendLocationToLog({ type: loc.type, name: loc.name || loc.city });
+              appendLocationToLog({
+                type: loc.type,
+                name: loc.name || loc.city,
+              });
             }
           });
       }
 
-      const replyMsg = await message.reply("✅ Location data has been summarized and logged.");
+      const replyMsg = await message.reply(
+        "✅ Location data has been summarized and logged."
+      );
       setTimeout(() => replyMsg.delete().catch(() => {}), 3000);
     } catch (err) {
       console.error("Error searching for locations:", err);
@@ -265,31 +401,42 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     if (fs.existsSync(LOG_FILE)) {
-      const lines = fs.readFileSync(LOG_FILE, 'utf-8').split('\n').filter(Boolean);
-      const entries = lines.map(line => {
-        try {
-          return JSON.parse(line);
-        } catch {
-          return null;
-        }
-      }).filter(Boolean);
+      const lines = fs
+        .readFileSync(LOG_FILE, "utf-8")
+        .split("\n")
+        .filter(Boolean);
+      const entries = lines
+        .map((line) => {
+          try {
+            return JSON.parse(line);
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
 
-      const cities = entries.filter(e => e.type === "city").map(e => e.name);
-      const countries = entries.filter(e => e.type === "country").map(e => e.name);
+      const cities = entries
+        .filter((e) => e.type === "city")
+        .map((e) => e.name);
+      const countries = entries
+        .filter((e) => e.type === "country")
+        .map((e) => e.name);
 
       const uniqueCities = Array.from(new Set(cities)).sort();
       const uniqueCountries = Array.from(new Set(countries)).sort();
 
       const sortedData = { cities: uniqueCities, countries: uniqueCountries };
 
-      const tempFile = path.join(__dirname, 'locations_sorted.json');
+      const tempFile = path.join(__dirname, "locations_sorted.json");
       fs.writeFileSync(tempFile, JSON.stringify(sortedData, null, 2));
 
       await message.author.send({ files: [tempFile] });
 
       fs.unlinkSync(tempFile);
 
-      const replyMsg = await message.reply("📄 Sorted log file sent to your DMs!");
+      const replyMsg = await message.reply(
+        "📄 Sorted log file sent to your DMs!"
+      );
       setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
     } else {
       const replyMsg = await message.reply("No log file found.");
@@ -308,13 +455,17 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
-    const statusMsg = await message.channel.send("⏳ Gathering and summarizing conversations across all channels. Please wait...");
+    const statusMsg = await message.channel.send(
+      "⏳ Gathering and summarizing conversations across all channels. Please wait..."
+    );
     setTimeout(() => statusMsg.delete().catch(() => {}), 500);
 
     try {
       const guild = message.guild;
       const summary = await gatherServerConversationsAndSummarize(guild, true); // Use serverSummarize
-      const chunks = summary.match(/[\s\S]{1,1900}/g) || ["No summary available."];
+      const chunks = summary.match(/[\s\S]{1,1900}/g) || [
+        "No summary available.",
+      ];
 
       // Send summary to the same channel as the cron job (TARGET_CHANNEL_ID)
       const targetChannel = guild.channels.cache.get("1392954859803644014");
@@ -323,14 +474,18 @@ client.on(Events.MessageCreate, async (message) => {
           await targetChannel.send(chunk);
           await delay(1000);
         }
-        const doneMsg = await message.channel.send("✅ Server summary sent to the summary channel!");
+        const doneMsg = await message.channel.send(
+          "✅ Server summary sent to the summary channel!"
+        );
         setTimeout(() => doneMsg.delete().catch(() => {}), 500);
       } else {
         await message.channel.send("❌ Could not find the summary channel.");
       }
     } catch (error) {
       console.error("Error summarizing server:", error);
-      const errorMsg = await message.channel.send("❌ Error summarizing server conversations.");
+      const errorMsg = await message.channel.send(
+        "❌ Error summarizing server conversations."
+      );
       setTimeout(() => errorMsg.delete().catch(() => {}), 500);
     }
 
@@ -342,11 +497,13 @@ client.on(Events.MessageCreate, async (message) => {
 // ⏰ Cron Job — Monday 10 UTC = 5 AM EDT
 cron.schedule("0 10 * * 1", async () => {
   try {
-    const guild = client.guilds.cache.get('1392954859803644014');
+    const guild = client.guilds.cache.get("1392954859803644014");
     if (!guild) return console.error("Guild not found.");
 
     const summary = await gatherServerConversationsAndSummarize(guild, true);
-    const chunks = summary.match(/[\s\S]{1,1900}/g) || ["No summary available."];
+    const chunks = summary.match(/[\s\S]{1,1900}/g) || [
+      "No summary available.",
+    ];
 
     const channel = guild.channels.cache.get(TARGET_CHANNEL_ID);
     if (channel && channel.type === ChannelType.GuildText) {
@@ -382,21 +539,25 @@ server.listen(port, () => {
 
 client.login(process.env.DISCORD_TOKEN);
 
-const LOG_FILE = path.join(__dirname, 'locations.log');
+const LOG_FILE = path.join(__dirname, "locations.log");
 
 function readLoggedUsernames() {
   if (!fs.existsSync(LOG_FILE)) return new Set();
-  const lines = fs.readFileSync(LOG_FILE, 'utf-8').split('\n').filter(Boolean);
-  return new Set(lines.map(line => {
-    try {
-      const entry = JSON.parse(line);
-      return entry.user;
-    } catch {
-      return null;
-    }
-  }).filter(Boolean));
+  const lines = fs.readFileSync(LOG_FILE, "utf-8").split("\n").filter(Boolean);
+  return new Set(
+    lines
+      .map((line) => {
+        try {
+          const entry = JSON.parse(line);
+          return entry.user;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+  );
 }
 
 function appendLocationToLog(location) {
-  fs.appendFileSync(LOG_FILE, JSON.stringify(location) + '\n');
+  fs.appendFileSync(LOG_FILE, JSON.stringify(location) + "\n");
 }
