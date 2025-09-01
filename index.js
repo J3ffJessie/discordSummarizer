@@ -339,22 +339,21 @@ client.on(Events.MessageCreate, async (message) => {
     const args = message.content.slice(PREFIX.length).trim().split(/ +/);
     const command = args.shift().toLowerCase();
 
-    // !remindme <time> <message>
     if (command === "remindme") {
       if (args.length < 2) {
         const replyMsg = await message.reply(
-          "Usage: `!remindme <time> <message>` (e.g., `!remindme 10m Take out the trash`)"
+          "Usage: `!remindme <time> <message>` (e.g., `!remindme 2 weeks Take out the trash`)"
         );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
         return;
       }
-      const timeStr = args.shift();
-      const reminderMsg = args.join(" ");
+
+      const { timeStr, reminderMsg } = splitTimeAndMessage(args);
       const duration = parseTime(timeStr);
 
-      if (!duration) {
+      if (!timeStr || !duration || !reminderMsg) {
         const replyMsg = await message.reply(
-          "Invalid time format. Use `10s`, `10m`, `2h`, `1d`."
+          "Invalid format. Try `!remindme 2 weeks Do something` or `!remindme 3 months 2 days Task`."
         );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
         return;
@@ -376,7 +375,6 @@ client.on(Events.MessageCreate, async (message) => {
         `⏰ Reminder set! I'll remind you in ${timeStr}. (ID: ${reminderId})`
       );
       setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
-      return;
     }
 
     // !listreminders
@@ -389,7 +387,11 @@ client.on(Events.MessageCreate, async (message) => {
         const replyMsg = await message.reply(
           "You don't have any pending reminders"
         );
-        setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+
+        // Only auto-delete if run in a guild channel
+        if (message.guild) {
+          setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+        }
         return;
       }
 
@@ -406,22 +408,56 @@ client.on(Events.MessageCreate, async (message) => {
         });
       });
 
-      // Send reminders as a DM and auto-delete the original command message
-      const replyMsg = await message.author.send({ embeds: [embed] });
-      setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
-      setTimeout(() => message.delete().catch(() => {}), 500);
+      if (message.guild) {
+        // Command was run in a server: DM the list, delete the *command message* only
+        await message.author.send({ embeds: [embed] });
+        setTimeout(() => message.delete().catch(() => {}), 500);
+      } else {
+        // Command was run in a DM: just reply in DM, no auto-deletion
+        await message.reply({ embeds: [embed] });
+      }
+
       return;
     }
 
-    // !cancelreminder <id>
     if (command === "cancelreminder") {
       if (args.length < 1) {
-        const replyMsg = await message.reply("Usage: `!cancelreminder <id>`");
+        const replyMsg = await message.reply(
+          "Usage: `!cancelreminder <id|all>`"
+        );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
         return;
       }
 
-      const id = args[0];
+      const arg = args[0].toLowerCase();
+
+      if (arg === "all") {
+        // Remove all reminders for this user
+        const userReminders = reminders.filter(
+          (r) => r.userId === message.author.id
+        );
+
+        if (userReminders.length === 0) {
+          const replyMsg = await message.reply(
+            "❌ You don't have any reminders to cancel."
+          );
+          setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+          return;
+        }
+
+        // Filter out all user's reminders
+        reminders = reminders.filter((r) => r.userId !== message.author.id);
+        saveReminders();
+
+        const replyMsg = await message.reply(
+          `✅ All your reminders have been canceled.`
+        );
+        setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+        return;
+      }
+
+      // Otherwise, treat it as a reminder ID
+      const id = arg;
       const index = reminders.findIndex(
         (r) => r.id === id && r.userId === message.author.id
       );
@@ -436,11 +472,11 @@ client.on(Events.MessageCreate, async (message) => {
 
       reminders.splice(index, 1);
       saveReminders();
+
       const replyMsg = await message.reply(
         `✅ Reminder with ID \`${id}\` has been canceled.`
       );
       setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
-      return;
     }
   }
 
@@ -672,14 +708,87 @@ function cleanReminders() {
   }
 }
 
-// Helper: convert "10m", "2h", "1d" → ms
-function parseTime(str) {
-  const match = str.match(/^(\d+)(s|m|h|d)$/);
-  if (!match) return null;
-  const num = parseInt(match[1]);
-  const unit = match[2];
-  const multipliers = { s: 1000, m: 60000, h: 3600000, d: 86400000 };
-  return num * multipliers[unit];
+// 1) Regex-based duration parser
+function parseTime(input) {
+  if (!input || typeof input !== "string") return null;
+
+  // Now supports weeks and months
+  const regex =
+    /(\d+(?:\.\d+)?)\s*(mo(?:nths?)?|w(?:eeks?)?|d(?:ays?)?|h(?:ours?|rs?)?|m(?:in(?:ute)?s?)?|s(?:ec(?:ond)?s?)?)/gi;
+  let total = 0;
+  let matched = false;
+  const str = input.toLowerCase().replace(/[,]+/g, " ");
+
+  let m;
+  while ((m = regex.exec(str)) !== null) {
+    matched = true;
+    const value = parseFloat(m[1]);
+    const unit = m[2].toLowerCase();
+
+    if (unit.startsWith("mo"))
+      total += value * 30 * 24 * 60 * 60 * 1000; // months = 30 days
+    else if (unit.startsWith("w"))
+      total += value * 7 * 24 * 60 * 60 * 1000; // weeks
+    else if (unit.startsWith("d")) total += value * 24 * 60 * 60 * 1000;
+    else if (unit.startsWith("h")) total += value * 60 * 60 * 1000;
+    else if (unit.startsWith("m")) total += value * 60 * 1000;
+    else if (unit.startsWith("s")) total += value * 1000;
+  }
+
+  return matched && total > 0 ? Math.round(total) : null;
+}
+
+function splitTimeAndMessage(args) {
+  const timeUnits = [
+    "mo",
+    "month",
+    "months",
+    "w",
+    "week",
+    "weeks",
+    "d",
+    "day",
+    "days",
+    "h",
+    "hour",
+    "hours",
+    "m",
+    "min",
+    "minute",
+    "minutes",
+    "s",
+    "sec",
+    "second",
+    "seconds",
+  ];
+
+  let timeStrTokens = [];
+  let i = 0;
+
+  // Collect all consecutive tokens that are part of a time phrase
+  while (i < args.length) {
+    const token = args[i].toLowerCase();
+    const next = args[i + 1] ? args[i + 1].toLowerCase() : null;
+
+    // If token is a number and next token is a unit, include both
+    if (!isNaN(token) && next && timeUnits.some((u) => next.startsWith(u))) {
+      timeStrTokens.push(token);
+      timeStrTokens.push(next);
+      i += 2;
+    }
+    // If token itself is compact format like "1h30m"
+    else if (/^\d+[smhdwmo]+$/i.test(token)) {
+      timeStrTokens.push(token);
+      i++;
+    } else {
+      break; // first token that is not part of the time phrase
+    }
+  }
+
+  const timeStr = timeStrTokens.join(" ");
+  const reminderMsg = args.slice(i).join(" ");
+
+  return { timeStr, reminderMsg };
 }
 
 // Re-schedule reminders after restart

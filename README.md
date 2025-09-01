@@ -1,99 +1,152 @@
 # Discord Summarizer Bot
 
-## Overview
-Discord Summarizer is a multi-feature Discord bot that provides:
-- AI-powered summarization of channel and server conversations
-- Location mention detection and logging
-- Scheduled and on-demand server summaries
-- Upcoming event notifications
-- Personal reminders via chat commands
+A Discord bot that provides message summarization, upcoming event notifications, and personal reminders. It uses the Groq API for AI-powered summarization and supports both channel-level and server-wide summaries.
+
+---
 
 ## Features
 
-### 1. Summarization
-- `/summarize` (slash command): Summarizes the last 100 messages in the current channel and sends the summary to your DMs.
-- `!server` (prefix command, restricted): Summarizes recent conversations across all text channels and posts the summary in a designated summary channel.
-- Scheduled weekly summary: Every Monday at 10 UTC, posts a server-wide summary in the summary channel.
+* **Summarize Messages**
 
- ### 2. Location Mention Detection 
-- `!location [N]` (restricted): Scans the last N (default 100, max 100) messages in the current channel for city/country mentions and logs new locations.
-- `!downloadlocations` (restricted): Sends a sorted JSON file of all detected cities and countries to your DMs. -->
+  * `/summarize` — Summarizes recent messages in the channel and sends the summary to the user's DMs.
+  * Provides concise, bulleted summaries while maintaining context and friendly tone.
 
-### 3. Event Notifications
-- `/events` (slash command): Fetches and DMs the user a list of upcoming events for the next 7 days for the community Guild.host, including details and images.
+* **Server-Wide Summaries**
 
-### 4. Reminders
-- `!remindme <time> <message>`: Sets a personal reminder (e.g., `!remindme 10m Take out the trash`). The bot will DM you at the specified time.
-- `!listreminders`: Lists all your pending reminders in a DM.
-- `!cancelreminder <id>`: Cancels a specific reminder by its ID.
+  * `!server` — Summarizes conversations across all channels in a server and posts the result in a designated channel.
+  * Scheduled weekly summaries via cron jobs.
 
-## Command Reference
+* **Event Notifications**
 
-| Command                      | Type         | Description                                                                 |
-|------------------------------|--------------|-----------------------------------------------------------------------------|
-| `/summarize`                 | Slash        | Summarize recent messages in the current channel (DMs you the summary)      |
-| `/events`                    | Slash        | Get upcoming events for the next 7 days (DMs you the event list)            |
-| `!server`                    | Prefix       | Summarize all channels and post in summary channel (restricted)             |
-| `!location [N]`              | Prefix       | Scan last N messages for location mentions (restricted)                     |
-| `!downloadlocations`         | Prefix       | Download sorted location log as JSON (restricted)                           |
-| `!remindme <time> <message>` | Prefix       | Set a personal reminder (DMs you at the specified time)                     |
-| `!listreminders`             | Prefix       | List your pending reminders (DM)                                            |
-| `!cancelreminder <id>`       | Prefix       | Cancel a specific reminder by ID                                            |
+  * `/events` — Fetches upcoming events from the Guild.Host API and DMs them to the user.
+  * Includes event details like start/end time, description, and social card images.
 
-## Setup Instructions
+* **Reminders**
 
-1. **Clone the repository**
-2. **Install dependencies**
-  ```bash
-  npm install
-  ```
-3. **Create a `.env` file** with the following variables:
-  ```env
-  DISCORD_TOKEN=your-bot-token
-  CLIENT_ID=your-discord-client-id
-  GROQ_API_KEY=your-groq-api-key
-  PORT=3000
-  ```
-4. **Configure your summary channel**
-  - Set `TARGET_CHANNEL_ID` in `index.js` to the channel ID where summaries should be posted.
-5. **Run the bot**
-  ```bash
-  node index.js
-  ```
+  * `!remindme <time> <message>` — Sets a personal reminder (supports weeks, months, days, hours, minutes, seconds).
+  * `!listreminders` — Lists pending reminders for the user.
+  * `!cancelreminder <id|all>` — Cancel a specific reminder or all reminders.
 
-## Permissions
-- The bot requires permissions to read messages, send messages, embed links, and manage DMs.
-- Some commands are restricted to specific user IDs (see `ALLOWED_USER_IDS` in `index.js`).
+* **Location Logging** (Restricted)
 
-## File Structure
-- `index.js` — Main bot logic and command/event handlers
-- `locations.js` — Location detection logic
-- `locations.log` — Log file for detected locations
-- `reminders.json` — Persistent storage for reminders
-- `README.md` — Documentation
+  * `!location` — Extracts and logs location mentions from messages.
+  * `!downloadlocations` — Sends a sorted JSON file of logged locations to authorized users.
 
-## Notes
-- All reminder command responses auto-delete after a few seconds to reduce chat clutter.
-- Summaries and event lists are sent via DM for privacy.
-- Scheduled summaries run every Monday at 10 UTC.
-- Location detection is only run on command, not passively.
+* **Robust AI Integration**
 
-## Example Usage
-
-```
-/summarize
-!remindme 15m Join the meeting
-!listreminders
-!cancelreminder 1692624000000
-!location 50
-!downloadlocations
-/events
-```
-
-## Troubleshooting
-- If slash commands do not appear, ensure the bot is registered and has the correct permissions.
-- If DMs are not received, check your Discord DM settings and bot permissions.
-- For restricted commands, ensure your user ID is listed in `ALLOWED_USER_IDS`.
+  * Uses Groq API with `llama-3.1-8b-instant` model for summarization.
+  * Supports both channel-level and server-level conversation summaries.
 
 ---
-**Enjoy your summarized Discord experience!**
+
+## Installation
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourusername/discord-summarizer-bot.git
+   cd discord-summarizer-bot
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+3. Create a `.env` file in the root directory with the following environment variables:
+
+   ```env
+   DISCORD_TOKEN=your_discord_bot_token
+   CLIENT_ID=your_discord_client_id
+   GROQ_API_KEY=your_groq_api_key
+   PORT=3000
+   ```
+
+4. Start the bot:
+
+   ```bash
+   node index.js
+   ```
+
+---
+
+## Usage
+
+### Slash Commands
+
+* `/summarize` — Summarize recent messages in the current channel.
+* `/events` — Fetch and display upcoming events from Guild.Host.
+
+### Message Commands
+
+* `!remindme <time> <message>` — Set a reminder.
+* `!listreminders` — View pending reminders.
+* `!cancelreminder <id|all>` — Cancel a specific or all reminders.
+* `!location [limit]` — Search messages for location mentions (restricted).
+* `!downloadlocations` — Download logged locations in JSON format (restricted).
+* `!server` — Summarize the entire server's conversations (restricted).
+
+> **Note:** Restricted commands can only be used by users with IDs listed in the `ALLOWED_USER_IDS` array in `index.js`.
+
+---
+
+## Configuration
+
+* **Target Summary Channel**
+  Set `TARGET_CHANNEL_ID` to the channel ID where server-wide summaries will be posted.
+
+* **Logging**
+
+  * Location logs are stored in `locations.log`.
+  * Reminders are saved in `reminders.json`.
+
+* **Scheduled Summaries**
+
+  * Cron job sends a weekly server summary every Monday at 10:00 UTC.
+  * Adjust cron schedule in `index.js` if needed.
+
+---
+
+## Dependencies
+
+* [discord.js](https://discord.js.org/) — Discord bot library.
+* [dotenv](https://www.npmjs.com/package/dotenv) — Load environment variables.
+* [groq-sdk](https://www.npmjs.com/package/groq-sdk) — AI summarization API.
+* [axios](https://www.npmjs.com/package/axios) — HTTP requests for events.
+* [node-cron](https://www.npmjs.com/package/node-cron) — Scheduled tasks.
+
+---
+
+## File Structure
+
+```
+.
+├── index.js           # Main bot logic
+├── locations.js       # Helper functions for location extraction
+├── reminders.json     # Persisted reminders
+├── locations.log      # Logged locations
+├── package.json
+└── README.md
+```
+
+---
+
+## Notes
+
+* Ensure the bot has the following Discord intents enabled:
+
+  * `Guilds`
+  * `GuildMessages`
+  * `MessageContent`
+  * `DirectMessages`
+
+* Respect Discord rate limits when sending multiple messages; a small delay is implemented between chunks of summaries.
+
+* The bot runs a simple HTTP server on the port specified in `.env` to keep hosting services alive (e.g., Replit, Heroku).
+
+---
+
+## License
+
+MIT License © Jeff Jessie
