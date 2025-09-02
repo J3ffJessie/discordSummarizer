@@ -127,23 +127,22 @@ async function serverSummarize(messages) {
 // Fetch upcoming events helper
 async function fetchUpcomingEvents() {
   try {
-    const response = await axios.get("https://guild.host/api/next/torc-dev/events/upcoming");
+    const response = await axios.get(
+      "https://guild.host/api/next/torc-dev/events/upcoming"
+    );
 
     const edges = response.data.events.edges;
 
     // ✅ Sort by startAt in ascending order (soonest first)
     edges.sort((a, b) => new Date(a.node.startAt) - new Date(b.node.startAt));
 
-    const events = edges.map(edge => edge.node);
+    const events = edges.map((edge) => edge.node);
     return events;
-
   } catch (error) {
     console.error("Error fetching events:", error);
     return [];
   }
 }
-
-
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
@@ -199,96 +198,94 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
     }
   } else if (interaction.commandName === "events") {
-  try {
-    await interaction.reply({
-      content: "📬 Check your DMs for upcoming events!",
-      ephemeral: true,
-    });
-
-    const upcomingEvents = await fetchUpcomingEvents();
-
-    if (upcomingEvents.length === 0) {
-      await interaction.followUp({
-        content: "No upcoming events found.",
+    try {
+      await interaction.reply({
+        content: "📬 Check your DMs for upcoming events!",
         ephemeral: true,
       });
-      return;
-    }
 
-    const embeds = upcomingEvents.slice(0, 10).map((event) => {
-      const embed = new EmbedBuilder()
-        .setTitle(event.name)
-        .setURL(event.fullUrl)
-        .setDescription(
-          event.description
-            ? event.description.substring(0, 200) +
-              (event.description.length > 200 ? "..." : "")
-            : "No description"
-        )
-        .addFields(
-          {
-            name: "Start Time",
-            value: new Date(event.startAt).toLocaleString("en-US", {
-              timeZone: event.timeZone,
-            }),
-            inline: true,
-          },
-          {
-            name: "End Time",
-            value: new Date(event.endAt).toLocaleString("en-US", {
-              timeZone: event.timeZone,
-            }),
-            inline: true,
-          },
-          {
-            name: "Visibility",
-            value: event.visibility,
-            inline: true,
-          }
-        )
-        .setColor("#0099ff")
-        .setTimestamp(new Date(event.startAt))
-        .setFooter({ text: "torc-dev events" });
+      const upcomingEvents = await fetchUpcomingEvents();
 
-      // Include social card image if available
-      if (
-        event.uploadedSocialCard &&
-        event.uploadedSocialCard.url
-      ) {
-        embed.setImage(event.uploadedSocialCard.url);
+      if (upcomingEvents.length === 0) {
+        await interaction.followUp({
+          content: "No upcoming events found.",
+          ephemeral: true,
+        });
+        return;
       }
 
-      return embed;
-    });
+      const embeds = upcomingEvents.slice(0, 10).map((event) => {
+        const embed = new EmbedBuilder()
+          .setTitle(event.name)
+          .setURL(event.fullUrl)
+          .setDescription(
+            event.description
+              ? event.description.substring(0, 200) +
+                  (event.description.length > 200 ? "..." : "")
+              : "No description"
+          )
+          .addFields(
+            {
+              name: "Start Time",
+              value: new Date(event.startAt).toLocaleString("en-US", {
+                timeZone: event.timeZone,
+              }),
+              inline: true,
+            },
+            {
+              name: "End Time",
+              value: new Date(event.endAt).toLocaleString("en-US", {
+                timeZone: event.timeZone,
+              }),
+              inline: true,
+            },
+            {
+              name: "Visibility",
+              value: event.visibility,
+              inline: true,
+            }
+          )
+          .setColor("#0099ff")
+          .setTimestamp(new Date(event.startAt))
+          .setFooter({ text: "torc-dev events" });
 
-    // Try sending to user's DM
-    try {
-      await interaction.user.send({
-        content: " Here are the upcoming events:",
-        embeds,
+        // Include social card image if available
+        if (event.uploadedSocialCard && event.uploadedSocialCard.url) {
+          embed.setImage(event.uploadedSocialCard.url);
+        }
+
+        return embed;
       });
-    } catch (dmError) {
-      console.error("Could not DM user:", dmError);
-      await interaction.followUp({
-        content: "❌ I couldn't send you a DM. Please enable DMs and try again.",
-        ephemeral: true,
-      });
-    }
-  } catch (error) {
-    console.error("Error handling /events command:", error);
-    if (!interaction.replied && !interaction.deferred) {
-      await interaction.reply({
-        content: "❌ Failed to fetch events.",
-        ephemeral: true,
-      });
-    } else {
-      await interaction.followUp({
-        content: "❌ Failed to fetch events.",
-        ephemeral: true,
-      });
+
+      // Try sending to user's DM
+      try {
+        await interaction.user.send({
+          content: " Here are the upcoming events:",
+          embeds,
+        });
+      } catch (dmError) {
+        console.error("Could not DM user:", dmError);
+        await interaction.followUp({
+          content:
+            "❌ I couldn't send you a DM. Please enable DMs and try again.",
+          ephemeral: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error handling /events command:", error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: "❌ Failed to fetch events.",
+          ephemeral: true,
+        });
+      } else {
+        await interaction.followUp({
+          content: "❌ Failed to fetch events.",
+          ephemeral: true,
+        });
+      }
     }
   }
-}
 });
 
 // Helper to gather conversations across all channels in a server
@@ -336,6 +333,152 @@ const ALLOWED_USER_IDS = ["1048620443474608178", "280096257282670592"];
 
 client.on(Events.MessageCreate, async (message) => {
   if (message.author.bot) return;
+
+  // Reminder commands
+  if (message.content.startsWith(PREFIX)) {
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+
+    if (command === "remindme") {
+      if (args.length < 2) {
+        const replyMsg = await message.reply(
+          "Usage: `!remindme <time> <message>` (e.g., `!remindme 2 weeks Take out the trash`)"
+        );
+        setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+        return;
+      }
+
+      const { timeStr, reminderMsg } = splitTimeAndMessage(args);
+      const duration = parseTime(timeStr);
+
+      if (!timeStr || !duration || !reminderMsg) {
+        const replyMsg = await message.reply(
+          "Invalid format. Try `!remindme 2 weeks Do something` or `!remindme 3 months 2 days Task`."
+        );
+        setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+        return;
+      }
+
+      const reminderId = Date.now().toString();
+      const reminder = {
+        id: reminderId,
+        userId: message.author.id,
+        msg: reminderMsg,
+        time: Date.now() + duration,
+      };
+
+      reminders.push(reminder);
+      saveReminders();
+      scheduleReminder(reminder, duration);
+
+      const replyMsg = await message.reply(
+        `⏰ Reminder set! I'll remind you in ${timeStr}. (ID: ${reminderId})`
+      );
+      setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+    }
+
+    // !listreminders
+    if (command === "listreminders") {
+      const userReminders = reminders.filter(
+        (r) => r.userId === message.author.id
+      );
+
+      if (userReminders.length === 0) {
+        const replyMsg = await message.reply(
+          "You don't have any pending reminders"
+        );
+
+        // Only auto-delete if run in a guild channel
+        if (message.guild) {
+          setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+        }
+        return;
+      }
+
+      const embed = new EmbedBuilder()
+        .setTitle(`${message.author.username}'s Reminders`)
+        .setColor("Blue");
+
+      userReminders.forEach((r) => {
+        const remaining = Math.max(0, r.time - Date.now());
+        const mins = Math.round(remaining / 60000);
+        embed.addFields({
+          name: `ID: ${r.id}`,
+          value: `${r.msg} (in ~${mins} min)`,
+        });
+      });
+
+      if (message.guild) {
+        // Command was run in a server: DM the list, delete the *command message* only
+        await message.author.send({ embeds: [embed] });
+        setTimeout(() => message.delete().catch(() => {}), 500);
+      } else {
+        // Command was run in a DM: just reply in DM, no auto-deletion
+        await message.reply({ embeds: [embed] });
+      }
+
+      return;
+    }
+
+    if (command === "cancelreminder") {
+      if (args.length < 1) {
+        const replyMsg = await message.reply(
+          "Usage: `!cancelreminder <id|all>`"
+        );
+        setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+        return;
+      }
+
+      const arg = args[0].toLowerCase();
+
+      if (arg === "all") {
+        // Remove all reminders for this user
+        const userReminders = reminders.filter(
+          (r) => r.userId === message.author.id
+        );
+
+        if (userReminders.length === 0) {
+          const replyMsg = await message.reply(
+            "❌ You don't have any reminders to cancel."
+          );
+          setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+          return;
+        }
+
+        // Filter out all user's reminders
+        reminders = reminders.filter((r) => r.userId !== message.author.id);
+        saveReminders();
+
+        const replyMsg = await message.reply(
+          `✅ All your reminders have been canceled.`
+        );
+        setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+        return;
+      }
+
+      // Otherwise, treat it as a reminder ID
+      const id = arg;
+      const index = reminders.findIndex(
+        (r) => r.id === id && r.userId === message.author.id
+      );
+
+      if (index === -1) {
+        const replyMsg = await message.reply(
+          `❌ No reminder found with ID \`${id}\`.`
+        );
+        setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+        return;
+      }
+
+      reminders.splice(index, 1);
+      saveReminders();
+
+      const replyMsg = await message.reply(
+        `✅ Reminder with ID \`${id}\` has been canceled.`
+      );
+      setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+    }
+  }
 
   if (message.content.trim().startsWith("!location")) {
     if (!ALLOWED_USER_IDS.includes(message.author.id)) {
@@ -494,31 +637,6 @@ client.on(Events.MessageCreate, async (message) => {
   }
 });
 
-// ⏰ Cron Job — Monday 10 UTC = 5 AM EDT
-cron.schedule("0 10 * * 1", async () => {
-  try {
-    const guild = client.guilds.cache.get("1392954859803644014");
-    if (!guild) return console.error("Guild not found.");
-
-    const summary = await gatherServerConversationsAndSummarize(guild, true);
-    const chunks = summary.match(/[\s\S]{1,1900}/g) || [
-      "No summary available.",
-    ];
-
-    const channel = guild.channels.cache.get(TARGET_CHANNEL_ID);
-    if (channel && channel.type === ChannelType.GuildText) {
-      for (const chunk of chunks) {
-        await channel.send(chunk);
-        await delay(1000); // ✅ Respect rate limit
-      }
-    }
-
-    console.log("✅ Weekly server summary sent.");
-  } catch (error) {
-    console.error("❌ Error running scheduled summary:", error);
-  }
-});
-
 client.on("error", (error) => {
   console.error("Discord client error:", error);
 });
@@ -561,3 +679,179 @@ function readLoggedUsernames() {
 function appendLocationToLog(location) {
   fs.appendFileSync(LOG_FILE, JSON.stringify(location) + "\n");
 }
+
+const PREFIX = "!";
+const REMINDER_FILE = path.join(__dirname, "reminders.json");
+
+// Load reminders from file
+let reminders = [];
+if (fs.existsSync(REMINDER_FILE)) {
+  try {
+    reminders = JSON.parse(fs.readFileSync(REMINDER_FILE, "utf8"));
+  } catch (err) {
+    console.error("Error reading reminders.json:", err);
+  }
+}
+
+// Save reminders to file
+function saveReminders() {
+  fs.writeFileSync(REMINDER_FILE, JSON.stringify(reminders, null, 2));
+}
+
+// Clean up expired reminders from file
+function cleanReminders() {
+  const before = reminders.length;
+  reminders = reminders.filter((r) => r.time > Date.now());
+  if (reminders.length !== before) {
+    saveReminders();
+    console.log(`🧹 Cleaned ${before - reminders.length} expired reminders`);
+  }
+}
+
+// 1) Regex-based duration parser
+function parseTime(input) {
+  if (!input || typeof input !== "string") return null;
+
+  // Now supports weeks and months
+  const regex =
+    /(\d+(?:\.\d+)?)\s*(mo(?:nths?)?|w(?:eeks?)?|d(?:ays?)?|h(?:ours?|rs?)?|m(?:in(?:ute)?s?)?|s(?:ec(?:ond)?s?)?)/gi;
+  let total = 0;
+  let matched = false;
+  const str = input.toLowerCase().replace(/[,]+/g, " ");
+
+  let m;
+  while ((m = regex.exec(str)) !== null) {
+    matched = true;
+    const value = parseFloat(m[1]);
+    const unit = m[2].toLowerCase();
+
+    if (unit.startsWith("mo"))
+      total += value * 30 * 24 * 60 * 60 * 1000; // months = 30 days
+    else if (unit.startsWith("w"))
+      total += value * 7 * 24 * 60 * 60 * 1000; // weeks
+    else if (unit.startsWith("d")) total += value * 24 * 60 * 60 * 1000;
+    else if (unit.startsWith("h")) total += value * 60 * 60 * 1000;
+    else if (unit.startsWith("m")) total += value * 60 * 1000;
+    else if (unit.startsWith("s")) total += value * 1000;
+  }
+
+  return matched && total > 0 ? Math.round(total) : null;
+}
+
+function splitTimeAndMessage(args) {
+  const timeUnits = [
+    "mo",
+    "month",
+    "months",
+    "w",
+    "week",
+    "weeks",
+    "d",
+    "day",
+    "days",
+    "h",
+    "hour",
+    "hours",
+    "m",
+    "min",
+    "minute",
+    "minutes",
+    "s",
+    "sec",
+    "second",
+    "seconds",
+  ];
+
+  let timeStrTokens = [];
+  let i = 0;
+
+  // Collect all consecutive tokens that are part of a time phrase
+  while (i < args.length) {
+    const token = args[i].toLowerCase();
+    const next = args[i + 1] ? args[i + 1].toLowerCase() : null;
+
+    // If token is a number and next token is a unit, include both
+    if (!isNaN(token) && next && timeUnits.some((u) => next.startsWith(u))) {
+      timeStrTokens.push(token);
+      timeStrTokens.push(next);
+      i += 2;
+    }
+    // If token itself is compact format like "1h30m"
+    else if (/^\d+[smhdwmo]+$/i.test(token)) {
+      timeStrTokens.push(token);
+      i++;
+    } else {
+      break; // first token that is not part of the time phrase
+    }
+  }
+
+  const timeStr = timeStrTokens.join(" ");
+  const reminderMsg = args.slice(i).join(" ");
+
+  return { timeStr, reminderMsg };
+}
+
+// Re-schedule reminders after restart
+function rescheduleReminders() {
+  reminders.forEach((r) => {
+    const delay = r.time - Date.now();
+    if (delay <= 0) {
+      sendReminder(r);
+    } else {
+      scheduleReminder(r, delay);
+    }
+  });
+}
+
+// Send reminder message
+function sendReminder(reminder) {
+  client.users.fetch(reminder.userId).then((user) => {
+    user.send(`🔔 Reminder: ${reminder.msg}`).catch(() => {
+      console.log(
+        `Failed to DM user ${reminder.userId}, reminder was: ${reminder.msg}`
+      );
+    });
+  });
+  reminders = reminders.filter((r) => r.id !== reminder.id);
+  saveReminders();
+}
+
+// Schedule reminder with timeout
+function scheduleReminder(reminder, delay) {
+  setTimeout(() => sendReminder(reminder), delay);
+}
+
+client.once("ready", () => {
+  console.log(`✅ Logged in as ${client.user.tag}`);
+
+  // Re-schedule saved reminders
+  rescheduleReminders();
+
+  // Auto-clean expired reminders every 10 minutes
+  setInterval(cleanReminders, 10 * 60 * 1000);
+
+  // ⏰ Cron Job — Monday 10 UTC = 5 AM EDT
+  cron.schedule("0 10 * * 1", async () => {
+    try {
+      const guild = client.guilds.cache.get("1392954859803644014");
+      if (!guild) return console.error("Guild not found.");
+
+      const summary = await gatherServerConversationsAndSummarize(guild, true);
+      const chunks = summary.match(/[\s\S]{1,1900}/g) || [
+        "No summary available.",
+      ];
+
+      const channel = guild.channels.cache.get(TARGET_CHANNEL_ID);
+      if (channel && channel.type === ChannelType.GuildText) {
+        for (const chunk of chunks) {
+          await channel.send(chunk);
+          await delay(1000); // ✅ Respect rate limit
+        }
+      }
+
+      console.log("✅ Weekly server summary sent.");
+    } catch (error) {
+      console.error("❌ Error running scheduled summary:", error);
+    }
+  });
+});
