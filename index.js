@@ -420,6 +420,7 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
 
+    // Cancel reminder with timeout clearing fixed
     if (command === "cancelreminder") {
       if (args.length < 1) {
         const replyMsg = await message.reply(
@@ -445,6 +446,14 @@ client.on(Events.MessageCreate, async (message) => {
           return;
         }
 
+        // Clear all scheduled timeouts for this user's reminders
+        userReminders.forEach((r) => {
+          if (scheduledTimeouts.has(r.id)) {
+            clearTimeout(scheduledTimeouts.get(r.id));
+            scheduledTimeouts.delete(r.id);
+          }
+        });
+
         // Filter out all user's reminders
         reminders = reminders.filter((r) => r.userId !== message.author.id);
         saveReminders();
@@ -468,6 +477,12 @@ client.on(Events.MessageCreate, async (message) => {
         );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
         return;
+      }
+
+      // Clear scheduled timeout for this reminder
+      if (scheduledTimeouts.has(id)) {
+        clearTimeout(scheduledTimeouts.get(id));
+        scheduledTimeouts.delete(id);
       }
 
       reminders.splice(index, 1);
@@ -681,6 +696,7 @@ function appendLocationToLog(location) {
 }
 
 const PREFIX = "!";
+
 const REMINDER_FILE = path.join(__dirname, "reminders.json");
 
 // Load reminders from file
@@ -693,6 +709,9 @@ if (fs.existsSync(REMINDER_FILE)) {
   }
 }
 
+// Map to track scheduled timeouts by reminder ID
+const scheduledTimeouts = new Map();
+
 // Save reminders to file
 function saveReminders() {
   fs.writeFileSync(REMINDER_FILE, JSON.stringify(reminders, null, 2));
@@ -702,6 +721,16 @@ function saveReminders() {
 function cleanReminders() {
   const before = reminders.length;
   reminders = reminders.filter((r) => r.time > Date.now());
+
+  // Also clear scheduled timeouts for expired reminders
+  for (const [id, timeout] of scheduledTimeouts.entries()) {
+    const remExists = reminders.find((r) => r.id === id);
+    if (!remExists) {
+      clearTimeout(timeout);
+      scheduledTimeouts.delete(id);
+    }
+  }
+
   if (reminders.length !== before) {
     saveReminders();
     console.log(`🧹 Cleaned ${before - reminders.length} expired reminders`);
@@ -814,11 +843,18 @@ function sendReminder(reminder) {
   });
   reminders = reminders.filter((r) => r.id !== reminder.id);
   saveReminders();
+
+  // Clear scheduled timeout since reminder fired
+  if (scheduledTimeouts.has(reminder.id)) {
+    clearTimeout(scheduledTimeouts.get(reminder.id));
+    scheduledTimeouts.delete(reminder.id);
+  }
 }
 
-// Schedule reminder with timeout
+// Schedule reminder with timeout tracking
 function scheduleReminder(reminder, delay) {
-  setTimeout(() => sendReminder(reminder), delay);
+  const timeoutId = setTimeout(() => sendReminder(reminder), delay);
+  scheduledTimeouts.set(reminder.id, timeoutId);
 }
 
 client.once("ready", () => {
