@@ -49,10 +49,6 @@ const commands = [
     .setName("summarize")
     .setDescription("Summarize recent messages in this channel")
     .toJSON(),
-  new SlashCommandBuilder()
-    .setName("events")
-    .setDescription("Get upcoming events for the next 7 days")
-    .toJSON(),
 ];
 
 const TARGET_CHANNEL_ID = "1392954859803644014"; // Replace with your target channel ID for weekly summaries
@@ -124,25 +120,7 @@ async function serverSummarize(messages) {
   }
 }
 
-// Fetch upcoming events helper
-async function fetchUpcomingEvents() {
-  try {
-    const response = await axios.get(
-      "https://guild.host/api/next/torc-dev/events/upcoming"
-    );
 
-    const edges = response.data.events.edges;
-
-    // ✅ Sort by startAt in ascending order (soonest first)
-    edges.sort((a, b) => new Date(a.node.startAt) - new Date(b.node.startAt));
-
-    const events = edges.map((edge) => edge.node);
-    return events;
-  } catch (error) {
-    console.error("Error fetching events:", error);
-    return [];
-  }
-}
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
@@ -193,94 +171,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
       } else {
         await interaction.editReply({
           content: "❌ An error occurred while processing your request.",
-          ephemeral: true,
-        });
-      }
-    }
-  } else if (interaction.commandName === "events") {
-    try {
-      await interaction.reply({
-        content: "📬 Check your DMs for upcoming events!",
-        ephemeral: true,
-      });
-
-      const upcomingEvents = await fetchUpcomingEvents();
-
-      if (upcomingEvents.length === 0) {
-        await interaction.followUp({
-          content: "No upcoming events found.",
-          ephemeral: true,
-        });
-        return;
-      }
-
-      const embeds = upcomingEvents.slice(0, 10).map((event) => {
-        const embed = new EmbedBuilder()
-          .setTitle(event.name)
-          .setURL(event.fullUrl)
-          .setDescription(
-            event.description
-              ? event.description.substring(0, 200) +
-                  (event.description.length > 200 ? "..." : "")
-              : "No description"
-          )
-          .addFields(
-            {
-              name: "Start Time",
-              value: new Date(event.startAt).toLocaleString("en-US", {
-                timeZone: event.timeZone,
-              }),
-              inline: true,
-            },
-            {
-              name: "End Time",
-              value: new Date(event.endAt).toLocaleString("en-US", {
-                timeZone: event.timeZone,
-              }),
-              inline: true,
-            },
-            {
-              name: "Visibility",
-              value: event.visibility,
-              inline: true,
-            }
-          )
-          .setColor("#0099ff")
-          .setTimestamp(new Date(event.startAt))
-          .setFooter({ text: "torc-dev events" });
-
-        // Include social card image if available
-        if (event.uploadedSocialCard && event.uploadedSocialCard.url) {
-          embed.setImage(event.uploadedSocialCard.url);
-        }
-
-        return embed;
-      });
-
-      // Try sending to user's DM
-      try {
-        await interaction.user.send({
-          content: " Here are the upcoming events:",
-          embeds,
-        });
-      } catch (dmError) {
-        console.error("Could not DM user:", dmError);
-        await interaction.followUp({
-          content:
-            "❌ I couldn't send you a DM. Please enable DMs and try again.",
-          ephemeral: true,
-        });
-      }
-    } catch (error) {
-      console.error("Error handling /events command:", error);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: "❌ Failed to fetch events.",
-          ephemeral: true,
-        });
-      } else {
-        await interaction.followUp({
-          content: "❌ Failed to fetch events.",
           ephemeral: true,
         });
       }
