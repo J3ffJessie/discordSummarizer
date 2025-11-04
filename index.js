@@ -133,10 +133,10 @@ const commands = [
     .setName("summarize")
     .setDescription("Summarize recent messages in this channel")
     .toJSON(),
-  new SlashCommandBuilder()
-    .setName("events")
-    .setDescription("Get upcoming events for the next 7 days")
-    .toJSON(),
+  // new SlashCommandBuilder()
+  //   .setName("events")
+  //   .setDescription("Get upcoming events for the next 7 days")
+  //   .toJSON(),
 ];
 
 const TARGET_CHANNEL_ID = "1392954859803644014"; // Replace with your target channel ID for weekly summaries
@@ -209,26 +209,26 @@ async function serverSummarize(messages) {
 }
 
 // Fetch upcoming events helper
-async function fetchUpcomingEvents() {
-  try {
-    const response = await axios.get("https://public-api.luma.com/v1/calendar/list-events", {
-      headers: {
-        accept: "application/json",
-        // Add your Luma API key if required
-        //"Authorization": `Bearer ${process.env.LUMA_API_KEY}`
-      }
-    });
+// async function fetchUpcomingEvents() {
+//   try {
+//     const response = await axios.get("https://public-api.luma.com/v1/calendar/list-events", {
+//       headers: {
+//         accept: "application/json",
+//         // Add your Luma API key if required
+//         //"Authorization": `Bearer ${process.env.LUMA_API_KEY}`
+//       }
+//     });
 
-    // Assuming response.data contains the events array
-    // Sort by start time if the API doesn't return them sorted
-    const events = response.data.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+//     // Assuming response.data contains the events array
+//     // Sort by start time if the API doesn't return them sorted
+//     const events = response.data.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
-    return events;
-  } catch (error) {
-    console.error("Error fetching Luma events:", error);
-    return [];
-  }
-}
+//     return events;
+//   } catch (error) {
+//     console.error("Error fetching Luma events:", error);
+//     return [];
+//   }
+// }
 
 // Monitor member updates for name changes
 client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
