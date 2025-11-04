@@ -101,8 +101,8 @@ async function checkDisplayName(member) {
             
             // Kick the user
             try {
-                await member.kick(`Display name contains prohibited term: ${bannedName}`);
-                console.log(`Kicked member ${member.user.tag} for prohibited name containing: ${bannedName}`);
+                await member.kick();
+                console.log(`Kicked member ${member.user.tag}`);
             } catch (error) {
                 console.error('Failed to kick user:', error);
             }
