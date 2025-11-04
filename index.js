@@ -90,9 +90,11 @@ async function checkDisplayName(member) {
                 console.error('Error deleting user messages:', error);
             }
 
-            // Send DM to user
+            // Send DM to user with gif
             try {
-                await member.send(`You were kicked from ${member.guild.name} for having a prohibited name.`);
+                await member.send({
+                    content: 'https://tenor.com/view/you-got-to-be-quicker-than-that-gotta-be-quicker-than-that-quick-you-gotta-be-quicker-than-that-gif-17491322042216115294'
+                });
             } catch (error) {
                 console.error('Failed to send DM to user:', error);
             }
