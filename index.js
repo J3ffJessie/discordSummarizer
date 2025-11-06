@@ -28,89 +28,6 @@ function delay(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-// List of banned display names
-const BANNED_NAMES = ['Announcements']; // Add your banned names here
-
-// Function to normalize text by removing special characters and emojis
-function normalizeText(text) {
-    return text
-        .toLowerCase()
-        // Remove emojis and other special unicode characters
-        .replace(/[\u{1F600}-\u{1F64F}]/gu, '') // Remove emoticons
-        .replace(/[\u{1F300}-\u{1F5FF}]/gu, '') // Remove symbols & pictographs
-        .replace(/[\u{1F680}-\u{1F6FF}]/gu, '') // Remove transport & map symbols
-        .replace(/[\u{2600}-\u{26FF}]/gu, '')   // Remove miscellaneous symbols
-        .replace(/[\u{2700}-\u{27BF}]/gu, '')   // Remove dingbats
-        // Remove special characters and spaces
-        .replace(/[^a-z0-9]/g, '')
-        // Remove repeated characters (like 'aaa' -> 'a')
-        .replace(/(.)\1+/g, '$1');
-}
-
-// Function to check and handle inappropriate display names
-async function checkDisplayName(member) {
-    console.log(`Checking display name for member: ${member.user.tag}`);
-    const displayName = member.displayName;
-    console.log(`Original display name: ${displayName}`);
-    
-    // Normalize the display name
-    const normalizedDisplayName = normalizeText(displayName);
-    console.log(`Normalized display name: ${normalizedDisplayName}`);
-    
-    for (const bannedName of BANNED_NAMES) {
-        const normalizedBannedName = normalizeText(bannedName);
-        console.log(`Checking against normalized banned name: ${normalizedBannedName}`);
-        
-        // Check both original and normalized versions
-        if (normalizedDisplayName.includes(normalizedBannedName) || 
-            displayName.toLowerCase().includes(bannedName.toLowerCase())) {
-            console.log(`Match found! Display name "${displayName}" contains banned word "${bannedName}"`);
-            if (!member.kickable) {
-                console.log(`Cannot kick member ${member.user.tag} - insufficient permissions`);
-                return;
-            }
-            // Delete messages from all channels first
-            try {
-                const channels = member.guild.channels.cache.filter(channel => 
-                    channel.type === ChannelType.GuildText && 
-                    channel.viewable && 
-                    channel.permissionsFor(member.guild.members.me).has('ManageMessages')
-                );
-
-                for (const [_, channel] of channels) {
-                    const messages = await channel.messages.fetch({ limit: 100 });
-                    const userMessages = messages.filter(msg => msg.author.id === member.id);
-                    
-                    if (userMessages.size > 0) {
-                        await channel.bulkDelete(userMessages, true).catch(console.error);
-                    }
-                }
-                console.log(`Deleted messages from user ${member.user.tag} across all channels`);
-            } catch (error) {
-                console.error('Error deleting user messages:', error);
-            }
-
-            // Send DM to user with gif
-            try {
-                await member.send({
-                    content: 'https://tenor.com/view/you-got-to-be-quicker-than-that-gotta-be-quicker-than-that-quick-you-gotta-be-quicker-than-that-gif-17491322042216115294'
-                });
-            } catch (error) {
-                console.error('Failed to send DM to user:', error);
-            }
-            
-            // Kick the user
-            try {
-                await member.kick();
-                console.log(`Kicked member ${member.user.tag}`);
-            } catch (error) {
-                console.error('Failed to kick user:', error);
-            }
-            break;
-        }
-    }
-}
-
 // Initialize Discord client with necessary intents
 const client = new Client({
   intents: [
@@ -118,7 +35,6 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.GuildMembers,
   ],
 });
 
@@ -133,10 +49,10 @@ const commands = [
     .setName("summarize")
     .setDescription("Summarize recent messages in this channel")
     .toJSON(),
-  // new SlashCommandBuilder()
-  //   .setName("events")
-  //   .setDescription("Get upcoming events for the next 7 days")
-  //   .toJSON(),
+  new SlashCommandBuilder()
+    .setName("events")
+    .setDescription("Get upcoming events for the next 7 days")
+    .toJSON(),
 ];
 
 const TARGET_CHANNEL_ID = "1392954859803644014"; // Replace with your target channel ID for weekly summaries
@@ -209,45 +125,26 @@ async function serverSummarize(messages) {
 }
 
 // Fetch upcoming events helper
-// async function fetchUpcomingEvents() {
-//   try {
-//     const response = await axios.get("https://public-api.luma.com/v1/calendar/list-events", {
-//       headers: {
-//         accept: "application/json",
-//         // Add your Luma API key if required
-//         //"Authorization": `Bearer ${process.env.LUMA_API_KEY}`
-//       }
-//     });
+async function fetchUpcomingEvents() {
+  try {
+    const response = await axios.get("https://public-api.luma.com/v1/calendar/list-events", {
+      headers: {
+        accept: "application/json",
+        // Add your Luma API key if required
+        //"Authorization": `Bearer ${process.env.LUMA_API_KEY}`
+      }
+    });
 
-//     // Assuming response.data contains the events array
-//     // Sort by start time if the API doesn't return them sorted
-//     const events = response.data.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+    // Assuming response.data contains the events array
+    // Sort by start time if the API doesn't return them sorted
+    const events = response.data.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
-//     return events;
-//   } catch (error) {
-//     console.error("Error fetching Luma events:", error);
-//     return [];
-//   }
-// }
-
-// Monitor member updates for name changes
-client.on(Events.GuildMemberUpdate, async (oldMember, newMember) => {
-    console.log(`Member update detected for ${newMember.user.tag}`);
-    console.log(`Old display name: ${oldMember.globalName}`);
-    console.log(`New display name: ${newMember.globalName}`);
-    
-    if (oldMember.globalName !== newMember.globalName) {
-        console.log(`Display name changed, checking against banned names...`);
-        await checkDisplayName(newMember);
-    }
-});
-
-// Monitor new members joining
-client.on(Events.GuildMemberAdd, async (member) => {
-    console.log(`New member joined: ${member.user.tag}`);
-    console.log(`Checking display name: ${member.globalName}`);
-    await checkDisplayName(member);
-});
+    return events;
+  } catch (error) {
+    console.error("Error fetching Luma events:", error);
+    return [];
+  }
+}
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
@@ -261,7 +158,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
         .map(
           (msg) =>
-            `${msg.member?.globalName || msg.author.username}: ${msg.content}`
+            `${msg.member?.displayName || msg.author.username}: ${msg.content}`
         )
         .join("\n");
 
@@ -302,96 +199,96 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
       }
     }
-    } else if (interaction.commandName === "events") {
-    try {
-      await interaction.reply({
-        content: "📬 Check your DMs for upcoming events!",
-        ephemeral: true,
-      });
+  // } else if (interaction.commandName === "events") {
+  //   try {
+  //     await interaction.reply({
+  //       content: "📬 Check your DMs for upcoming events!",
+  //       ephemeral: true,
+  //     });
 
-      const upcomingEvents = await fetchUpcomingEvents();
+  //     const upcomingEvents = await fetchUpcomingEvents();
 
-      if (upcomingEvents.length === 0) {
-        await interaction.followUp({
-          content: "No upcoming events found.",
-          ephemeral: true,
-        });
-        return;
-      }
+  //     if (upcomingEvents.length === 0) {
+  //       await interaction.followUp({
+  //         content: "No upcoming events found.",
+  //         ephemeral: true,
+  //       });
+  //       return;
+  //     }
 
-      const embeds = upcomingEvents.slice(0, 10).map((event) => {
-        const embed = new EmbedBuilder()
-          .setTitle(event.name)
-          .setURL(event.fullUrl)
-          .setDescription(
-            event.description
-              ? event.description.substring(0, 200) +
-                  (event.description.length > 200 ? "..." : "")
-              : "No description"
-          )
-          .addFields(
-            {
-              name: "Start Time",
-              value: new Date(event.startAt).toLocaleString("en-US", {
-                timeZone: event.timeZone,
-              }),
-              inline: true,
-            },
-            {
-              name: "End Time",
-              value: new Date(event.endAt).toLocaleString("en-US", {
-                timeZone: event.timeZone,
-              }),
-              inline: true,
-            },
-            {
-              name: "Visibility",
-              value: event.visibility,
-              inline: true,
-            }
-          )
-          .setColor("#0099ff")
-          .setTimestamp(new Date(event.startAt))
-          .setFooter({ text: "torc-dev events" });
+  //     const embeds = upcomingEvents.slice(0, 10).map((event) => {
+  //       const embed = new EmbedBuilder()
+  //         .setTitle(event.name)
+  //         .setURL(event.fullUrl)
+  //         .setDescription(
+  //           event.description
+  //             ? event.description.substring(0, 200) +
+  //                 (event.description.length > 200 ? "..." : "")
+  //             : "No description"
+  //         )
+  //         .addFields(
+  //           {
+  //             name: "Start Time",
+  //             value: new Date(event.startAt).toLocaleString("en-US", {
+  //               timeZone: event.timeZone,
+  //             }),
+  //             inline: true,
+  //           },
+  //           {
+  //             name: "End Time",
+  //             value: new Date(event.endAt).toLocaleString("en-US", {
+  //               timeZone: event.timeZone,
+  //             }),
+  //             inline: true,
+  //           },
+  //           {
+  //             name: "Visibility",
+  //             value: event.visibility,
+  //             inline: true,
+  //           }
+  //         )
+  //         .setColor("#0099ff")
+  //         .setTimestamp(new Date(event.startAt))
+  //         .setFooter({ text: "torc-dev events" });
 
-        // Include social card image if available
-        if (event.uploadedSocialCard && event.uploadedSocialCard.url) {
-          embed.setImage(event.uploadedSocialCard.url);
-        }
+  //       // Include social card image if available
+  //       if (event.uploadedSocialCard && event.uploadedSocialCard.url) {
+  //         embed.setImage(event.uploadedSocialCard.url);
+  //       }
 
-        return embed;
-      });
+  //       return embed;
+  //     });
 
-      // Try sending to user's DM
-      try {
-        await interaction.user.send({
-          content: "Here are the upcoming events:",
-          embeds,
-        });
-      } catch (dmError) {
-        console.error("Could not DM user:", dmError);
-        await interaction.followUp({
-          content:
-            "❌ I couldn't send you a DM. Please enable DMs and try again.",
-          ephemeral: true,
-        });
-      }
-    } catch (error) {
-      console.error("Error handling /events command:", error);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: "❌ Failed to fetch events.",
-          ephemeral: true,
-        });
-      } else {
-        await interaction.followUp({
-          content: "❌ Failed to fetch events.",
-          ephemeral: true,
-        });
-      }
-    }
-  }
-});
+  //     // Try sending to user's DM
+  //     try {
+  //       await interaction.user.send({
+  //         content: " Here are the upcoming events:",
+  //         embeds,
+  //       });
+  //     } catch (dmError) {
+  //       console.error("Could not DM user:", dmError);
+  //       await interaction.followUp({
+  //         content:
+  //           "❌ I couldn't send you a DM. Please enable DMs and try again.",
+  //         ephemeral: true,
+  //       });
+  //     }
+  //   } catch (error) {
+  //     console.error("Error handling /events command:", error);
+  //     if (!interaction.replied && !interaction.deferred) {
+  //       await interaction.reply({
+  //         content: "❌ Failed to fetch events.",
+  //         ephemeral: true,
+  //       });
+  //     } else {
+  //       await interaction.followUp({
+  //         content: "❌ Failed to fetch events.",
+  //         ephemeral: true,
+  //       });
+  //     }
+  //   }
+  // }
+// });
 
 // Helper to gather conversations across all channels in a server
 async function gatherServerConversationsAndSummarize(
