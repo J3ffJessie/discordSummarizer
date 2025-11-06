@@ -199,96 +199,96 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
       }
     }
-  // } else if (interaction.commandName === "events") {
-  //   try {
-  //     await interaction.reply({
-  //       content: "📬 Check your DMs for upcoming events!",
-  //       ephemeral: true,
-  //     });
+  } else if (interaction.commandName === "events") {
+    try {
+      await interaction.reply({
+        content: "📬 Check your DMs for upcoming events!",
+        ephemeral: true,
+      });
 
-  //     const upcomingEvents = await fetchUpcomingEvents();
+      const upcomingEvents = await fetchUpcomingEvents();
 
-  //     if (upcomingEvents.length === 0) {
-  //       await interaction.followUp({
-  //         content: "No upcoming events found.",
-  //         ephemeral: true,
-  //       });
-  //       return;
-  //     }
+      if (upcomingEvents.length === 0) {
+        await interaction.followUp({
+          content: "No upcoming events found.",
+          ephemeral: true,
+        });
+        return;
+      }
 
-  //     const embeds = upcomingEvents.slice(0, 10).map((event) => {
-  //       const embed = new EmbedBuilder()
-  //         .setTitle(event.name)
-  //         .setURL(event.fullUrl)
-  //         .setDescription(
-  //           event.description
-  //             ? event.description.substring(0, 200) +
-  //                 (event.description.length > 200 ? "..." : "")
-  //             : "No description"
-  //         )
-  //         .addFields(
-  //           {
-  //             name: "Start Time",
-  //             value: new Date(event.startAt).toLocaleString("en-US", {
-  //               timeZone: event.timeZone,
-  //             }),
-  //             inline: true,
-  //           },
-  //           {
-  //             name: "End Time",
-  //             value: new Date(event.endAt).toLocaleString("en-US", {
-  //               timeZone: event.timeZone,
-  //             }),
-  //             inline: true,
-  //           },
-  //           {
-  //             name: "Visibility",
-  //             value: event.visibility,
-  //             inline: true,
-  //           }
-  //         )
-  //         .setColor("#0099ff")
-  //         .setTimestamp(new Date(event.startAt))
-  //         .setFooter({ text: "torc-dev events" });
+      const embeds = upcomingEvents.slice(0, 10).map((event) => {
+        const embed = new EmbedBuilder()
+          .setTitle(event.name)
+          .setURL(event.fullUrl)
+          .setDescription(
+            event.description
+              ? event.description.substring(0, 200) +
+                  (event.description.length > 200 ? "..." : "")
+              : "No description"
+          )
+          .addFields(
+            {
+              name: "Start Time",
+              value: new Date(event.startAt).toLocaleString("en-US", {
+                timeZone: event.timeZone,
+              }),
+              inline: true,
+            },
+            {
+              name: "End Time",
+              value: new Date(event.endAt).toLocaleString("en-US", {
+                timeZone: event.timeZone,
+              }),
+              inline: true,
+            },
+            {
+              name: "Visibility",
+              value: event.visibility,
+              inline: true,
+            }
+          )
+          .setColor("#0099ff")
+          .setTimestamp(new Date(event.startAt))
+          .setFooter({ text: "torc-dev events" });
 
-  //       // Include social card image if available
-  //       if (event.uploadedSocialCard && event.uploadedSocialCard.url) {
-  //         embed.setImage(event.uploadedSocialCard.url);
-  //       }
+        // Include social card image if available
+        if (event.uploadedSocialCard && event.uploadedSocialCard.url) {
+          embed.setImage(event.uploadedSocialCard.url);
+        }
 
-  //       return embed;
-  //     });
+        return embed;
+      });
 
-  //     // Try sending to user's DM
-  //     try {
-  //       await interaction.user.send({
-  //         content: " Here are the upcoming events:",
-  //         embeds,
-  //       });
-  //     } catch (dmError) {
-  //       console.error("Could not DM user:", dmError);
-  //       await interaction.followUp({
-  //         content:
-  //           "❌ I couldn't send you a DM. Please enable DMs and try again.",
-  //         ephemeral: true,
-  //       });
-  //     }
-  //   } catch (error) {
-  //     console.error("Error handling /events command:", error);
-  //     if (!interaction.replied && !interaction.deferred) {
-  //       await interaction.reply({
-  //         content: "❌ Failed to fetch events.",
-  //         ephemeral: true,
-  //       });
-  //     } else {
-  //       await interaction.followUp({
-  //         content: "❌ Failed to fetch events.",
-  //         ephemeral: true,
-  //       });
-  //     }
-  //   }
-  // }
-// });
+      // Try sending to user's DM
+      try {
+        await interaction.user.send({
+          content: " Here are the upcoming events:",
+          embeds,
+        });
+      } catch (dmError) {
+        console.error("Could not DM user:", dmError);
+        await interaction.followUp({
+          content:
+            "❌ I couldn't send you a DM. Please enable DMs and try again.",
+          ephemeral: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error handling /events command:", error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: "❌ Failed to fetch events.",
+          ephemeral: true,
+        });
+      } else {
+        await interaction.followUp({
+          content: "❌ Failed to fetch events.",
+          ephemeral: true,
+        });
+      }
+    }
+  }
+});
 
 // Helper to gather conversations across all channels in a server
 async function gatherServerConversationsAndSummarize(
