@@ -130,13 +130,20 @@ async function serverSummarize(messages) {
 }
 
 // ---- Coffee-pairing Helpers ----
-const COFFEE_ROLE_NAME = process.env.COFFEE_ROLE_NAME || "coffee chat";
+const COFFEE_ROLE_NAME = process.env.COFFEE_ROLE_NAME || "coffee-chat";
 const COFFEE_CRON_SCHEDULE = process.env.COFFEE_CRON_SCHEDULE || process.env.COFFEE_CRON || "0 9 * * 1"; // default Mon 09:00 UTC
 const COFFEE_PAIRING_COOLDOWN_DAYS = Number(process.env.COFFEE_PAIRING_COOLDOWN_DAYS || 30);
 const COFFEE_PAIRING_COOLDOWN_MS = COFFEE_PAIRING_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
 const COFFEE_PAIRING_FILE = path.join(__dirname, "coffee_pairs.json");
 const COFFEE_FETCH_MEMBERS = process.env.COFFEE_FETCH_MEMBERS === "true"; // if true, attempt guild.members.fetch() when cache is insufficient
 const COFFEE_FETCH_TIMEOUT_MS = Number(process.env.COFFEE_FETCH_TIMEOUT_MS || 10000);
+// Optional Mee6 integration settings: if COFFEE_MIN_MEE6_LEVEL > 0 the bot will filter
+// coffee-role members to only those at or above the configured Mee6 level
+const COFFEE_MIN_MEE6_LEVEL = 2;
+// Base for fetching the MEE6 leaderboard; default to the public site
+const COFFEE_MEE6_API_HOST = "https://mee6.xyz";
+// If strict, the coffee pairing will abort (no members) when Mee6 lookup fails
+const COFFEE_MEE6_STRICT = process.env.COFFEE_MEE6_STRICT === "true";
 
 function readCoffeePairs() {
   try {
@@ -209,7 +216,68 @@ async function getMembersWithCoffeeRole(guild, roleIdentifier = COFFEE_ROLE_NAME
       );
     }
   }
-  return Array.from(members.values());
+  let memberList = Array.from(members.values());
+
+  // Optionally filter by Mee6 minimum level if configured
+  if (COFFEE_MIN_MEE6_LEVEL > 0) {
+    let levels = {};
+    try {
+      levels = await fetchMee6LevelsForGuildMembers(guild.id, memberList.map((m) => m.id));
+    } catch (err) {
+      console.warn("Could not fetch Mee6 leaderboard for guild or apply min level filter:", err?.message || err);
+      if (COFFEE_MEE6_STRICT) {
+        console.warn("COFFEE_MEE6_STRICT is enabled — aborting coffee pairing due to failed Mee6 lookup.");
+        return [];
+      }
+    }
+    const before = memberList.length;
+    memberList = memberList.filter((m) => {
+      // map keys are IDs returned from the Mee6 leaderboard; default to level 0 if not present
+      const lvl = Number(levels[String(m.id)] || levels[m.id] || 0);
+      return lvl >= COFFEE_MIN_MEE6_LEVEL;
+    });
+    const after = memberList.length;
+    console.log(`Mee6 level filter: required >=${COFFEE_MIN_MEE6_LEVEL} — filtered ${before} -> ${after}`);
+  }
+
+  return memberList;
+}
+
+/**
+ * Fetch Mee6 leaderboard entries and return a map of userId->level for the requested members
+ * This is a best-effort approach that queries the public MEE6 leaderboard JSON
+ * - If MEE6 is not in the guild or the plugin is disabled, the call can 404 and we'll treat that as no-one has a level
+ * - This implementation attempts to request a large limit and fallback sensibly
+ */
+async function fetchMee6LevelsForGuildMembers(guildId, memberIds = [], limit = 1000) {
+  // Fast path: if no members requested, return empty mapping
+  if (!memberIds || memberIds.length === 0) return {};
+
+  const map = {};
+  try {
+    // try to fetch a large leaderboard page. If the server has many members you may need to increase paging logic
+    const url = `${COFFEE_MEE6_API_HOST}/api/plugins/levels/leaderboard/${guildId}?limit=${limit}`;
+    const res = await axios.get(url, { headers: { Accept: "application/json" }, timeout: 8000 });
+    const data = res.data || {};
+    // Mee6 leaderboard sometimes returns data under 'entries' or 'players'
+    const entries = data.entries || data.players || data.leaderboard || [];
+    if (Array.isArray(entries) && entries.length > 0) {
+      entries.forEach((e) => {
+        if (!e) return;
+        // Support multiple id fields the API may emit
+        const userId = (e.id || e.user_id || e.userId || e.uid || e.discord_id || e.discordId || "").toString();
+        const levelVal = typeof e.level !== "undefined" ? e.level : e.rank || e.xp || 0;
+        if (userId) map[userId] = Number(levelVal) || 0;
+      });
+    }
+  } catch (err) {
+    // If the request fails (404, network, etc.) log and return empty map
+    // We prefer to avoid blocking pairings entirely in case of a temporary issue
+    console.warn(`Failed to fetch Mee6 leaderboard for guild ${guildId}:`, err?.message || err);
+  }
+
+  // If some member IDs are still missing in the map, their level remains 0
+  return map;
 }
 
 async function fetchGuildMembersWithTimeout(guild, timeoutMs = 10000) {
@@ -343,7 +411,7 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
     const mentionText = pair.map((m) => `<@${m.id}>`).join(" and ");
     const first = pair[0];
     const partnerList = pair.slice(1).map((m) => `<@${m.id}>`).join(", ");
-    const msg = `☕ Hi ${first.user.username}! I've paired you with ${partnerList || 'someone'} for a coffee chat. Please DM them to arrange a time — you'd make a great match!`;
+    const msg = `☕ Hi ${first.user.username}! I've paired you with ${partnerList || 'someone'} for a coffee-chat. Please DM them to arrange a time — you'd make a great match!`;
 
     // Send DM to each member listing their partner(s)
     for (const m of pair) {

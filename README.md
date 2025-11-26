@@ -129,6 +129,10 @@ A Discord bot that provides message summarization, upcoming event notifications,
     The bot keeps a per-user pairing history in `coffee_pairs.json`. When forming pairs, it will try to avoid pairing two users who were paired within the last `COFFEE_PAIRING_COOLDOWN_DAYS` days. If the pool of eligible users is too small and non-repeating pairing is not possible, it will pair anyway and prefer the least-matched partner (i.e., the candidate the user has paired with the fewest times). If there is a tie, the olded pairing timestamp is used as a tiebreaker. The bot will log a console warning when cooldown rules are violated.
     * A log of pairings is saved to `coffee_pairs.json`.
     * You can set `COFFEE_LOG_CHANNEL_ID` to a channel where a summary of pairings will be posted; if not set, the bot will post into `TARGET_CHANNEL_ID`.
+    * Optionally, require a minimum Mee6 level for pairing by setting `COFFEE_MIN_MEE6_LEVEL` to a positive integer. The bot will call the public MEE6 leaderboard API to check levels and exclude users below the configured threshold.
+    * You can override the Mee6 API host with `COFFEE_MEE6_API_HOST` (default: `https://mee6.xyz`) if using a proxy or private instance.
+      * If you'd like pairing to abort when Mee6 lookup fails (strict behavior), set `COFFEE_MEE6_STRICT=true`. When strict mode is enabled and the Mee6 lookup fails, pairing will not occur.
+      * The Mee6 check uses the `level` field returned by the leaderboard API (e.g. `"level":13`) to determine eligibility.
 
 ---
 
