@@ -7,6 +7,14 @@ const commands = [
     name: 'summarize',
     description: 'Summarize the latest messages in this channel.',
   },
+  {
+    name: 'events',
+    description: 'Get upcoming events for the next 7 days',
+  },
+  {
+    name: 'coffee-pair',
+    description: 'Randomly pair users with the coffee-chat role and DM them to meet.',
+  },
 ];
 
 const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);

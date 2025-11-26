@@ -32,6 +32,7 @@ function delay(ms) {
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMembers,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
@@ -52,6 +53,10 @@ const commands = [
   new SlashCommandBuilder()
     .setName("events")
     .setDescription("Get upcoming events for the next 7 days")
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("coffee-pair")
+    .setDescription("Randomly pair users that have the coffee-chat role and send them a DM to meet")
     .toJSON(),
 ];
 
@@ -121,6 +126,309 @@ async function serverSummarize(messages) {
   } catch (error) {
     console.error("Error in server summarization:", error);
     throw error;
+  }
+}
+
+// ---- Coffee-pairing Helpers ----
+const COFFEE_ROLE_NAME = process.env.COFFEE_ROLE_NAME || "coffee chat";
+const COFFEE_CRON_SCHEDULE = process.env.COFFEE_CRON_SCHEDULE || process.env.COFFEE_CRON || "0 9 * * 1"; // default Mon 09:00 UTC
+const COFFEE_PAIRING_COOLDOWN_DAYS = Number(process.env.COFFEE_PAIRING_COOLDOWN_DAYS || 30);
+const COFFEE_PAIRING_COOLDOWN_MS = COFFEE_PAIRING_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+const COFFEE_PAIRING_FILE = path.join(__dirname, "coffee_pairs.json");
+const COFFEE_FETCH_MEMBERS = process.env.COFFEE_FETCH_MEMBERS === "true"; // if true, attempt guild.members.fetch() when cache is insufficient
+const COFFEE_FETCH_TIMEOUT_MS = Number(process.env.COFFEE_FETCH_TIMEOUT_MS || 10000);
+
+function readCoffeePairs() {
+  try {
+    if (!fs.existsSync(COFFEE_PAIRING_FILE)) return {};
+    const raw = JSON.parse(fs.readFileSync(COFFEE_PAIRING_FILE, "utf-8") || "{}");
+    // Normalize older format to history array structure
+    Object.keys(raw).forEach((userId) => {
+      const entry = raw[userId];
+      if (!entry) return;
+      if (!entry.history && entry.lastPaired) {
+        // Migrate existing 'lastPaired' + 'partners' to 'history' entries
+        const ts = Number(entry.lastPaired) || Date.now();
+        const partners = Array.isArray(entry.partners) ? entry.partners : [];
+        entry.history = partners.map((p) => ({ partnerId: p, timestamp: ts }));
+        delete entry.lastPaired;
+        delete entry.partners;
+      }
+      if (!entry.history) entry.history = [];
+    });
+    return raw;
+  } catch (e) {
+    console.error("Error reading coffee_pairs.json:", e);
+    return {};
+  }
+}
+
+function saveCoffeePairs(data) {
+  try {
+    fs.writeFileSync(COFFEE_PAIRING_FILE, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error("Error saving coffee_pairs.json:", e);
+  }
+}
+
+function normalizeHistory(data) {
+  // Ensure every user has history array
+  Object.keys(data).forEach((uid) => {
+    const entry = data[uid];
+    if (!entry) data[uid] = { history: [] };
+    else if (!Array.isArray(entry.history)) entry.history = [];
+  });
+  return data;
+}
+
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+async function getMembersWithCoffeeRole(guild, roleIdentifier = COFFEE_ROLE_NAME) {
+  let role = guild.roles.cache.find((r) => r.name === roleIdentifier || r.id === roleIdentifier);
+  if (!role) {
+    console.warn(`Role ${roleIdentifier} not found in ${guild.name}`);
+    return [];
+  }
+  // Prefer cached role members to avoid long fetches. If enabled, try fetching members with timeout
+  let members = role.members.filter((m) => !m.user.bot).map((m) => m);
+  if (members.length < 2 && COFFEE_FETCH_MEMBERS) {
+    try {
+      await fetchGuildMembersWithTimeout(guild, COFFEE_FETCH_TIMEOUT_MS);
+      members = role.members.filter((m) => !m.user.bot).map((m) => m);
+    } catch (err) {
+      // The underlying discord.js fetch can throw a GuildMembersTimeout error or our timed out error
+      console.warn(
+        "Could not refresh member cache (fetch timed out or failed). Falling back to cached role members.",
+        err && err.message ? err.message : err
+      );
+    }
+  }
+  return Array.from(members.values());
+}
+
+async function fetchGuildMembersWithTimeout(guild, timeoutMs = 10000) {
+  // Return a promise that races member fetch with timeout
+  return Promise.race([
+    guild.members.fetch(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error("GuildMembersFetchTimeout")), timeoutMs)),
+  ]);
+}
+
+function pairUp(members) {
+  if (!members || members.length === 0) return [];
+  const shuffled = shuffle(members.slice());
+  const pairs = [];
+  while (shuffled.length >= 2) {
+    const a = shuffled.pop();
+    const b = shuffled.pop();
+    pairs.push([a, b]);
+  }
+  // If leftover, add them as a trio with the last pair
+  if (shuffled.length === 1) {
+    if (pairs.length > 0) pairs[pairs.length - 1].push(shuffled.pop());
+    else pairs.push([shuffled.pop()]);
+  }
+  return pairs;
+}
+
+function getLastPairTimestamp(history, userA, userB) {
+  if (!history || !history[userA]) return 0;
+  const entry = history[userA];
+  if (!entry || !Array.isArray(entry.history)) return 0;
+  const rec = entry.history.find((h) => h.partnerId === userB);
+  return rec ? Number(rec.timestamp) || 0 : 0;
+}
+
+function getPairCount(history, userA, userB) {
+  if (!history || !history[userA] || !Array.isArray(history[userA].history)) return 0;
+  return history[userA].history.reduce((acc, h) => acc + (h.partnerId === userB ? 1 : 0), 0);
+}
+
+function wasRecentlyPaired(history, userA, userB, cooldownMs) {
+  const aTs = getLastPairTimestamp(history, userA, userB);
+  const bTs = getLastPairTimestamp(history, userB, userA);
+  const ts = Math.max(aTs, bTs);
+  if (!ts) return false;
+  return Date.now() - ts < cooldownMs;
+}
+
+function pairUpWithCooldown(members, history, cooldownMs) {
+  if (!members || members.length === 0) return [];
+  const shuffled = shuffle(members.slice());
+  const pairs = [];
+
+  while (shuffled.length >= 2) {
+    const a = shuffled.shift();
+    let partnerIndex = -1;
+
+    // 1) Try to find a partner that was not paired recently
+    for (let i = 0; i < shuffled.length; i++) {
+      const cand = shuffled[i];
+      if (!wasRecentlyPaired(history, a.id, cand.id, cooldownMs)) {
+        partnerIndex = i;
+        break;
+      }
+    }
+
+    // 2) If none found, prefer the partner with the fewest prior pairings (least matched)
+    if (partnerIndex === -1) {
+      let minCount = Number.MAX_SAFE_INTEGER;
+      let oldestTs = Number.MAX_SAFE_INTEGER;
+      for (let i = 0; i < shuffled.length; i++) {
+        const cand = shuffled[i];
+        const count = getPairCount(history, a.id, cand.id) + getPairCount(history, cand.id, a.id); // symmetric count
+        const ts = Math.max(getLastPairTimestamp(history, a.id, cand.id) || 0, getLastPairTimestamp(history, cand.id, a.id) || 0);
+
+        // Prefer candidates never-paired first
+        if (count === 0) {
+          partnerIndex = i;
+          break;
+        }
+
+        // otherwise, pick the one with the smallest count; tie-break on oldest timestamp
+        if (count < minCount || (count === minCount && ts < oldestTs)) {
+          minCount = count;
+          oldestTs = ts;
+          partnerIndex = i;
+        }
+      }
+    }
+
+    if (partnerIndex === -1) {
+      // No partner found (shouldn't happen), push back 'a' and break
+      shuffled.push(a);
+      break;
+    }
+
+    const b = shuffled.splice(partnerIndex, 1)[0];
+    // If we chose a partner via the fallback, log some debug info
+    try {
+      const pairCount = getPairCount(history, a.id, b.id) + getPairCount(history, b.id, a.id);
+      const recency = wasRecentlyPaired(history, a.id, b.id, cooldownMs);
+      if (recency) {
+        console.warn(`Soft fallback: pairing ${a.user?.username || a.id} with ${b.user?.username || b.id} despite cooldown (pairCount=${pairCount})`);
+      } else if (pairCount > 0) {
+        console.info(`Fallback to least-matched partner: pairing ${a.user?.username || a.id} with ${b.user?.username || b.id} (pairCount=${pairCount})`);
+      }
+    } catch (err) {}
+    pairs.push([a, b]);
+  }
+
+  // If leftover, join them to the last pair to create a trio
+  if (shuffled.length === 1) {
+    const leftover = shuffled.pop();
+    if (pairs.length > 0) {
+      pairs[pairs.length - 1].push(leftover);
+    } else {
+      pairs.push([leftover]);
+    }
+  }
+  return pairs;
+}
+
+async function notifyPairs(pairs, guild, source = "scheduled") {
+  let history = readCoffeePairs();
+  history = normalizeHistory(history);
+  const results = [];
+  // Warn admin if DM delivery fails for all or many users
+  let totalFailedDMs = 0;
+  for (const pair of pairs) {
+    const usernames = pair.map((m) => `${m.user.username}#${m.user.discriminator}`);
+    const mentionText = pair.map((m) => `<@${m.id}>`).join(" and ");
+    const first = pair[0];
+    const partnerList = pair.slice(1).map((m) => `<@${m.id}>`).join(", ");
+    const msg = `☕ Hi ${first.user.username}! I've paired you with ${partnerList || 'someone'} for a coffee chat. Please DM them to arrange a time — you'd make a great match!`;
+
+    // Send DM to each member listing their partner(s)
+    for (const m of pair) {
+      const others = pair.filter((p) => p.id !== m.id).map((p) => `<@${p.id}>`).join(", ");
+      const content = `☕ Hi ${m.user.username}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
+      try {
+        await m.send({ content });
+        await delay(500);
+      } catch (err) {
+        totalFailedDMs++;
+        console.warn(`Could not DM user ${m.id}:`, err.message);
+      }
+    }
+
+    // Update history - append entry for each pair partner
+    const timeNow = Date.now();
+    pair.forEach((m) => {
+      if (!history[m.id]) history[m.id] = { history: [] };
+      const entry = history[m.id];
+      const partnersToAdd = pair.filter((p) => p.id !== m.id).map((p) => p.id);
+      partnersToAdd.forEach((pid) => entry.history.push({ partnerId: pid, timestamp: timeNow }));
+      // Keep history manageable
+      if (entry.history.length > 200) entry.history = entry.history.slice(-200);
+    });
+    results.push({ pair: usernames });
+  }
+  saveCoffeePairs(history);
+  // Also post a summary to the church channel if available
+  const logChannelId = process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID;
+  const logChannel = guild.channels.cache.get(logChannelId);
+  if (logChannel && logChannel.type === ChannelType.GuildText) {
+    for (const p of results) {
+      await logChannel.send(`☕ Coffee Pairing (${new Date().toLocaleString()}): ${p.pair.join(" <> ")}`);
+      await delay(400);
+    }
+  }
+  if (totalFailedDMs > 0) {
+    try {
+      const logChannel2 = guild.channels.cache.get(process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID);
+      if (logChannel2 && logChannel2.type === ChannelType.GuildText) {
+        await logChannel2.send(`⚠️ DM delivery failed for ${totalFailedDMs} recipients during the recent pairing. Users may have DMs disabled.`);
+      }
+    } catch {}
+  }
+  return results;
+}
+
+async function runCoffeePairing(guild, roleIdentifier = COFFEE_ROLE_NAME, source = "scheduled") {
+  try {
+    const members = await getMembersWithCoffeeRole(guild, roleIdentifier);
+    if (!members || members.length < 2) {
+      console.log("Not enough members to pair for coffee.");
+      return [];
+    }
+    let history = readCoffeePairs();
+    history = normalizeHistory(history);
+    const pairs = pairUpWithCooldown(members, history, COFFEE_PAIRING_COOLDOWN_MS);
+    // Check if any pairings violated cooldown (should be minimized by algorithm)
+    const violated = [];
+    pairs.forEach((pair) => {
+      for (let i = 0; i < pair.length; i++) {
+        for (let j = i + 1; j < pair.length; j++) {
+          const a = pair[i];
+          const b = pair[j];
+          if (wasRecentlyPaired(history, a.id, b.id, COFFEE_PAIRING_COOLDOWN_MS)) {
+            violated.push([a, b]);
+          }
+        }
+      }
+    });
+
+    if (violated.length > 0) {
+      console.warn("Some pairings violated the configured cooldown. This can happen if there are too few eligible members.");
+    }
+
+    const results = await notifyPairs(pairs, guild, source);
+    return results;
+  } catch (e) {
+    console.error("Error running coffee pairing:", e);
+    // If this is a fetch timeout, return empty and avoid throwing to let the cron continue
+    if (e && e.message && e.message.includes("GuildMembersFetchTimeout")) {
+      console.warn("Member fetch timed out; using cache or skipping pairing. Try setting COFFEE_FETCH_MEMBERS=true to force refresh or increase COFFEE_FETCH_TIMEOUT_MS.");
+      return [];
+    }
+    return [];
   }
 }
 
@@ -285,6 +593,31 @@ client.on(Events.InteractionCreate, async (interaction) => {
           content: "❌ Failed to fetch events.",
           ephemeral: true,
         });
+      }
+    }
+  }
+  else if (interaction.commandName === "coffee-pair") {
+    try {
+      // Only allow certain users to run the pairing manually
+      if (!ALLOWED_USER_IDS.includes(interaction.user.id)) {
+        await interaction.reply({ content: "❌ You don't have permission to run this command.", ephemeral: true });
+        return;
+      }
+
+      await interaction.reply({ content: "☕ Running coffee pairing...", ephemeral: true });
+      const guild = interaction.guild;
+      const res = await runCoffeePairing(guild, COFFEE_ROLE_NAME, "manual");
+      if (!res || res.length === 0) {
+        await interaction.followUp({ content: "⚠️ No pairings created. This can happen if not enough members were found with the role, or the member fetch timed out. Check the logs or enable `COFFEE_FETCH_MEMBERS=true` to force a member cache refresh.", ephemeral: true });
+      } else {
+        await interaction.followUp({ content: `✅ Paired ${res.length} groups for coffee.`, ephemeral: true });
+      }
+    } catch (err) {
+      console.error("Error running coffee-pair command:", err);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({ content: "❌ Failed to run coffee pairing.", ephemeral: true });
+      } else {
+        await interaction.editReply({ content: "❌ Failed to run coffee pairing.", ephemeral: true });
       }
     }
   }
@@ -652,6 +985,30 @@ client.on(Events.MessageCreate, async (message) => {
     setTimeout(() => message.delete().catch(() => {}), 500);
     return;
   }
+
+  // !paircoffee - manual pairing using message command (restricted)
+  if (message.content.trim() === "!paircoffee") {
+    if (!ALLOWED_USER_IDS.includes(message.author.id)) {
+      await message.reply("❌ You do not have permission to use this command.");
+      setTimeout(() => message.delete().catch(() => {}), 2000);
+      return;
+    }
+    const replyMsg = await message.reply("☕ Running coffee pairing... This may take a moment.");
+    try {
+      const res = await runCoffeePairing(message.guild, COFFEE_ROLE_NAME, "manual");
+      if (!res || res.length === 0) {
+        await message.channel.send("⚠️ No pairings created — not enough eligible members or member fetch timed out. Check logs or set COFFEE_FETCH_MEMBERS=true to force refresh.");
+      } else {
+        await message.channel.send(`✅ Paired ${res.length} groups for coffee.`);
+      }
+    } catch (e) {
+      console.error("Error running !paircoffee:", e);
+      await message.channel.send("❌ Failed to run coffee pairing.");
+    }
+    setTimeout(() => replyMsg.delete().catch(() => {}), 2000);
+    setTimeout(() => message.delete().catch(() => {}), 500);
+    return;
+  }
 });
 
 client.on("error", (error) => {
@@ -871,8 +1228,12 @@ client.once("ready", () => {
   // ⏰ Cron Job — Monday 10 UTC = 5 AM EDT
   cron.schedule("0 10 * * 1", async () => {
     try {
+      console.log(`⏰ [CRON] Server summary job triggered at ${new Date().toISOString()}`);
       const guild = client.guilds.cache.get("1392954859803644014");
-      if (!guild) return console.error("Guild not found.");
+      if (!guild) {
+        console.error("Guild not found for server summary.");
+        return;
+      }
 
       const summary = await gatherServerConversationsAndSummarize(guild, true);
       const chunks = summary.match(/[\s\S]{1,1900}/g) || [
@@ -890,6 +1251,43 @@ client.once("ready", () => {
       console.log("✅ Weekly server summary sent.");
     } catch (error) {
       console.error("❌ Error running scheduled summary:", error);
+      try {
+        const channel = client.channels.cache.get(TARGET_CHANNEL_ID);
+        if (channel && channel.type === ChannelType.GuildText) {
+          await channel.send(`❌ Error running scheduled summary: ${error?.message || error}`);
+        }
+      } catch (sendErr) {
+        console.error("Failed to send scheduling error to channel:", sendErr);
+      }
     }
   });
+
+  // Coffee pairing cron job (configurable)
+  try {
+    cron.schedule(COFFEE_CRON_SCHEDULE, async () => {
+      console.log(`☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`);
+      try {
+        const guild = client.guilds.cache.get(process.env.GUILD_ID || "1392954859803644014");
+        if (!guild) {
+          console.error("Guild not found for coffee pairing.");
+          return;
+        }
+        const result = await runCoffeePairing(guild, COFFEE_ROLE_NAME);
+        console.log(`☕ Coffee pairing job completed, pairs: ${result.length}`);
+      } catch (e) {
+        console.error("❌ Error running coffee pairing cron job:", e);
+        try {
+          const logChannel = client.channels.cache.get(process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID);
+          if (logChannel && logChannel.type === ChannelType.GuildText) {
+            await logChannel.send(`❌ Coffee pairing cron job failed: ${e?.message || e}`);
+          }
+        } catch (sendErr) {
+          console.error("Failed to send cron error to log channel:", sendErr);
+        }
+      }
+    });
+    console.log(`☕ Coffee pairing scheduled with cron: ${COFFEE_CRON_SCHEDULE}`);
+  } catch (e) {
+    console.error("Error scheduling coffee pairing:", e);
+  }
 });
