@@ -4,6 +4,31 @@ require("dotenv").config(); // Load environment variables from .env file
 const { Client, GatewayIntentBits, Events } = require("discord.js");
 const axios = require("axios");
 
+const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "280096257282670592";
+
+/**
+ * Notify the configured admin by DM.
+ * @param {string} content
+ */
+async function notifyAdmin(content) {
+  if (!ADMIN_USER_ID) return;
+  try {
+    const user = await client.users.fetch(ADMIN_USER_ID);
+    if (!user) return;
+    await user.send({ content: `📣 Admin Notification: ${content}` });
+  } catch (err) {
+    console.error("Failed to send admin DM:", err?.message || err);
+  }
+}
+
+async function logError(err, context = "") {
+  try {
+    if (context) console.error(context, err);
+    else console.error(err);
+    await notifyAdmin(`${context ? `${context} — ` : ""}${(err && err.message) || String(err)}`);
+  } catch (ignore) {}
+}
+
 // Helper: split long messages under 2000 chars
 function splitMessage(content, limit = 1900) {
   const chunks = [];
@@ -52,7 +77,7 @@ async function generateSummary(userMessages) {
       return modelResponse?.trim() || "No summary generated.";
     } catch (error) {
       attempts++;
-      console.error(`Summarization attempt ${attempts} failed:`, error);
+      logError(error, `Summarization attempt ${attempts} failed`).catch(() => {});
       if (attempts === maxRetries) {
         return "Sorry, there was an error generating the summary. Please try again later.";
       }
@@ -79,6 +104,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   if (interaction.commandName === "summarize") {
+    try {
+      await notifyAdmin(`Slash command /summarize invoked by ${interaction.user.tag} (${interaction.user.id}) in ${interaction.guild ? `guild ${interaction.guild.id}` : `DM`}`);
+    } catch (ignore) {}
     await interaction.deferReply({ ephemeral: true });
 
     try {
@@ -105,8 +133,11 @@ client.on(Events.InteractionCreate, async (interaction) => {
       }
 
       await interaction.editReply("Summary created successfully.");
+      try {
+        await notifyAdmin(`Slash command /summarize completed successfully by ${interaction.user.tag} (${interaction.user.id}) in ${interaction.guild ? `guild ${interaction.guild.id}` : `DM`}`);
+      } catch (ignore) {}
     } catch (error) {
-      console.error("Error generating summary:", error);
+      await logError(error, "Error generating summary");
       await interaction.editReply("There was an error generating the summary.");
     }
   }
@@ -116,7 +147,7 @@ client.on("disconnect", () => {
   console.log("Bot disconnected from Discord. Attempting to reconnect...");
 });
 
-client.login(process.env.BOT_TOKEN).catch((error) => {
-  console.error("Failed to login:", error);
+client.login(process.env.BOT_TOKEN).catch(async (error) => {
+  await logError(error, "Failed to login");
   process.exit(1);
 });
