@@ -779,6 +779,12 @@ async function logError(err, context = "") {
 }
 
 client.on(Events.MessageCreate, async (message) => {
+  // Quick per-process dedupe — ignore duplicate events for same message id
+  try {
+    if (processedMessageIds.has(message.id)) return;
+    processedMessageIds.add(message.id);
+    setTimeout(() => processedMessageIds.delete(message.id), 30 * 1000); // keep cache short
+  } catch (err) {}
   if (message.author.bot) return;
 
   // Reminder commands
@@ -819,9 +825,22 @@ client.on(Events.MessageCreate, async (message) => {
         time: Date.now() + duration,
       };
 
-      reminders.push(reminder);
-      saveReminders();
-      scheduleReminder(reminder, duration);
+      try {
+        const addRes = await addReminderSafely(reminder);
+        if (!addRes.created && addRes.existing) {
+          const replyMsg = await message.reply(
+            `⚠️ A similar reminder already exists (ID: ${addRes.existing.id}). I won't create a duplicate.`
+          );
+          setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
+          return;
+        }
+      } catch (e) {
+        await logError(e, 'Error adding reminder safely');
+        // Fall back to original behavior if lock/add fails
+        reminders.push(reminder);
+        saveReminders();
+        scheduleReminder(reminder, duration);
+      }
 
       const replyMsg = await message.reply(
         `⏰ Reminder set! I'll remind you in ${timeStr}. (ID: ${reminderId})`
@@ -831,9 +850,10 @@ client.on(Events.MessageCreate, async (message) => {
 
     // !listreminders
     if (command === "listreminders") {
-      const userReminders = reminders.filter(
-        (r) => r.userId === message.author.id
-      );
+      // Read authoritative reminders from file in case multiple processes exist
+      const persisted = loadRemindersFromFile();
+      const userReminders = persisted.filter((r) => r.userId === message.author.id);
+      console.log(`!listreminders run by ${message.author.tag || message.author.username} (${message.author.id}) — pid ${process.pid} — returning ${userReminders.length} reminder(s)`);
 
       if (userReminders.length === 0) {
         const replyMsg = await message.reply(
@@ -903,6 +923,7 @@ client.on(Events.MessageCreate, async (message) => {
           if (scheduledTimeouts.has(r.id)) {
             clearTimeout(scheduledTimeouts.get(r.id));
             scheduledTimeouts.delete(r.id);
+            console.log(`Cleared scheduled timeout for reminder ${r.id} (user ${message.author.id})`);
           }
         });
 
@@ -935,6 +956,7 @@ client.on(Events.MessageCreate, async (message) => {
       if (scheduledTimeouts.has(id)) {
         clearTimeout(scheduledTimeouts.get(id));
         scheduledTimeouts.delete(id);
+        console.log(`Cleared scheduled timeout for reminder ${id} (user ${message.author.id})`);
       }
 
       reminders.splice(index, 1);
@@ -1181,7 +1203,11 @@ function appendLocationToLog(location) {
 
 const PREFIX = "!";
 
+// Local dedupe cache to ignore duplicate message events within the process
+const processedMessageIds = new Set();
+
 const REMINDER_FILE = path.join(__dirname, "reminders.json");
+const REMINDER_LOCK_FILE = path.join(__dirname, "reminders.json.lock");
 
 // Load reminders from file
 let reminders = [];
@@ -1199,6 +1225,109 @@ const scheduledTimeouts = new Map();
 // Save reminders to file
 function saveReminders() {
   fs.writeFileSync(REMINDER_FILE, JSON.stringify(reminders, null, 2));
+}
+
+// Load reminders from file — use for commands where we need the authoritative persisted state
+function loadRemindersFromFile() {
+  try {
+    if (!fs.existsSync(REMINDER_FILE)) return [];
+    const data = fs.readFileSync(REMINDER_FILE, "utf8") || "[]";
+    const parsed = JSON.parse(data);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (err) {
+    console.warn("Failed to load reminders from file:", err?.message || err);
+    return [];
+  }
+}
+
+// Acquire a simple file lock (bad-man's lock) for REMINDER_FILE operations to avoid races
+async function acquireRemindersLock(retries = 50, delayMs = 100) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const fd = fs.openSync(REMINDER_LOCK_FILE, 'wx');
+      fs.writeSync(fd, `${process.pid}\n${Date.now()}`);
+      fs.closeSync(fd);
+      return () => {
+        try { fs.unlinkSync(REMINDER_LOCK_FILE); } catch (e) {}
+      };
+    } catch (err) {
+      if (err && err.code === 'EEXIST') {
+        // lock exists, check for staleness
+        try {
+          const stat = fs.statSync(REMINDER_LOCK_FILE);
+          const ageMs = Date.now() - stat.mtimeMs;
+          if (ageMs > 30000) { // older than 30s
+            try { fs.unlinkSync(REMINDER_LOCK_FILE); } catch (er) {}
+            // next iteration will try again
+          }
+        } catch (sErr) {
+          // ignore
+        }
+        await new Promise((r) => setTimeout(r, delayMs));
+        continue;
+      }
+      // Other errors: don't retry
+      throw err;
+    }
+  }
+  throw new Error('Could not acquire reminders lock');
+}
+
+// Check whether an equivalent reminder already exists (same user, same message, time within tolerance)
+function findDuplicatePersistedReminder(reminder, persisted) {
+  const TOLERANCE_MS = 5000; // 5 seconds
+  return (persisted || []).find((r) => {
+    try {
+      return (
+        r.userId === reminder.userId &&
+        (r.msg || '').trim() === (reminder.msg || '').trim() &&
+        Math.abs((Number(r.time) || 0) - Number(reminder.time)) <= TOLERANCE_MS
+      );
+    } catch (e) {
+      return false;
+    }
+  });
+}
+
+// Atomically add a reminder by acquiring a simple lock, reading file, checking duplicate, and writing
+async function addReminderSafely(reminder) {
+  let release;
+  try {
+    release = await acquireRemindersLock();
+  } catch (err) {
+    // If lock cannot be acquired, fallback to naive method (best-effort). Still check file before writing.
+      try {
+      const persisted = loadRemindersFromFile();
+      const dup = findDuplicatePersistedReminder(reminder, persisted);
+      if (dup) return { created: false, existing: dup };
+      persisted.push(reminder);
+      fs.writeFileSync(REMINDER_FILE, JSON.stringify(persisted, null, 2));
+      // update in-memory
+      reminders = persisted;
+        scheduleReminder(reminder, Math.max(0, reminder.time - Date.now()));
+        console.log(`(fallback) Created reminder ${reminder.id} for user ${reminder.userId}`);
+      return { created: true };
+    } catch (e) {
+      throw e;
+    }
+  }
+
+  try {
+    const persisted = loadRemindersFromFile();
+    const dup = findDuplicatePersistedReminder(reminder, persisted);
+    if (dup) {
+      console.log(`Duplicate reminder detected for user ${reminder.userId}; existing ID: ${dup.id}`);
+      return { created: false, existing: dup };
+    }
+    persisted.push(reminder);
+    fs.writeFileSync(REMINDER_FILE, JSON.stringify(persisted, null, 2));
+    reminders = persisted;
+    console.log(`Created reminder ${reminder.id} for user ${reminder.userId} (scheduled in ${Math.max(0, Math.round((reminder.time - Date.now())/1000))}s)`);
+    scheduleReminder(reminder, Math.max(0, reminder.time - Date.now()));
+    return { created: true };
+  } finally {
+    try { release && release(); } catch (e) {}
+  }
 }
 
 // Clean up expired reminders from file
@@ -1306,6 +1435,8 @@ function splitTimeAndMessage(args) {
 
 // Re-schedule reminders after restart
 function rescheduleReminders() {
+  // Re-load persisted reminders to ensure in-memory state is authoritative on startup
+  reminders = loadRemindersFromFile();
   reminders.forEach((r) => {
     const delay = r.time - Date.now();
     if (delay <= 0) {
@@ -1317,32 +1448,67 @@ function rescheduleReminders() {
 }
 
 // Send reminder message
-function sendReminder(reminder) {
-  client.users.fetch(reminder.userId).then((user) => {
-    user.send(`🔔 Reminder: ${reminder.msg}`).catch(() => {
-      console.log(
-        `Failed to DM user ${reminder.userId}, reminder was: ${reminder.msg}`
-      );
-    });
-  });
-  reminders = reminders.filter((r) => r.id !== reminder.id);
-  saveReminders();
+async function sendReminder(reminder) {
+  try {
+    // Double-check persisted reminders file to avoid sending canceled reminders
+    let persistedReminders = [];
+    try {
+      if (fs.existsSync(REMINDER_FILE)) {
+        persistedReminders = JSON.parse(fs.readFileSync(REMINDER_FILE, 'utf8') || '[]');
+      }
+    } catch (err) {
+      console.warn('Failed to read reminders.json while sending reminder; proceeding with in-memory checks.', err?.message || err);
+    }
 
-  // Clear scheduled timeout since reminder fired
-  if (scheduledTimeouts.has(reminder.id)) {
-    clearTimeout(scheduledTimeouts.get(reminder.id));
-    scheduledTimeouts.delete(reminder.id);
+    const stillActive = persistedReminders.some((r) => r.id === reminder.id) || reminders.some((r) => r.id === reminder.id);
+    if (!stillActive) {
+      console.log(`Reminder ${reminder.id} was canceled (not found in persisted reminders). Skipping send.`);
+      if (scheduledTimeouts.has(reminder.id)) {
+        clearTimeout(scheduledTimeouts.get(reminder.id));
+        scheduledTimeouts.delete(reminder.id);
+      }
+      return;
+    }
+
+    const user = await client.users.fetch(reminder.userId);
+    try {
+      await user.send(`🔔 Reminder: ${reminder.msg}`);
+    } catch (dmErr) {
+      console.log(`Failed to DM user ${reminder.userId}, reminder was: ${reminder.msg}`, dmErr?.message || dmErr);
+    }
+
+    // Remove reminder and persist the change
+    reminders = reminders.filter((r) => r.id !== reminder.id);
+    saveReminders();
+
+    // Clear scheduled timeout since reminder fired (if present)
+    if (scheduledTimeouts.has(reminder.id)) {
+      clearTimeout(scheduledTimeouts.get(reminder.id));
+      scheduledTimeouts.delete(reminder.id);
+    }
+  } catch (err2) {
+    // Log and notify admin if necessary
+    await logError(err2, 'sendReminder error').catch(() => {});
   }
 }
 
 // Schedule reminder with timeout tracking
 function scheduleReminder(reminder, delay) {
+  // Avoid scheduling duplicates: clear any existing timeout for this reminder id
+  if (scheduledTimeouts.has(reminder.id)) {
+    try {
+      clearTimeout(scheduledTimeouts.get(reminder.id));
+      scheduledTimeouts.delete(reminder.id);
+      console.log(`Cleared existing scheduled timeout when re-scheduling reminder ${reminder.id}`);
+    } catch (ignore) {}
+  }
   const timeoutId = setTimeout(() => sendReminder(reminder), delay);
   scheduledTimeouts.set(reminder.id, timeoutId);
+  console.log(`Scheduled reminder ${reminder.id} in ${Math.max(0, Math.round(delay/1000))}s for user ${reminder.userId}`);
 }
 
 client.once("ready", async () => {
-  console.log(`✅ Logged in as ${client.user.tag}`);
+  console.log(`✅ Logged in as ${client.user.tag} (pid ${process.pid})`);
 
   // Re-schedule saved reminders
   rescheduleReminders();

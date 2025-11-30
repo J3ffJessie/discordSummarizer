@@ -96,7 +96,7 @@ const client = new Client({
 });
 
 client.once("ready", () => {
-  console.log(`Logged in as ${client.user.tag}`);
+  console.log(`Logged in as ${client.user.tag} (pid ${process.pid})`);
 });
 
 // Handle /summarize slash command

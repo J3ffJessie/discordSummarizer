@@ -76,6 +76,8 @@ A Discord bot that provides message summarization, upcoming event notifications,
    node index.js
    ```
 
+Note: Don't start both `index.js` and `cronindex.js` with the same bot token; that will log in two separate processes subscribing to the same message events and will duplicate responses. If you need separate background cron processes, use a different token or coordinate that only one active process handles message commands.
+
 ---
 
 ## Usage
