@@ -678,10 +678,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
           ephemeral: true,
         });
       }
-
-      }
-      else if (interaction.commandName === "coffee-pair") {
-        try {
+    }
+  } else if (interaction.commandName === "coffee-pair") {
+    try {
           // Only allow admin users to run the pairing
           if (!ALLOWED_USER_IDS.includes(interaction.user.id)) {
             await interaction.reply({ content: "❌ You don't have permission to run this command.", ephemeral: true });
@@ -705,7 +704,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await interaction.editReply({ content: "❌ Failed to run coffee pairing.", ephemeral: true });
           }
         }
-      }
+    }
 });
 
 // Helper to gather conversations across all channels in a server
@@ -1526,62 +1525,66 @@ client.once("ready", async () => {
   setInterval(cleanReminders, 10 * 60 * 1000);
 
   // ⏰ Cron Job — Monday 10 UTC = 5 AM EDT
-  cron.schedule("0 10 * * 1", async () => {
-    try {
-      console.log(`⏰ [CRON] Server summary job triggered at ${new Date().toISOString()}`);
-      notifyAdmin(`Cron job: Server summary started at ${new Date().toISOString()}`).catch(() => {});
-      const serverGuildId = process.env.GUILD_ID || "885547853567635476";
-      let guild = client.guilds.cache.get(serverGuildId);
-      if (!guild) {
-        // Attempt to fetch the guild as a fallback in case cache was evicted or not populated
-        try {
-          console.log(`DEBUG: guild ${serverGuildId} not in cache; attempting client.guilds.fetch(${serverGuildId})`);
-          guild = await client.guilds.fetch(serverGuildId);
-        } catch (fetchErr) {
-          await logError(fetchErr, `Failed to fetch guild ${serverGuildId} for server summary`);
-        }
-      }
-      if (!guild) {
-        logError(new Error("Guild not found for server summary."), "Server summary cron").catch(() => {});
-        return;
-      }
-
-      const summary = await gatherServerConversationsAndSummarize(guild, true);
-      const chunks = summary.match(/[\s\S]{1,1900}/g) || [
-        "No summary available.",
-      ];
-
-      let channel = guild ? guild.channels.cache.get(TARGET_CHANNEL_ID) : null;
-      if (!channel) {
-        // Fallback: fetch the channel if not cached or if guild is not present
-        try {
-          channel = await client.channels.fetch(TARGET_CHANNEL_ID);
-        } catch (fetchErr) {
-          await logError(fetchErr, `Failed to fetch target channel ${TARGET_CHANNEL_ID} for server summary`);
-        }
-      }
-      if (channel && channel.type === ChannelType.GuildText) {
-        for (const chunk of chunks) {
-          await channel.send(chunk);
-          await delay(1000); // ✅ Respect rate limit
-        }
-      }
-
-      console.log("✅ Weekly server summary sent.");
-      notifyAdmin(`Cron job: Server summary completed at ${new Date().toISOString()}`).catch(() => {});
-    } catch (error) {
-      await logError(error, "Error running scheduled summary");
+  try {
+    cron.schedule("0 10 * * 1", async () => {
       try {
-        const channel = client.channels.cache.get(TARGET_CHANNEL_ID);
-        if (channel && channel.type === ChannelType.GuildText) {
-          await channel.send(`❌ Error running scheduled summary: ${error?.message || error}`);
+        console.log(`⏰ [CRON] Server summary job triggered at ${new Date().toISOString()}`);
+        notifyAdmin(`Cron job: Server summary started at ${new Date().toISOString()}`).catch(() => {});
+        const serverGuildId = process.env.GUILD_ID || "885547853567635476";
+        let guild = client.guilds.cache.get(serverGuildId);
+        if (!guild) {
+          // Attempt to fetch the guild as a fallback in case cache was evicted or not populated
+          try {
+            console.log(`DEBUG: guild ${serverGuildId} not in cache; attempting client.guilds.fetch(${serverGuildId})`);
+            guild = await client.guilds.fetch(serverGuildId);
+          } catch (fetchErr) {
+            await logError(fetchErr, `Failed to fetch guild ${serverGuildId} for server summary`);
+          }
         }
-      } catch (sendErr) {
-        logError(sendErr, "Failed to send scheduling error to channel").catch(() => {});
+        if (!guild) {
+          logError(new Error("Guild not found for server summary."), "Server summary cron").catch(() => {});
+          return;
+        }
+
+        const summary = await gatherServerConversationsAndSummarize(guild, true);
+        const chunks = summary.match(/[\s\S]{1,1900}/g) || [
+          "No summary available.",
+        ];
+
+        let channel = guild ? guild.channels.cache.get(TARGET_CHANNEL_ID) : null;
+        if (!channel) {
+          // Fallback: fetch the channel if not cached or if guild is not present
+          try {
+            channel = await client.channels.fetch(TARGET_CHANNEL_ID);
+          } catch (fetchErr) {
+            await logError(fetchErr, `Failed to fetch target channel ${TARGET_CHANNEL_ID} for server summary`);
+          }
+        }
+        if (channel && channel.type === ChannelType.GuildText) {
+          for (const chunk of chunks) {
+            await channel.send(chunk);
+            await delay(1000); // ✅ Respect rate limit
+          }
+        }
+
+        console.log("✅ Weekly server summary sent.");
+        notifyAdmin(`Cron job: Server summary completed at ${new Date().toISOString()}`).catch(() => {});
+      } catch (error) {
+        await logError(error, "Error running scheduled summary");
+        try {
+          const channel = client.channels.cache.get(TARGET_CHANNEL_ID);
+          if (channel && channel.type === ChannelType.GuildText) {
+            await channel.send(`❌ Error running scheduled summary: ${error?.message || error}`);
+          }
+        } catch (sendErr) {
+          logError(sendErr, "Failed to send scheduling error to channel").catch(() => {});
+        }
       }
-    }
-  });
-  console.log(`⏰ Server summary scheduled with cron: 0 10 * * 1`);
+    });
+    console.log(`⏰ Server summary scheduled with cron: 0 10 * * 1`);
+  } catch (e) {
+    await logError(e, "Error scheduling server summary");
+  }
 
   // Coffee pairing cron job (configurable)
   try {
