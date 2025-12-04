@@ -678,34 +678,34 @@ client.on(Events.InteractionCreate, async (interaction) => {
           ephemeral: true,
         });
       }
-    }
-  }
-  else if (interaction.commandName === "coffee-pair") {
-    try {
-      // Only allow certain users to run the pairing manually
-      if (!ALLOWED_USER_IDS.includes(interaction.user.id)) {
-        await interaction.reply({ content: "❌ You don't have permission to run this command.", ephemeral: true });
-        return;
-      }
 
-      await interaction.reply({ content: "☕ Running coffee pairing...", ephemeral: true });
-      const guild = interaction.guild;
-      const res = await runCoffeePairing(guild, COFFEE_ROLE_NAME, "manual");
-      if (!res || res.length === 0) {
-        await interaction.followUp({ content: "⚠️ No pairings created. This can happen if not enough members were found with the role, or the member fetch timed out. Check the logs or enable `COFFEE_FETCH_MEMBERS=true` to force a member cache refresh.", ephemeral: true });
-      } else {
-        await interaction.followUp({ content: `✅ Paired ${res.length} groups for coffee.`, ephemeral: true });
-        notifyAdmin(`/coffee-pair completed for ${interaction.user.tag} (${interaction.user.id}) — pairs: ${res.length}`).catch(() => {});
       }
-    } catch (err) {
-      await logError(err, `/coffee-pair interaction error`);
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: "❌ Failed to run coffee pairing.", ephemeral: true });
-      } else {
-        await interaction.editReply({ content: "❌ Failed to run coffee pairing.", ephemeral: true });
+      else if (interaction.commandName === "coffee-pair") {
+        try {
+          // Only allow admin users to run the pairing
+          if (!ALLOWED_USER_IDS.includes(interaction.user.id)) {
+            await interaction.reply({ content: "❌ You don't have permission to run this command.", ephemeral: true });
+            return;
+          }
+
+          await interaction.reply({ content: "☕ Running coffee pairing...", ephemeral: true });
+          const guild = interaction.guild;
+          const res = await runCoffeePairing(guild, COFFEE_ROLE_NAME, "manual");
+          if (!res || res.length === 0) {
+            await interaction.followUp({ content: "⚠️ No pairings created. This can happen if not enough members were found with the role, or the member fetch timed out. Check the logs or enable `COFFEE_FETCH_MEMBERS=true` to force a member cache refresh.", ephemeral: true });
+          } else {
+            await interaction.followUp({ content: `✅ Paired ${res.length} groups for coffee.`, ephemeral: true });
+            notifyAdmin(`/coffee-pair completed for ${interaction.user.tag} (${interaction.user.id}) — pairs: ${res.length}`).catch(() => {});
+          }
+        } catch (err) {
+          await logError(err, `/coffee-pair interaction error`);
+          if (!interaction.replied && !interaction.deferred) {
+            await interaction.reply({ content: "❌ Failed to run coffee pairing.", ephemeral: true });
+          } else {
+            await interaction.editReply({ content: "❌ Failed to run coffee pairing.", ephemeral: true });
+          }
+        }
       }
-    }
-  }
 });
 
 // Helper to gather conversations across all channels in a server
