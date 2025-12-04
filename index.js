@@ -1211,11 +1211,13 @@ const REMINDER_LOCK_FILE = path.join(__dirname, "reminders.json.lock");
 
 // Load reminders from file
 let reminders = [];
-  if (fs.existsSync(REMINDER_FILE)) {
+if (fs.existsSync(REMINDER_FILE)) {
   try {
-    reminders = JSON.parse(fs.readFileSync(REMINDER_FILE, "utf8"));
+    const data = fs.readFileSync(REMINDER_FILE, "utf8") || "[]";
+    reminders = JSON.parse(data);
   } catch (err) {
     logError(err, "Error reading reminders.json").catch(() => {});
+    reminders = [];
   }
 }
 
@@ -1509,6 +1511,13 @@ function scheduleReminder(reminder, delay) {
 
 client.once("ready", async () => {
   console.log(`✅ Logged in as ${client.user.tag} (pid ${process.pid})`);
+  // Debug: show env and cached guilds for diagnosing scheduling issues
+  const GUILD_ID_IN_USE = process.env.GUILD_ID || "885547853567635476";
+  console.log(`DEBUG: GUILD_ID=${GUILD_ID_IN_USE}`);
+  try {
+    const cached = Array.from(client.guilds.cache.keys());
+    console.log(`DEBUG: Cached guild ids: ${JSON.stringify(cached)}`);
+  } catch (ignore) {}
 
   // Re-schedule saved reminders
   rescheduleReminders();
@@ -1521,7 +1530,17 @@ client.once("ready", async () => {
     try {
       console.log(`⏰ [CRON] Server summary job triggered at ${new Date().toISOString()}`);
       notifyAdmin(`Cron job: Server summary started at ${new Date().toISOString()}`).catch(() => {});
-      const guild = client.guilds.cache.get("1392954859803644014");
+      const serverGuildId = process.env.GUILD_ID || "885547853567635476";
+      let guild = client.guilds.cache.get(serverGuildId);
+      if (!guild) {
+        // Attempt to fetch the guild as a fallback in case cache was evicted or not populated
+        try {
+          console.log(`DEBUG: guild ${serverGuildId} not in cache; attempting client.guilds.fetch(${serverGuildId})`);
+          guild = await client.guilds.fetch(serverGuildId);
+        } catch (fetchErr) {
+          await logError(fetchErr, `Failed to fetch guild ${serverGuildId} for server summary`);
+        }
+      }
       if (!guild) {
         logError(new Error("Guild not found for server summary."), "Server summary cron").catch(() => {});
         return;
@@ -1532,7 +1551,15 @@ client.once("ready", async () => {
         "No summary available.",
       ];
 
-      const channel = guild.channels.cache.get(TARGET_CHANNEL_ID);
+      let channel = guild ? guild.channels.cache.get(TARGET_CHANNEL_ID) : null;
+      if (!channel) {
+        // Fallback: fetch the channel if not cached or if guild is not present
+        try {
+          channel = await client.channels.fetch(TARGET_CHANNEL_ID);
+        } catch (fetchErr) {
+          await logError(fetchErr, `Failed to fetch target channel ${TARGET_CHANNEL_ID} for server summary`);
+        }
+      }
       if (channel && channel.type === ChannelType.GuildText) {
         for (const chunk of chunks) {
           await channel.send(chunk);
@@ -1554,6 +1581,7 @@ client.once("ready", async () => {
       }
     }
   });
+  console.log(`⏰ Server summary scheduled with cron: 0 10 * * 1`);
 
   // Coffee pairing cron job (configurable)
   try {
@@ -1561,7 +1589,16 @@ client.once("ready", async () => {
       console.log(`☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`);
       notifyAdmin(`Cron job: Coffee pairing started at ${new Date().toISOString()}`).catch(() => {});
       try {
-        const guild = client.guilds.cache.get(process.env.GUILD_ID || "1392954859803644014");
+        const coffeeGuildId = process.env.GUILD_ID || "885547853567635476";
+        let guild = client.guilds.cache.get(coffeeGuildId);
+        if (!guild) {
+          try {
+            console.log(`DEBUG: guild ${coffeeGuildId} not in cache; attempting client.guilds.fetch(${coffeeGuildId})`);
+            guild = await client.guilds.fetch(coffeeGuildId);
+          } catch (fetchErr) {
+            await logError(fetchErr, `Failed to fetch guild ${coffeeGuildId} for coffee pairing`);
+          }
+        }
         if (!guild) {
           logError(new Error("Guild not found for coffee pairing."), "Coffee pairing cron").catch(() => {});
           return;
@@ -1572,7 +1609,15 @@ client.once("ready", async () => {
       } catch (e) {
         await logError(e, "Error running coffee pairing cron job");
         try {
-          const logChannel = client.channels.cache.get(process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID);
+          const logChannelId = process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID;
+          let logChannel = client.channels.cache.get(logChannelId);
+          if (!logChannel) {
+            try {
+              logChannel = await client.channels.fetch(logChannelId);
+            } catch (fetchErr) {
+              console.warn(`Failed to fetch coffee log channel ${logChannelId}: `, fetchErr?.message || fetchErr);
+            }
+          }
           if (logChannel && logChannel.type === ChannelType.GuildText) {
             await logChannel.send(`❌ Coffee pairing cron job failed: ${e?.message || e}`);
           }
