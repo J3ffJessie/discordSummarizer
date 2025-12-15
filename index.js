@@ -104,30 +104,92 @@ async function summarizeMessages(messages) {
 }
 
 // Server summarization function
+// async function serverSummarize(messages) {
+//   console.log("Starting server summarization...");
+//   try {
+//     const completion = await groq.chat.completions.create({
+//       messages: [
+//         {
+//           role: "system",
+//           content: `You are a friendly Discord conversation analyzer. Format your response in this engaging style:\n\n📬 **Conversation Overview**\nHere's what was discussed in the chat:\n\n🎯 **Main Topics & Decisions**\n• [Detailed point about the first main topic, including any decisions or outcomes]\n• [Detailed point about the second main topic, including any decisions or outcomes]\n\n🔄 **Ongoing Discussions**\n• [Any continuing discussions or unresolved points]\n\n📋 **Action Items**\n• [Any clear next steps or tasks mentioned]\n\nYour summary should:\n- Maintain a friendly, natural tone\n- Provide context for technical discussions\n- Include specific details while avoiding usernames\n- Separate ongoing discussions from concrete decisions\n- Keep technical and social topics separate\n- Be thorough yet concise`,
+//         },
+//         {
+//           role: "user",
+//           content: `Please provide a detailed summary of this Discord conversation following the format above:\n\n${messages}`,
+//         },
+//       ],
+//       model: "llama-3.1-8b-instant",
+//       temperature: 0.7,
+//       max_tokens: 1024,
+//     });
+//     return completion.choices[0].message.content;
+//   } catch (error) {
+//     await logError(error, "Error in server summarization");
+//     throw error;
+//   }
+// }
+
 async function serverSummarize(messages) {
-  console.log("Starting server summarization...");
   try {
     const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      temperature: 0.3,
+      max_tokens: 1024,
       messages: [
         {
           role: "system",
-          content: `You are a friendly Discord conversation analyzer. Format your response in this engaging style:\n\n📬 **Conversation Overview**\nHere's what was discussed in the chat:\n\n🎯 **Main Topics & Decisions**\n• [Detailed point about the first main topic, including any decisions or outcomes]\n• [Detailed point about the second main topic, including any decisions or outcomes]\n\n🔄 **Ongoing Discussions**\n• [Any continuing discussions or unresolved points]\n\n📋 **Action Items**\n• [Any clear next steps or tasks mentioned]\n\nYour summary should:\n- Maintain a friendly, natural tone\n- Provide context for technical discussions\n- Include specific details while avoiding usernames\n- Separate ongoing discussions from concrete decisions\n- Keep technical and social topics separate\n- Be thorough yet concise`,
+          content: `
+You are a Discord conversation summarizer.
+
+CRITICAL RULES:
+- Only summarize information explicitly present in the messages
+- Do NOT infer intent, motivation, or outcomes
+- Do NOT invent decisions, conclusions, or action items
+- If a section has no relevant content, write "None mentioned"
+- If something is unclear or ambiguous, state that clearly
+
+The input is a chronological Discord chat log.
+Ignore jokes, memes, or sarcasm unless they directly impact discussion outcomes.
+
+Format your response exactly as follows:
+
+📬 **Conversation Overview**
+A concise, factual overview of what was discussed.
+
+🧾 **Explicitly Stated Facts**
+• Only facts clearly stated in the conversation
+
+🎯 **Main Topics & Decisions**
+• Topics discussed and decisions ONLY if explicitly stated
+• If no decisions were made, say so
+
+🔄 **Ongoing or Unresolved Discussions**
+• Topics still being discussed or left unresolved
+• If unclear, state the uncertainty
+
+📋 **Action Items (only if explicitly stated)**
+• Task + details if clearly mentioned
+• Otherwise: "No explicit action items mentioned"
+
+Maintain a friendly but factual tone.
+Avoid speculation.
+Be thorough but concise.
+`
         },
         {
           role: "user",
-          content: `Please provide a detailed summary of this Discord conversation following the format above:\n\n${messages}`,
-        },
-      ],
-      model: "llama-3.1-8b-instant",
-      temperature: 0.7,
-      max_tokens: 1024,
+          content: messages
+        }
+      ]
     });
+
     return completion.choices[0].message.content;
   } catch (error) {
     await logError(error, "Error in server summarization");
     throw error;
   }
 }
+
 
 // ---- Coffee-pairing Helpers ----
 const COFFEE_ROLE_NAME = process.env.COFFEE_ROLE_NAME || "coffee chat";
@@ -514,14 +576,13 @@ async function fetchUpcomingEvents() {
     const response = await axios.get("https://public-api.luma.com/v1/calendar/list-events", {
       headers: {
         accept: "application/json",
-        // Add your Luma API key if required
-        //"Authorization": `Bearer ${process.env.LUMA_API_KEY}`
+        "x-luma-api-key": process.env.LUMA_API_KEY
       }
     });
 
-    // Assuming response.data contains the events array
-    // Sort by start time if the API doesn't return them sorted
-    const events = response.data.sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
+    const events = response.data.sort(
+      (a, b) => new Date(a.startTime) - new Date(b.startTime)
+    );
 
     return events;
   } catch (error) {
@@ -529,6 +590,7 @@ async function fetchUpcomingEvents() {
     return [];
   }
 }
+
 
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
