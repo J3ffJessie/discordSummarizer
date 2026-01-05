@@ -596,9 +596,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   // Notify admin that a slash command was invoked
-  try {
-    await notifyAdmin(`Slash command /${interaction.commandName} invoked by ${interaction.user.tag} (${interaction.user.id}) ${interaction.guild ? `in guild ${interaction.guild.id}` : "in DM"}`);
-  } catch (ignore) {}
+  // try {
+  //   await notifyAdmin(`Slash command /${interaction.commandName} invoked by ${interaction.user.tag} (${interaction.user.id}) ${interaction.guild ? `in guild ${interaction.guild.id}` : "in DM"}`);
+  // } catch (ignore) {}
 
   if (interaction.commandName === "summarize") {
     try {
@@ -629,7 +629,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           ephemeral: true,
         });
         // Notify admin of successful completion
-        notifyAdmin(`/summarize completed for ${interaction.user.tag} (${interaction.user.id})`).catch(() => {});
+        // notifyAdmin(`/summarize completed for ${interaction.user.tag} (${interaction.user.id})`).catch(() => {});
       } catch (dmError) {
         console.error("Failed to send DM:", dmError);
         await interaction.editReply({
@@ -718,7 +718,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           content: " Here are the upcoming events:",
           embeds,
         });
-        notifyAdmin(`/events completed for ${interaction.user.tag} (${interaction.user.id})`).catch(() => {});
+        // notifyAdmin(`/events completed for ${interaction.user.tag} (${interaction.user.id})`).catch(() => {});
       } catch (dmError) {
         console.error("Could not DM user:", dmError);
         await interaction.followUp({
@@ -756,7 +756,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             await interaction.followUp({ content: "⚠️ No pairings created. This can happen if not enough members were found with the role, or the member fetch timed out. Check the logs or enable `COFFEE_FETCH_MEMBERS=true` to force a member cache refresh.", ephemeral: true });
           } else {
             await interaction.followUp({ content: `✅ Paired ${res.length} groups for coffee.`, ephemeral: true });
-            notifyAdmin(`/coffee-pair completed for ${interaction.user.tag} (${interaction.user.id}) — pairs: ${res.length}`).catch(() => {});
+            // notifyAdmin(`/coffee-pair completed for ${interaction.user.tag} (${interaction.user.id}) — pairs: ${res.length}`).catch(() => {});
           }
         } catch (err) {
           await logError(err, `/coffee-pair interaction error`);
@@ -811,29 +811,29 @@ async function gatherServerConversationsAndSummarize(
 }
 
 const ALLOWED_USER_IDS = ["1048620443474608178", "280096257282670592"];
-const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "280096257282670592";
+// const ADMIN_USER_ID = process.env.ADMIN_USER_ID || "280096257282670592";
 
 /**
  * Send a DM to the configured admin user id. No-ops if ADMIN_USER_ID is not configured.
  * @param {string} content - content to send
  */
-async function notifyAdmin(content) {
-  if (!ADMIN_USER_ID) return;
-  try {
-    const user = await client.users.fetch(ADMIN_USER_ID);
-    if (!user) return;
-    await user.send({ content: `📣 Admin Notification: ${content}` });
-  } catch (err) {
-    // Always swallow errors from notifyAdmin to avoid cascading failures
-    console.error("Failed to send admin DM:", err?.message || err);
-  }
-}
+// async function notifyAdmin(content) {
+//   if (!ADMIN_USER_ID) return;
+//   try {
+//     const user = await client.users.fetch(ADMIN_USER_ID);
+//     if (!user) return;
+//     await user.send({ content: `📣 Admin Notification: ${content}` });
+//   } catch (err) {
+//     // Always swallow errors from notifyAdmin to avoid cascading failures
+//     console.error("Failed to send admin DM:", err?.message || err);
+//   }
+// }
 
 async function logError(err, context = "") {
   try {
     if (context) console.error(context, err);
     else console.error(err);
-    await notifyAdmin(`${context ? `${context} — ` : ""}${(err && err.message) || String(err)}`);
+    // await notifyAdmin(`${context ? `${context} — ` : ""}${(err && err.message) || String(err)}`);
   } catch (ignore) {
     // swallowing errors intentionally
   }
@@ -854,9 +854,9 @@ client.on(Events.MessageCreate, async (message) => {
     const command = args.shift().toLowerCase();
 
     // Notify admin of message-based command execution
-    try {
-      notifyAdmin(`Message command: ${command} invoked by ${message.author.tag || message.author.username} (${message.author.id}) in ${message.guild ? `guild ${message.guild.id}` : `DM`}`).catch(() => {});
-    } catch (ignore) {}
+    // try {
+    //   notifyAdmin(`Message command: ${command} invoked by ${message.author.tag || message.author.username} (${message.author.id}) in ${message.guild ? `guild ${message.guild.id}` : `DM`}`).catch(() => {});
+    // } catch (ignore) {}
 
     if (command === "remindme") {
       if (args.length < 2) {
@@ -1171,7 +1171,7 @@ client.on(Events.MessageCreate, async (message) => {
           "✅ Server summary sent to the summary channel!"
         );
         // Notify admin that the manual server summary completed
-        notifyAdmin(`!server manual summary completed by ${message.author.tag || message.author.username} (${message.author.id})`).catch(() => {});
+        // notifyAdmin(`!server manual summary completed by ${message.author.tag || message.author.username} (${message.author.id})`).catch(() => {});
         setTimeout(() => doneMsg.delete().catch(() => {}), 500);
       } else {
         const replyMsg = await message.channel.send("❌ Could not find the summary channel.");
@@ -1203,7 +1203,7 @@ client.on(Events.MessageCreate, async (message) => {
         await message.channel.send("⚠️ No pairings created — not enough eligible members or member fetch timed out. Check logs or set COFFEE_FETCH_MEMBERS=true to force refresh.");
       } else {
         await message.channel.send(`✅ Paired ${res.length} groups for coffee.`);
-        notifyAdmin(`!paircoffee completed by ${message.author.tag || message.author.username} (${message.author.id}) — pairs: ${res.length}`).catch(() => {});
+       // notifyAdmin(`!paircoffee completed by ${message.author.tag || message.author.username} (${message.author.id}) — pairs: ${res.length}`).catch(() => {});
       }
     } catch (e) {
       await logError(e, "Error running !paircoffee");
@@ -1591,7 +1591,7 @@ client.once("ready", async () => {
     cron.schedule("0 10 * * 1", async () => {
       try {
         console.log(`⏰ [CRON] Server summary job triggered at ${new Date().toISOString()}`);
-        notifyAdmin(`Cron job: Server summary started at ${new Date().toISOString()}`).catch(() => {});
+        // notifyAdmin(`Cron job: Server summary started at ${new Date().toISOString()}`).catch(() => {});
         const serverGuildId = process.env.GUILD_ID || "885547853567635476";
         let guild = client.guilds.cache.get(serverGuildId);
         if (!guild) {
@@ -1630,7 +1630,7 @@ client.once("ready", async () => {
         }
 
         console.log("✅ Weekly server summary sent.");
-        notifyAdmin(`Cron job: Server summary completed at ${new Date().toISOString()}`).catch(() => {});
+        // notifyAdmin(`Cron job: Server summary completed at ${new Date().toISOString()}`).catch(() => {});
       } catch (error) {
         await logError(error, "Error running scheduled summary");
         try {
@@ -1652,7 +1652,7 @@ client.once("ready", async () => {
   try {
     cron.schedule(COFFEE_CRON_SCHEDULE, async () => {
       console.log(`☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`);
-      notifyAdmin(`Cron job: Coffee pairing started at ${new Date().toISOString()}`).catch(() => {});
+      // notifyAdmin(`Cron job: Coffee pairing started at ${new Date().toISOString()}`).catch(() => {});
       try {
         const coffeeGuildId = process.env.GUILD_ID || "885547853567635476";
         let guild = client.guilds.cache.get(coffeeGuildId);
@@ -1670,7 +1670,7 @@ client.once("ready", async () => {
         }
         const result = await runCoffeePairing(guild, COFFEE_ROLE_NAME);
         console.log(`☕ Coffee pairing job completed, pairs: ${result.length}`);
-        notifyAdmin(`Cron job: Coffee pairing completed with ${result.length} pairs at ${new Date().toISOString()}`).catch(() => {});
+        // notifyAdmin(`Cron job: Coffee pairing completed with ${result.length} pairs at ${new Date().toISOString()}`).catch(() => {});
       } catch (e) {
         await logError(e, "Error running coffee pairing cron job");
         try {
