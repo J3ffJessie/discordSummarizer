@@ -193,12 +193,21 @@ Be thorough but concise.
 
 // ---- Coffee-pairing Helpers ----
 const COFFEE_ROLE_NAME = process.env.COFFEE_ROLE_NAME || "coffee chat";
-const COFFEE_CRON_SCHEDULE = process.env.COFFEE_CRON_SCHEDULE || process.env.COFFEE_CRON || "0 9 * * 1"; // default Mon 09:00 UTC
+const COFFEE_CRON_SCHEDULE = process.env.COFFEE_CRON_SCHEDULE || process.env.COFFEE_CRON || "0 9 * * 1"; // every other Monday at 09:00 UTC
 const COFFEE_PAIRING_COOLDOWN_DAYS = Number(process.env.COFFEE_PAIRING_COOLDOWN_DAYS || 30);
 const COFFEE_PAIRING_COOLDOWN_MS = COFFEE_PAIRING_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
 const COFFEE_PAIRING_FILE = path.join(__dirname, "coffee_pairs.json");
 const COFFEE_FETCH_MEMBERS = typeof process.env.COFFEE_FETCH_MEMBERS !== "undefined" ? process.env.COFFEE_FETCH_MEMBERS === "true" : true; // if true, attempt guild.members.fetch() when cache is insufficient (default true)
 const COFFEE_FETCH_TIMEOUT_MS = Number(process.env.COFFEE_FETCH_TIMEOUT_MS || 10000);
+
+function getISOWeek(date = new Date()) {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = d.getUTCDay() || 7;
+  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil(((d - yearStart) / 86400000 + 1) / 7);
+}
+
 // Optional Mee6 integration settings: set COFFEE_MIN_MEE6_LEVEL via env var
 // to filter coffee-role members to only those at or above the configured Mee6 level.
 // Default to 0 (disabled) so servers without Mee6 are not filtered.
@@ -1651,8 +1660,18 @@ client.once("ready", async () => {
   // Coffee pairing cron job (configurable)
   try {
     cron.schedule(COFFEE_CRON_SCHEDULE, async () => {
-      console.log(`☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`);
-      notifyAdmin(`Cron job: Coffee pairing started at ${new Date().toISOString()}`).catch(() => {});
+   cron.schedule(COFFEE_CRON_SCHEDULE, async () => {
+
+  // ⛔ Every-other-week guard (ISO weeks)
+  const isoWeek = getISOWeek();
+  if (isoWeek % 2 !== 0) {
+    console.log(`☕ [CRON] Skipping coffee pairing (off week, ISO week ${isoWeek})`);
+    return;
+  }
+
+  console.log(`☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`);
+  notifyAdmin(`Cron job: Coffee pairing started at ${new Date().toISOString()}`).catch(() => {});
+
       try {
         const coffeeGuildId = process.env.GUILD_ID || "885547853567635476";
         let guild = client.guilds.cache.get(coffeeGuildId);
