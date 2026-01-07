@@ -56,7 +56,9 @@ const commands = [
     .toJSON(),
   new SlashCommandBuilder()
     .setName("coffee-pair")
-    .setDescription("Randomly pair users that have the coffee-chat role and send them a DM to meet")
+    .setDescription(
+      "Randomly pair users that have the coffee-chat role and send them a DM to meet"
+    )
     .toJSON(),
 ];
 
@@ -174,13 +176,13 @@ A concise, factual overview of what was discussed.
 Maintain a friendly but factual tone.
 Avoid speculation.
 Be thorough but concise.
-`
+`,
         },
         {
           role: "user",
-          content: messages
-        }
-      ]
+          content: messages,
+        },
+      ],
     });
 
     return completion.choices[0].message.content;
@@ -190,18 +192,28 @@ Be thorough but concise.
   }
 }
 
-
 // ---- Coffee-pairing Helpers ----
 const COFFEE_ROLE_NAME = process.env.COFFEE_ROLE_NAME || "coffee chat";
-const COFFEE_CRON_SCHEDULE = process.env.COFFEE_CRON_SCHEDULE || process.env.COFFEE_CRON || "0 9 * * 1"; // every other Monday at 09:00 UTC
-const COFFEE_PAIRING_COOLDOWN_DAYS = Number(process.env.COFFEE_PAIRING_COOLDOWN_DAYS || 30);
-const COFFEE_PAIRING_COOLDOWN_MS = COFFEE_PAIRING_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
+const COFFEE_CRON_SCHEDULE =
+  process.env.COFFEE_CRON_SCHEDULE || process.env.COFFEE_CRON || "0 9 * * 1"; // every other Monday at 09:00 UTC
+const COFFEE_PAIRING_COOLDOWN_DAYS = Number(
+  process.env.COFFEE_PAIRING_COOLDOWN_DAYS || 30
+);
+const COFFEE_PAIRING_COOLDOWN_MS =
+  COFFEE_PAIRING_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
 const COFFEE_PAIRING_FILE = path.join(__dirname, "coffee_pairs.json");
-const COFFEE_FETCH_MEMBERS = typeof process.env.COFFEE_FETCH_MEMBERS !== "undefined" ? process.env.COFFEE_FETCH_MEMBERS === "true" : true; // if true, attempt guild.members.fetch() when cache is insufficient (default true)
-const COFFEE_FETCH_TIMEOUT_MS = Number(process.env.COFFEE_FETCH_TIMEOUT_MS || 10000);
+const COFFEE_FETCH_MEMBERS =
+  typeof process.env.COFFEE_FETCH_MEMBERS !== "undefined"
+    ? process.env.COFFEE_FETCH_MEMBERS === "true"
+    : true; // if true, attempt guild.members.fetch() when cache is insufficient (default true)
+const COFFEE_FETCH_TIMEOUT_MS = Number(
+  process.env.COFFEE_FETCH_TIMEOUT_MS || 10000
+);
 
 function getISOWeek(date = new Date()) {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const d = new Date(
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+  );
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
@@ -220,7 +232,9 @@ const COFFEE_MEE6_STRICT = process.env.COFFEE_MEE6_STRICT === "false";
 function readCoffeePairs() {
   try {
     if (!fs.existsSync(COFFEE_PAIRING_FILE)) return {};
-    const raw = JSON.parse(fs.readFileSync(COFFEE_PAIRING_FILE, "utf-8") || "{}");
+    const raw = JSON.parse(
+      fs.readFileSync(COFFEE_PAIRING_FILE, "utf-8") || "{}"
+    );
     // Normalize older format to history array structure
     Object.keys(raw).forEach((userId) => {
       const entry = raw[userId];
@@ -268,8 +282,13 @@ function shuffle(array) {
   return array;
 }
 
-async function getMembersWithCoffeeRole(guild, roleIdentifier = COFFEE_ROLE_NAME) {
-  let role = guild.roles.cache.find((r) => r.name === roleIdentifier || r.id === roleIdentifier);
+async function getMembersWithCoffeeRole(
+  guild,
+  roleIdentifier = COFFEE_ROLE_NAME
+) {
+  let role = guild.roles.cache.find(
+    (r) => r.name === roleIdentifier || r.id === roleIdentifier
+  );
   if (!role) {
     console.warn(`Role ${roleIdentifier} not found in ${guild.name}`);
     return [];
@@ -294,18 +313,28 @@ async function getMembersWithCoffeeRole(guild, roleIdentifier = COFFEE_ROLE_NAME
   if (COFFEE_MIN_MEE6_LEVEL > 0) {
     let levels = {};
     try {
-      levels = await fetchMee6LevelsForGuildMembers(guild.id, memberList.map((m) => m.id));
+      levels = await fetchMee6LevelsForGuildMembers(
+        guild.id,
+        memberList.map((m) => m.id)
+      );
     } catch (err) {
-      console.warn("Could not fetch Mee6 leaderboard for guild or apply min level filter:", err?.message || err);
+      console.warn(
+        "Could not fetch Mee6 leaderboard for guild or apply min level filter:",
+        err?.message || err
+      );
       if (COFFEE_MEE6_STRICT) {
-        console.warn("COFFEE_MEE6_STRICT is enabled — aborting coffee pairing due to failed Mee6 lookup.");
+        console.warn(
+          "COFFEE_MEE6_STRICT is enabled — aborting coffee pairing due to failed Mee6 lookup."
+        );
         return [];
       }
     }
     // If the lookup returned no data and strict mode is disabled, skip the filter
     const hasMee6Data = levels && Object.keys(levels).length > 0;
     if (!hasMee6Data && !COFFEE_MEE6_STRICT) {
-      console.log("Mee6 filter configured, but no Mee6 data found — skipping Mee6 filtering (set COFFEE_MEE6_STRICT=true to abort instead).\n");
+      console.log(
+        "Mee6 filter configured, but no Mee6 data found — skipping Mee6 filtering (set COFFEE_MEE6_STRICT=true to abort instead).\n"
+      );
     } else {
       const before = memberList.length;
       memberList = memberList.filter((m) => {
@@ -314,7 +343,9 @@ async function getMembersWithCoffeeRole(guild, roleIdentifier = COFFEE_ROLE_NAME
         return lvl >= COFFEE_MIN_MEE6_LEVEL;
       });
       const after = memberList.length;
-      console.log(`Mee6 level filter: required >=${COFFEE_MIN_MEE6_LEVEL} — filtered ${before} -> ${after}`);
+      console.log(
+        `Mee6 level filter: required >=${COFFEE_MIN_MEE6_LEVEL} — filtered ${before} -> ${after}`
+      );
     }
   }
 
@@ -327,7 +358,11 @@ async function getMembersWithCoffeeRole(guild, roleIdentifier = COFFEE_ROLE_NAME
  * - If MEE6 is not in the guild or the plugin is disabled, the call can 404 and we'll treat that as no-one has a level
  * - This implementation attempts to request a large limit and fallback sensibly
  */
-async function fetchMee6LevelsForGuildMembers(guildId, memberIds = [], limit = 1000) {
+async function fetchMee6LevelsForGuildMembers(
+  guildId,
+  memberIds = [],
+  limit = 1000
+) {
   // Fast path: if no members requested, return empty mapping
   if (!memberIds || memberIds.length === 0) return {};
 
@@ -335,7 +370,10 @@ async function fetchMee6LevelsForGuildMembers(guildId, memberIds = [], limit = 1
   try {
     // try to fetch a large leaderboard page. If the server has many members you may need to increase paging logic
     const url = `${COFFEE_MEE6_API_HOST}/api/plugins/levels/leaderboard/${guildId}?limit=${limit}`;
-    const res = await axios.get(url, { headers: { Accept: "application/json" }, timeout: 8000 });
+    const res = await axios.get(url, {
+      headers: { Accept: "application/json" },
+      timeout: 8000,
+    });
     const data = res.data || {};
     // Mee6 leaderboard sometimes returns data under 'entries' or 'players'
     const entries = data.entries || data.players || data.leaderboard || [];
@@ -343,15 +381,27 @@ async function fetchMee6LevelsForGuildMembers(guildId, memberIds = [], limit = 1
       entries.forEach((e) => {
         if (!e) return;
         // Support multiple id fields the API may emit
-        const userId = (e.id || e.user_id || e.userId || e.uid || e.discord_id || e.discordId || "").toString();
-        const levelVal = typeof e.level !== "undefined" ? e.level : e.rank || e.xp || 0;
+        const userId = (
+          e.id ||
+          e.user_id ||
+          e.userId ||
+          e.uid ||
+          e.discord_id ||
+          e.discordId ||
+          ""
+        ).toString();
+        const levelVal =
+          typeof e.level !== "undefined" ? e.level : e.rank || e.xp || 0;
         if (userId) map[userId] = Number(levelVal) || 0;
       });
     }
   } catch (err) {
     // If the request fails (404, network, etc.) log and return empty map
     // We prefer to avoid blocking pairings entirely in case of a temporary issue
-    console.warn(`Failed to fetch Mee6 leaderboard for guild ${guildId}:`, err?.message || err);
+    console.warn(
+      `Failed to fetch Mee6 leaderboard for guild ${guildId}:`,
+      err?.message || err
+    );
   }
 
   // If some member IDs are still missing in the map, their level remains 0
@@ -362,7 +412,9 @@ async function fetchGuildMembersWithTimeout(guild, timeoutMs = 10000) {
   // Return a promise that races member fetch with timeout
   return Promise.race([
     guild.members.fetch(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("GuildMembersFetchTimeout")), timeoutMs)),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("GuildMembersFetchTimeout")), timeoutMs)
+    ),
   ]);
 }
 
@@ -392,8 +444,12 @@ function getLastPairTimestamp(history, userA, userB) {
 }
 
 function getPairCount(history, userA, userB) {
-  if (!history || !history[userA] || !Array.isArray(history[userA].history)) return 0;
-  return history[userA].history.reduce((acc, h) => acc + (h.partnerId === userB ? 1 : 0), 0);
+  if (!history || !history[userA] || !Array.isArray(history[userA].history))
+    return 0;
+  return history[userA].history.reduce(
+    (acc, h) => acc + (h.partnerId === userB ? 1 : 0),
+    0
+  );
 }
 
 function wasRecentlyPaired(history, userA, userB, cooldownMs) {
@@ -428,8 +484,13 @@ function pairUpWithCooldown(members, history, cooldownMs) {
       let oldestTs = Number.MAX_SAFE_INTEGER;
       for (let i = 0; i < shuffled.length; i++) {
         const cand = shuffled[i];
-        const count = getPairCount(history, a.id, cand.id) + getPairCount(history, cand.id, a.id); // symmetric count
-        const ts = Math.max(getLastPairTimestamp(history, a.id, cand.id) || 0, getLastPairTimestamp(history, cand.id, a.id) || 0);
+        const count =
+          getPairCount(history, a.id, cand.id) +
+          getPairCount(history, cand.id, a.id); // symmetric count
+        const ts = Math.max(
+          getLastPairTimestamp(history, a.id, cand.id) || 0,
+          getLastPairTimestamp(history, cand.id, a.id) || 0
+        );
 
         // Prefer candidates never-paired first
         if (count === 0) {
@@ -455,12 +516,21 @@ function pairUpWithCooldown(members, history, cooldownMs) {
     const b = shuffled.splice(partnerIndex, 1)[0];
     // If we chose a partner via the fallback, log some debug info
     try {
-      const pairCount = getPairCount(history, a.id, b.id) + getPairCount(history, b.id, a.id);
+      const pairCount =
+        getPairCount(history, a.id, b.id) + getPairCount(history, b.id, a.id);
       const recency = wasRecentlyPaired(history, a.id, b.id, cooldownMs);
       if (recency) {
-        console.warn(`Soft fallback: pairing ${a.user?.username || a.id} with ${b.user?.username || b.id} despite cooldown (pairCount=${pairCount})`);
+        console.warn(
+          `Soft fallback: pairing ${a.user?.username || a.id} with ${
+            b.user?.username || b.id
+          } despite cooldown (pairCount=${pairCount})`
+        );
       } else if (pairCount > 0) {
-        console.info(`Fallback to least-matched partner: pairing ${a.user?.username || a.id} with ${b.user?.username || b.id} (pairCount=${pairCount})`);
+        console.info(
+          `Fallback to least-matched partner: pairing ${
+            a.user?.username || a.id
+          } with ${b.user?.username || b.id} (pairCount=${pairCount})`
+        );
       }
     } catch (err) {}
     pairs.push([a, b]);
@@ -485,15 +555,25 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
   // Warn admin if DM delivery fails for all or many users
   let totalFailedDMs = 0;
   for (const pair of pairs) {
-    const usernames = pair.map((m) => `${m.user.username}#${m.user.discriminator}`);
+    const usernames = pair.map(
+      (m) => `${m.user.username}#${m.user.discriminator}`
+    );
     const mentionText = pair.map((m) => `<@${m.id}>`).join(" and ");
     const first = pair[0];
-    const partnerList = pair.slice(1).map((m) => `<@${m.id}>`).join(", ");
-    const msg = `☕ Hi ${first.user.username}! I've paired you with ${partnerList || 'someone'} for a coffee-chat. Please DM them to arrange a time — you'd make a great match!`;
+    const partnerList = pair
+      .slice(1)
+      .map((m) => `<@${m.id}>`)
+      .join(", ");
+    const msg = `☕ Hi ${first.user.username}! I've paired you with ${
+      partnerList || "someone"
+    } for a coffee-chat. Please DM them to arrange a time — you'd make a great match!`;
 
     // Send DM to each member listing their partner(s)
     for (const m of pair) {
-      const others = pair.filter((p) => p.id !== m.id).map((p) => `<@${p.id}>`).join(", ");
+      const others = pair
+        .filter((p) => p.id !== m.id)
+        .map((p) => `<@${p.id}>`)
+        .join(", ");
       const content = `☕ Hi ${m.user.username}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
       try {
         await m.send({ content });
@@ -510,7 +590,9 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
       if (!history[m.id]) history[m.id] = { history: [] };
       const entry = history[m.id];
       const partnersToAdd = pair.filter((p) => p.id !== m.id).map((p) => p.id);
-      partnersToAdd.forEach((pid) => entry.history.push({ partnerId: pid, timestamp: timeNow }));
+      partnersToAdd.forEach((pid) =>
+        entry.history.push({ partnerId: pid, timestamp: timeNow })
+      );
       // Keep history manageable
       if (entry.history.length > 200) entry.history = entry.history.slice(-200);
     });
@@ -522,32 +604,52 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
   const logChannel = guild.channels.cache.get(logChannelId);
   if (logChannel && logChannel.type === ChannelType.GuildText) {
     for (const p of results) {
-      await logChannel.send(`☕ Coffee Pairing (${new Date().toLocaleString()}): ${p.pair.join(" <> ")}`);
+      await logChannel.send(
+        `☕ Coffee Pairing (${new Date().toLocaleString()}): ${p.pair.join(
+          " <> "
+        )}`
+      );
       await delay(400);
     }
   }
   if (totalFailedDMs > 0) {
     try {
-      const logChannel2 = guild.channels.cache.get(process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID);
+      const logChannel2 = guild.channels.cache.get(
+        process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID
+      );
       if (logChannel2 && logChannel2.type === ChannelType.GuildText) {
-        await logChannel2.send(`⚠️ DM delivery failed for ${totalFailedDMs} recipients during the recent pairing. Users may have DMs disabled.`);
+        await logChannel2.send(
+          `⚠️ DM delivery failed for ${totalFailedDMs} recipients during the recent pairing. Users may have DMs disabled.`
+        );
       }
     } catch {}
   }
   return results;
 }
 
-async function runCoffeePairing(guild, roleIdentifier = COFFEE_ROLE_NAME, source = "scheduled") {
+async function runCoffeePairing(
+  guild,
+  roleIdentifier = COFFEE_ROLE_NAME,
+  source = "scheduled"
+) {
   try {
     const members = await getMembersWithCoffeeRole(guild, roleIdentifier);
-    console.log(`Coffee pairing: found ${members.length} eligible member(s): ${members.map(m=>m.user?.tag || m.id).join(', ')}`);
+    console.log(
+      `Coffee pairing: found ${members.length} eligible member(s): ${members
+        .map((m) => m.user?.tag || m.id)
+        .join(", ")}`
+    );
     if (!members || members.length < 2) {
       console.log("Not enough members to pair for coffee.");
       return [];
     }
     let history = readCoffeePairs();
     history = normalizeHistory(history);
-    const pairs = pairUpWithCooldown(members, history, COFFEE_PAIRING_COOLDOWN_MS);
+    const pairs = pairUpWithCooldown(
+      members,
+      history,
+      COFFEE_PAIRING_COOLDOWN_MS
+    );
     // Check if any pairings violated cooldown (should be minimized by algorithm)
     const violated = [];
     pairs.forEach((pair) => {
@@ -555,7 +657,9 @@ async function runCoffeePairing(guild, roleIdentifier = COFFEE_ROLE_NAME, source
         for (let j = i + 1; j < pair.length; j++) {
           const a = pair[i];
           const b = pair[j];
-          if (wasRecentlyPaired(history, a.id, b.id, COFFEE_PAIRING_COOLDOWN_MS)) {
+          if (
+            wasRecentlyPaired(history, a.id, b.id, COFFEE_PAIRING_COOLDOWN_MS)
+          ) {
             violated.push([a, b]);
           }
         }
@@ -563,7 +667,9 @@ async function runCoffeePairing(guild, roleIdentifier = COFFEE_ROLE_NAME, source
     });
 
     if (violated.length > 0) {
-      console.warn("Some pairings violated the configured cooldown. This can happen if there are too few eligible members.");
+      console.warn(
+        "Some pairings violated the configured cooldown. This can happen if there are too few eligible members."
+      );
     }
 
     const results = await notifyPairs(pairs, guild, source);
@@ -572,7 +678,9 @@ async function runCoffeePairing(guild, roleIdentifier = COFFEE_ROLE_NAME, source
     await logError(e, "Error running coffee pairing");
     // If this is a fetch timeout, return empty and avoid throwing to let the cron continue
     if (e && e.message && e.message.includes("GuildMembersFetchTimeout")) {
-      console.warn("Member fetch timed out; using cache or skipping pairing. Try setting COFFEE_FETCH_MEMBERS=true to force refresh or increase COFFEE_FETCH_TIMEOUT_MS.");
+      console.warn(
+        "Member fetch timed out; using cache or skipping pairing. Try setting COFFEE_FETCH_MEMBERS=true to force refresh or increase COFFEE_FETCH_TIMEOUT_MS."
+      );
       return [];
     }
     return [];
@@ -582,12 +690,15 @@ async function runCoffeePairing(guild, roleIdentifier = COFFEE_ROLE_NAME, source
 // Fetch upcoming events helper
 async function fetchUpcomingEvents() {
   try {
-    const response = await axios.get("https://public-api.luma.com/v1/calendar/list-events", {
-      headers: {
-        accept: "application/json",
-        "x-luma-api-key": process.env.LUMA_API_KEY
+    const response = await axios.get(
+      "https://public-api.luma.com/v1/calendar/list-events",
+      {
+        headers: {
+          accept: "application/json",
+          "x-luma-api-key": process.env.LUMA_API_KEY,
+        },
       }
-    });
+    );
 
     const events = response.data.sort(
       (a, b) => new Date(a.startTime) - new Date(b.startTime)
@@ -600,13 +711,18 @@ async function fetchUpcomingEvents() {
   }
 }
 
-
 client.on(Events.InteractionCreate, async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
 
   // Notify admin that a slash command was invoked
   try {
-    await notifyAdmin(`Slash command /${interaction.commandName} invoked by ${interaction.user.tag} (${interaction.user.id}) ${interaction.guild ? `in guild ${interaction.guild.id}` : "in DM"}`);
+    await notifyAdmin(
+      `Slash command /${interaction.commandName} invoked by ${
+        interaction.user.tag
+      } (${interaction.user.id}) ${
+        interaction.guild ? `in guild ${interaction.guild.id}` : "in DM"
+      }`
+    );
   } catch (ignore) {}
 
   if (interaction.commandName === "summarize") {
@@ -638,7 +754,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
           ephemeral: true,
         });
         // Notify admin of successful completion
-        notifyAdmin(`/summarize completed for ${interaction.user.tag} (${interaction.user.id})`).catch(() => {});
+        notifyAdmin(
+          `/summarize completed for ${interaction.user.tag} (${interaction.user.id})`
+        ).catch(() => {});
       } catch (dmError) {
         console.error("Failed to send DM:", dmError);
         await interaction.editReply({
@@ -727,7 +845,9 @@ client.on(Events.InteractionCreate, async (interaction) => {
           content: " Here are the upcoming events:",
           embeds,
         });
-        notifyAdmin(`/events completed for ${interaction.user.tag} (${interaction.user.id})`).catch(() => {});
+        notifyAdmin(
+          `/events completed for ${interaction.user.tag} (${interaction.user.id})`
+        ).catch(() => {});
       } catch (dmError) {
         console.error("Could not DM user:", dmError);
         await interaction.followUp({
@@ -752,30 +872,51 @@ client.on(Events.InteractionCreate, async (interaction) => {
     }
   } else if (interaction.commandName === "coffee-pair") {
     try {
-          // Only allow admin users to run the pairing
-          if (!ALLOWED_USER_IDS.includes(interaction.user.id)) {
-            await interaction.reply({ content: "❌ You don't have permission to run this command.", ephemeral: true });
-            return;
-          }
+      // Only allow admin users to run the pairing
+      if (!ALLOWED_USER_IDS.includes(interaction.user.id)) {
+        await interaction.reply({
+          content: "❌ You don't have permission to run this command.",
+          ephemeral: true,
+        });
+        return;
+      }
 
-          await interaction.reply({ content: "☕ Running coffee pairing...", ephemeral: true });
-          const guild = interaction.guild;
-          const res = await runCoffeePairing(guild, COFFEE_ROLE_NAME, "manual");
-          if (!res || res.length === 0) {
-            await interaction.followUp({ content: "⚠️ No pairings created. This can happen if not enough members were found with the role, or the member fetch timed out. Check the logs or enable `COFFEE_FETCH_MEMBERS=true` to force a member cache refresh.", ephemeral: true });
-          } else {
-            await interaction.followUp({ content: `✅ Paired ${res.length} groups for coffee.`, ephemeral: true });
-            notifyAdmin(`/coffee-pair completed for ${interaction.user.tag} (${interaction.user.id}) — pairs: ${res.length}`).catch(() => {});
-          }
-        } catch (err) {
-          await logError(err, `/coffee-pair interaction error`);
-          if (!interaction.replied && !interaction.deferred) {
-            await interaction.reply({ content: "❌ Failed to run coffee pairing.", ephemeral: true });
-          } else {
-            await interaction.editReply({ content: "❌ Failed to run coffee pairing.", ephemeral: true });
-          }
-        }
+      await interaction.reply({
+        content: "☕ Running coffee pairing...",
+        ephemeral: true,
+      });
+      const guild = interaction.guild;
+      const res = await runCoffeePairing(guild, COFFEE_ROLE_NAME, "manual");
+      if (!res || res.length === 0) {
+        await interaction.followUp({
+          content:
+            "⚠️ No pairings created. This can happen if not enough members were found with the role, or the member fetch timed out. Check the logs or enable `COFFEE_FETCH_MEMBERS=true` to force a member cache refresh.",
+          ephemeral: true,
+        });
+      } else {
+        await interaction.followUp({
+          content: `✅ Paired ${res.length} groups for coffee.`,
+          ephemeral: true,
+        });
+        notifyAdmin(
+          `/coffee-pair completed for ${interaction.user.tag} (${interaction.user.id}) — pairs: ${res.length}`
+        ).catch(() => {});
+      }
+    } catch (err) {
+      await logError(err, `/coffee-pair interaction error`);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: "❌ Failed to run coffee pairing.",
+          ephemeral: true,
+        });
+      } else {
+        await interaction.editReply({
+          content: "❌ Failed to run coffee pairing.",
+          ephemeral: true,
+        });
+      }
     }
+  }
 });
 
 // Helper to gather conversations across all channels in a server
@@ -842,7 +983,9 @@ async function logError(err, context = "") {
   try {
     if (context) console.error(context, err);
     else console.error(err);
-    await notifyAdmin(`${context ? `${context} — ` : ""}${(err && err.message) || String(err)}`);
+    await notifyAdmin(
+      `${context ? `${context} — ` : ""}${(err && err.message) || String(err)}`
+    );
   } catch (ignore) {
     // swallowing errors intentionally
   }
@@ -864,7 +1007,13 @@ client.on(Events.MessageCreate, async (message) => {
 
     // Notify admin of message-based command execution
     try {
-      notifyAdmin(`Message command: ${command} invoked by ${message.author.tag || message.author.username} (${message.author.id}) in ${message.guild ? `guild ${message.guild.id}` : `DM`}`).catch(() => {});
+      notifyAdmin(
+        `Message command: ${command} invoked by ${
+          message.author.tag || message.author.username
+        } (${message.author.id}) in ${
+          message.guild ? `guild ${message.guild.id}` : `DM`
+        }`
+      ).catch(() => {});
     } catch (ignore) {}
 
     if (command === "remindme") {
@@ -905,7 +1054,7 @@ client.on(Events.MessageCreate, async (message) => {
           return;
         }
       } catch (e) {
-        await logError(e, 'Error adding reminder safely');
+        await logError(e, "Error adding reminder safely");
         // Fall back to original behavior if lock/add fails
         reminders.push(reminder);
         saveReminders();
@@ -922,8 +1071,16 @@ client.on(Events.MessageCreate, async (message) => {
     if (command === "listreminders") {
       // Read authoritative reminders from file in case multiple processes exist
       const persisted = loadRemindersFromFile();
-      const userReminders = persisted.filter((r) => r.userId === message.author.id);
-      console.log(`!listreminders run by ${message.author.tag || message.author.username} (${message.author.id}) — pid ${process.pid} — returning ${userReminders.length} reminder(s)`);
+      const userReminders = persisted.filter(
+        (r) => r.userId === message.author.id
+      );
+      console.log(
+        `!listreminders run by ${
+          message.author.tag || message.author.username
+        } (${message.author.id}) — pid ${process.pid} — returning ${
+          userReminders.length
+        } reminder(s)`
+      );
 
       if (userReminders.length === 0) {
         const replyMsg = await message.reply(
@@ -993,7 +1150,9 @@ client.on(Events.MessageCreate, async (message) => {
           if (scheduledTimeouts.has(r.id)) {
             clearTimeout(scheduledTimeouts.get(r.id));
             scheduledTimeouts.delete(r.id);
-            console.log(`Cleared scheduled timeout for reminder ${r.id} (user ${message.author.id})`);
+            console.log(
+              `Cleared scheduled timeout for reminder ${r.id} (user ${message.author.id})`
+            );
           }
         });
 
@@ -1026,7 +1185,9 @@ client.on(Events.MessageCreate, async (message) => {
       if (scheduledTimeouts.has(id)) {
         clearTimeout(scheduledTimeouts.get(id));
         scheduledTimeouts.delete(id);
-        console.log(`Cleared scheduled timeout for reminder ${id} (user ${message.author.id})`);
+        console.log(
+          `Cleared scheduled timeout for reminder ${id} (user ${message.author.id})`
+        );
       }
 
       reminders.splice(index, 1);
@@ -1180,10 +1341,16 @@ client.on(Events.MessageCreate, async (message) => {
           "✅ Server summary sent to the summary channel!"
         );
         // Notify admin that the manual server summary completed
-        notifyAdmin(`!server manual summary completed by ${message.author.tag || message.author.username} (${message.author.id})`).catch(() => {});
+        notifyAdmin(
+          `!server manual summary completed by ${
+            message.author.tag || message.author.username
+          } (${message.author.id})`
+        ).catch(() => {});
         setTimeout(() => doneMsg.delete().catch(() => {}), 500);
       } else {
-        const replyMsg = await message.channel.send("❌ Could not find the summary channel.");
+        const replyMsg = await message.channel.send(
+          "❌ Could not find the summary channel."
+        );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
       }
     } catch (error) {
@@ -1205,14 +1372,28 @@ client.on(Events.MessageCreate, async (message) => {
       setTimeout(() => message.delete().catch(() => {}), 2000);
       return;
     }
-    const replyMsg = await message.reply("☕ Running coffee pairing... This may take a moment.");
+    const replyMsg = await message.reply(
+      "☕ Running coffee pairing... This may take a moment."
+    );
     try {
-      const res = await runCoffeePairing(message.guild, COFFEE_ROLE_NAME, "manual");
+      const res = await runCoffeePairing(
+        message.guild,
+        COFFEE_ROLE_NAME,
+        "manual"
+      );
       if (!res || res.length === 0) {
-        await message.channel.send("⚠️ No pairings created — not enough eligible members or member fetch timed out. Check logs or set COFFEE_FETCH_MEMBERS=true to force refresh.");
+        await message.channel.send(
+          "⚠️ No pairings created — not enough eligible members or member fetch timed out. Check logs or set COFFEE_FETCH_MEMBERS=true to force refresh."
+        );
       } else {
-        await message.channel.send(`✅ Paired ${res.length} groups for coffee.`);
-        notifyAdmin(`!paircoffee completed by ${message.author.tag || message.author.username} (${message.author.id}) — pairs: ${res.length}`).catch(() => {});
+        await message.channel.send(
+          `✅ Paired ${res.length} groups for coffee.`
+        );
+        notifyAdmin(
+          `!paircoffee completed by ${
+            message.author.tag || message.author.username
+          } (${message.author.id}) — pairs: ${res.length}`
+        ).catch(() => {});
       }
     } catch (e) {
       await logError(e, "Error running !paircoffee");
@@ -1316,20 +1497,25 @@ function loadRemindersFromFile() {
 async function acquireRemindersLock(retries = 50, delayMs = 100) {
   for (let i = 0; i < retries; i++) {
     try {
-      const fd = fs.openSync(REMINDER_LOCK_FILE, 'wx');
+      const fd = fs.openSync(REMINDER_LOCK_FILE, "wx");
       fs.writeSync(fd, `${process.pid}\n${Date.now()}`);
       fs.closeSync(fd);
       return () => {
-        try { fs.unlinkSync(REMINDER_LOCK_FILE); } catch (e) {}
+        try {
+          fs.unlinkSync(REMINDER_LOCK_FILE);
+        } catch (e) {}
       };
     } catch (err) {
-      if (err && err.code === 'EEXIST') {
+      if (err && err.code === "EEXIST") {
         // lock exists, check for staleness
         try {
           const stat = fs.statSync(REMINDER_LOCK_FILE);
           const ageMs = Date.now() - stat.mtimeMs;
-          if (ageMs > 30000) { // older than 30s
-            try { fs.unlinkSync(REMINDER_LOCK_FILE); } catch (er) {}
+          if (ageMs > 30000) {
+            // older than 30s
+            try {
+              fs.unlinkSync(REMINDER_LOCK_FILE);
+            } catch (er) {}
             // next iteration will try again
           }
         } catch (sErr) {
@@ -1342,7 +1528,7 @@ async function acquireRemindersLock(retries = 50, delayMs = 100) {
       throw err;
     }
   }
-  throw new Error('Could not acquire reminders lock');
+  throw new Error("Could not acquire reminders lock");
 }
 
 // Check whether an equivalent reminder already exists (same user, same message, time within tolerance)
@@ -1352,7 +1538,7 @@ function findDuplicatePersistedReminder(reminder, persisted) {
     try {
       return (
         r.userId === reminder.userId &&
-        (r.msg || '').trim() === (reminder.msg || '').trim() &&
+        (r.msg || "").trim() === (reminder.msg || "").trim() &&
         Math.abs((Number(r.time) || 0) - Number(reminder.time)) <= TOLERANCE_MS
       );
     } catch (e) {
@@ -1368,7 +1554,7 @@ async function addReminderSafely(reminder) {
     release = await acquireRemindersLock();
   } catch (err) {
     // If lock cannot be acquired, fallback to naive method (best-effort). Still check file before writing.
-      try {
+    try {
       const persisted = loadRemindersFromFile();
       const dup = findDuplicatePersistedReminder(reminder, persisted);
       if (dup) return { created: false, existing: dup };
@@ -1376,8 +1562,10 @@ async function addReminderSafely(reminder) {
       fs.writeFileSync(REMINDER_FILE, JSON.stringify(persisted, null, 2));
       // update in-memory
       reminders = persisted;
-        scheduleReminder(reminder, Math.max(0, reminder.time - Date.now()));
-        console.log(`(fallback) Created reminder ${reminder.id} for user ${reminder.userId}`);
+      scheduleReminder(reminder, Math.max(0, reminder.time - Date.now()));
+      console.log(
+        `(fallback) Created reminder ${reminder.id} for user ${reminder.userId}`
+      );
       return { created: true };
     } catch (e) {
       throw e;
@@ -1388,17 +1576,28 @@ async function addReminderSafely(reminder) {
     const persisted = loadRemindersFromFile();
     const dup = findDuplicatePersistedReminder(reminder, persisted);
     if (dup) {
-      console.log(`Duplicate reminder detected for user ${reminder.userId}; existing ID: ${dup.id}`);
+      console.log(
+        `Duplicate reminder detected for user ${reminder.userId}; existing ID: ${dup.id}`
+      );
       return { created: false, existing: dup };
     }
     persisted.push(reminder);
     fs.writeFileSync(REMINDER_FILE, JSON.stringify(persisted, null, 2));
     reminders = persisted;
-    console.log(`Created reminder ${reminder.id} for user ${reminder.userId} (scheduled in ${Math.max(0, Math.round((reminder.time - Date.now())/1000))}s)`);
+    console.log(
+      `Created reminder ${reminder.id} for user ${
+        reminder.userId
+      } (scheduled in ${Math.max(
+        0,
+        Math.round((reminder.time - Date.now()) / 1000)
+      )}s)`
+    );
     scheduleReminder(reminder, Math.max(0, reminder.time - Date.now()));
     return { created: true };
   } finally {
-    try { release && release(); } catch (e) {}
+    try {
+      release && release();
+    } catch (e) {}
   }
 }
 
@@ -1526,15 +1725,24 @@ async function sendReminder(reminder) {
     let persistedReminders = [];
     try {
       if (fs.existsSync(REMINDER_FILE)) {
-        persistedReminders = JSON.parse(fs.readFileSync(REMINDER_FILE, 'utf8') || '[]');
+        persistedReminders = JSON.parse(
+          fs.readFileSync(REMINDER_FILE, "utf8") || "[]"
+        );
       }
     } catch (err) {
-      console.warn('Failed to read reminders.json while sending reminder; proceeding with in-memory checks.', err?.message || err);
+      console.warn(
+        "Failed to read reminders.json while sending reminder; proceeding with in-memory checks.",
+        err?.message || err
+      );
     }
 
-    const stillActive = persistedReminders.some((r) => r.id === reminder.id) || reminders.some((r) => r.id === reminder.id);
+    const stillActive =
+      persistedReminders.some((r) => r.id === reminder.id) ||
+      reminders.some((r) => r.id === reminder.id);
     if (!stillActive) {
-      console.log(`Reminder ${reminder.id} was canceled (not found in persisted reminders). Skipping send.`);
+      console.log(
+        `Reminder ${reminder.id} was canceled (not found in persisted reminders). Skipping send.`
+      );
       if (scheduledTimeouts.has(reminder.id)) {
         clearTimeout(scheduledTimeouts.get(reminder.id));
         scheduledTimeouts.delete(reminder.id);
@@ -1546,7 +1754,10 @@ async function sendReminder(reminder) {
     try {
       await user.send(`🔔 Reminder: ${reminder.msg}`);
     } catch (dmErr) {
-      console.log(`Failed to DM user ${reminder.userId}, reminder was: ${reminder.msg}`, dmErr?.message || dmErr);
+      console.log(
+        `Failed to DM user ${reminder.userId}, reminder was: ${reminder.msg}`,
+        dmErr?.message || dmErr
+      );
     }
 
     // Remove reminder and persist the change
@@ -1560,7 +1771,7 @@ async function sendReminder(reminder) {
     }
   } catch (err2) {
     // Log and notify admin if necessary
-    await logError(err2, 'sendReminder error').catch(() => {});
+    await logError(err2, "sendReminder error").catch(() => {});
   }
 }
 
@@ -1571,12 +1782,19 @@ function scheduleReminder(reminder, delay) {
     try {
       clearTimeout(scheduledTimeouts.get(reminder.id));
       scheduledTimeouts.delete(reminder.id);
-      console.log(`Cleared existing scheduled timeout when re-scheduling reminder ${reminder.id}`);
+      console.log(
+        `Cleared existing scheduled timeout when re-scheduling reminder ${reminder.id}`
+      );
     } catch (ignore) {}
   }
   const timeoutId = setTimeout(() => sendReminder(reminder), delay);
   scheduledTimeouts.set(reminder.id, timeoutId);
-  console.log(`Scheduled reminder ${reminder.id} in ${Math.max(0, Math.round(delay/1000))}s for user ${reminder.userId}`);
+  console.log(
+    `Scheduled reminder ${reminder.id} in ${Math.max(
+      0,
+      Math.round(delay / 1000)
+    )}s for user ${reminder.userId}`
+  );
 }
 
 client.once("ready", async () => {
@@ -1599,36 +1817,56 @@ client.once("ready", async () => {
   try {
     cron.schedule("0 10 * * 1", async () => {
       try {
-        console.log(`⏰ [CRON] Server summary job triggered at ${new Date().toISOString()}`);
-        notifyAdmin(`Cron job: Server summary started at ${new Date().toISOString()}`).catch(() => {});
+        console.log(
+          `⏰ [CRON] Server summary job triggered at ${new Date().toISOString()}`
+        );
+        notifyAdmin(
+          `Cron job: Server summary started at ${new Date().toISOString()}`
+        ).catch(() => {});
         const serverGuildId = process.env.GUILD_ID || "885547853567635476";
         let guild = client.guilds.cache.get(serverGuildId);
         if (!guild) {
           // Attempt to fetch the guild as a fallback in case cache was evicted or not populated
           try {
-            console.log(`DEBUG: guild ${serverGuildId} not in cache; attempting client.guilds.fetch(${serverGuildId})`);
+            console.log(
+              `DEBUG: guild ${serverGuildId} not in cache; attempting client.guilds.fetch(${serverGuildId})`
+            );
             guild = await client.guilds.fetch(serverGuildId);
           } catch (fetchErr) {
-            await logError(fetchErr, `Failed to fetch guild ${serverGuildId} for server summary`);
+            await logError(
+              fetchErr,
+              `Failed to fetch guild ${serverGuildId} for server summary`
+            );
           }
         }
         if (!guild) {
-          logError(new Error("Guild not found for server summary."), "Server summary cron").catch(() => {});
+          logError(
+            new Error("Guild not found for server summary."),
+            "Server summary cron"
+          ).catch(() => {});
           return;
         }
 
-        const summary = await gatherServerConversationsAndSummarize(guild, true);
+        const summary = await gatherServerConversationsAndSummarize(
+          guild,
+          true
+        );
         const chunks = summary.match(/[\s\S]{1,1900}/g) || [
           "No summary available.",
         ];
 
-        let channel = guild ? guild.channels.cache.get(TARGET_CHANNEL_ID) : null;
+        let channel = guild
+          ? guild.channels.cache.get(TARGET_CHANNEL_ID)
+          : null;
         if (!channel) {
           // Fallback: fetch the channel if not cached or if guild is not present
           try {
             channel = await client.channels.fetch(TARGET_CHANNEL_ID);
           } catch (fetchErr) {
-            await logError(fetchErr, `Failed to fetch target channel ${TARGET_CHANNEL_ID} for server summary`);
+            await logError(
+              fetchErr,
+              `Failed to fetch target channel ${TARGET_CHANNEL_ID} for server summary`
+            );
           }
         }
         if (channel && channel.type === ChannelType.GuildText) {
@@ -1639,16 +1877,22 @@ client.once("ready", async () => {
         }
 
         console.log("✅ Weekly server summary sent.");
-        notifyAdmin(`Cron job: Server summary completed at ${new Date().toISOString()}`).catch(() => {});
+        notifyAdmin(
+          `Cron job: Server summary completed at ${new Date().toISOString()}`
+        ).catch(() => {});
       } catch (error) {
         await logError(error, "Error running scheduled summary");
         try {
           const channel = client.channels.cache.get(TARGET_CHANNEL_ID);
           if (channel && channel.type === ChannelType.GuildText) {
-            await channel.send(`❌ Error running scheduled summary: ${error?.message || error}`);
+            await channel.send(
+              `❌ Error running scheduled summary: ${error?.message || error}`
+            );
           }
         } catch (sendErr) {
-          logError(sendErr, "Failed to send scheduling error to channel").catch(() => {});
+          logError(sendErr, "Failed to send scheduling error to channel").catch(
+            () => {}
+          );
         }
       }
     });
@@ -1660,57 +1904,83 @@ client.once("ready", async () => {
   // Coffee pairing cron job (configurable)
   try {
     cron.schedule(COFFEE_CRON_SCHEDULE, async () => {
-   cron.schedule(COFFEE_CRON_SCHEDULE, async () => {
+      // ⛔ Every-other-week guard (ISO weeks)
+      const isoWeek = getISOWeek();
+      if (isoWeek % 2 !== 0) {
+        console.log(
+          `☕ [CRON] Skipping coffee pairing (off week, ISO week ${isoWeek})`
+        );
+        return;
+      }
 
-  // ⛔ Every-other-week guard (ISO weeks)
-  const isoWeek = getISOWeek();
-  if (isoWeek % 2 !== 0) {
-    console.log(`☕ [CRON] Skipping coffee pairing (off week, ISO week ${isoWeek})`);
-    return;
-  }
-
-  console.log(`☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`);
-  notifyAdmin(`Cron job: Coffee pairing started at ${new Date().toISOString()}`).catch(() => {});
+      console.log(
+        `☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`
+      );
+      notifyAdmin(
+        `Cron job: Coffee pairing started at ${new Date().toISOString()}`
+      ).catch(() => {});
 
       try {
         const coffeeGuildId = process.env.GUILD_ID || "885547853567635476";
         let guild = client.guilds.cache.get(coffeeGuildId);
         if (!guild) {
           try {
-            console.log(`DEBUG: guild ${coffeeGuildId} not in cache; attempting client.guilds.fetch(${coffeeGuildId})`);
+            console.log(
+              `DEBUG: guild ${coffeeGuildId} not in cache; attempting client.guilds.fetch(${coffeeGuildId})`
+            );
             guild = await client.guilds.fetch(coffeeGuildId);
           } catch (fetchErr) {
-            await logError(fetchErr, `Failed to fetch guild ${coffeeGuildId} for coffee pairing`);
+            await logError(
+              fetchErr,
+              `Failed to fetch guild ${coffeeGuildId} for coffee pairing`
+            );
           }
         }
         if (!guild) {
-          logError(new Error("Guild not found for coffee pairing."), "Coffee pairing cron").catch(() => {});
+          logError(
+            new Error("Guild not found for coffee pairing."),
+            "Coffee pairing cron"
+          ).catch(() => {});
           return;
         }
         const result = await runCoffeePairing(guild, COFFEE_ROLE_NAME);
         console.log(`☕ Coffee pairing job completed, pairs: ${result.length}`);
-        notifyAdmin(`Cron job: Coffee pairing completed with ${result.length} pairs at ${new Date().toISOString()}`).catch(() => {});
+        notifyAdmin(
+          `Cron job: Coffee pairing completed with ${
+            result.length
+          } pairs at ${new Date().toISOString()}`
+        ).catch(() => {});
       } catch (e) {
         await logError(e, "Error running coffee pairing cron job");
         try {
-          const logChannelId = process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID;
+          const logChannelId =
+            process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID;
           let logChannel = client.channels.cache.get(logChannelId);
           if (!logChannel) {
             try {
               logChannel = await client.channels.fetch(logChannelId);
             } catch (fetchErr) {
-              console.warn(`Failed to fetch coffee log channel ${logChannelId}: `, fetchErr?.message || fetchErr);
+              console.warn(
+                `Failed to fetch coffee log channel ${logChannelId}: `,
+                fetchErr?.message || fetchErr
+              );
             }
           }
           if (logChannel && logChannel.type === ChannelType.GuildText) {
-            await logChannel.send(`❌ Coffee pairing cron job failed: ${e?.message || e}`);
+            await logChannel.send(
+              `❌ Coffee pairing cron job failed: ${e?.message || e}`
+            );
           }
         } catch (sendErr) {
-          logError(sendErr, "Failed to send cron error to log channel").catch(() => {});
+          logError(sendErr, "Failed to send cron error to log channel").catch(
+            () => {}
+          );
         }
       }
     });
-    console.log(`☕ Coffee pairing scheduled with cron: ${COFFEE_CRON_SCHEDULE}`);
+    console.log(
+      `☕ Coffee pairing scheduled with cron: ${COFFEE_CRON_SCHEDULE}`
+    );
   } catch (e) {
     await logError(e, "Error scheduling coffee pairing");
   }
