@@ -1,6 +1,7 @@
 // Import required dependencies
 /** @type {*} */
 const http = require("http");
+const WebSocket = require("ws");
 const {
   Client,
   GatewayIntentBits,
@@ -11,6 +12,13 @@ const {
   EmbedBuilder,
   ChannelType, // ✅ Added this to fix ChannelType error
 } = require("discord.js");
+const {
+  joinVoiceChannel,
+  VoiceConnectionStatus,
+  EndBehaviorType,
+} = require("@discordjs/voice");
+const prism = require("prism-media");
+const crypto = require("crypto");
 const dotenv = require("dotenv");
 const Groq = require("groq-sdk");
 const axios = require("axios");
@@ -36,6 +44,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildVoiceStates,
   ],
 });
 
@@ -44,7 +53,565 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+// ============================================
+// VOICE TRANSCRIPTION & TRANSLATION SYSTEM
+// ============================================
+
+// WebSocket streaming server for live captions
+class StreamingServer {
+  constructor(port = 8080) {
+    this.port = port;
+    this.server = null;
+    this.wss = null;
+    this.clients = new Map();
+  }
+
+  start() {
+    return new Promise((resolve) => {
+      this.server = http.createServer((req, res) => {
+        if (req.url === "/health") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "ok" }));
+          return;
+        }
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not Found");
+      });
+
+      this.wss = new WebSocket.Server({ server: this.server });
+      this.wss.on("connection", (ws, req) => this.handleClientConnection(ws, req));
+
+      this.server.listen(this.port, () => {
+        console.log(`[StreamingServer] WebSocket server started on port ${this.port}`);
+        resolve();
+      });
+    });
+  }
+
+  handleClientConnection(ws, req) {
+    const params = new URL(`http://localhost${req.url}`).searchParams;
+    const token = params.get("token");
+    const guildId = params.get("guild");
+
+    if (!token || !guildId) {
+      ws.close(4000, "Missing token or guild parameter");
+      return;
+    }
+
+    if (!sessionManager.validateToken(guildId, token)) {
+      ws.close(4001, "Invalid or expired token");
+      return;
+    }
+
+    if (!this.clients.has(guildId)) {
+      this.clients.set(guildId, new Set());
+    }
+    this.clients.get(guildId).add(ws);
+
+    const recentCaptions = sessionManager.getRecentCaptions(guildId);
+    ws.send(
+      JSON.stringify({
+        type: "initial",
+        captions: recentCaptions,
+        guildId,
+      })
+    );
+
+    ws.on("message", (data) => {
+      try {
+        const msg = JSON.parse(data);
+        if (msg.type === "ping") {
+          ws.send(JSON.stringify({ type: "pong" }));
+        }
+      } catch (err) {
+        console.error("[StreamingServer] Message parse error:", err.message);
+      }
+    });
+
+    ws.on("close", () => {
+      const guildClients = this.clients.get(guildId);
+      if (guildClients) {
+        guildClients.delete(ws);
+        if (guildClients.size === 0) {
+          this.clients.delete(guildId);
+        }
+      }
+    });
+
+    ws.on("error", (error) => {
+      console.error(`[StreamingServer] WebSocket error: ${error.message}`);
+    });
+  }
+
+  broadcastCaption(guildId, captionData) {
+    sessionManager.addCaption(guildId, captionData);
+
+    const guildClients = this.clients.get(guildId);
+    if (!guildClients || guildClients.size === 0) {
+      return;
+    }
+
+    const message = JSON.stringify({
+      type: "caption",
+      data: {
+        ...captionData,
+        timestamp: Date.now(),
+      },
+    });
+
+    let disconnectedClients = [];
+    for (const clientWs of guildClients) {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(message);
+      } else {
+        disconnectedClients.push(clientWs);
+      }
+    }
+
+    disconnectedClients.forEach((clientWs) => {
+      guildClients.delete(clientWs);
+    });
+  }
+
+  broadcastSessionEnd(guildId) {
+    const guildClients = this.clients.get(guildId);
+    if (!guildClients) {
+      return;
+    }
+
+    const message = JSON.stringify({
+      type: "session-end",
+      guildId,
+      timestamp: Date.now(),
+    });
+
+    for (const clientWs of guildClients) {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(message);
+        clientWs.close(1000, "Session ended");
+      }
+    }
+
+    this.clients.delete(guildId);
+  }
+
+  shutdown() {
+    return new Promise((resolve) => {
+      for (const guildClients of this.clients.values()) {
+        for (const clientWs of guildClients) {
+          clientWs.close(1001, "Server shutting down");
+        }
+      }
+      this.clients.clear();
+
+      if (this.wss) {
+        this.wss.close(() => {
+          console.log("[StreamingServer] WebSocket server closed");
+        });
+      }
+
+      if (this.server) {
+        this.server.close(() => {
+          console.log("[StreamingServer] HTTP server closed");
+          resolve();
+        });
+      } else {
+        resolve();
+      }
+    });
+  }
+}
+
+// Session Manager
+const sessionManager = {
+  sessions: new Map(),
+
+  createSession(guildId, channelId, initiatorId, voiceChannelUsers) {
+    const sessionId = crypto.randomBytes(16).toString("hex");
+    const accessToken = crypto.randomBytes(32).toString("hex");
+
+    const session = {
+      sessionId,
+      accessToken,
+      guildId,
+      channelId,
+      initiatorId,
+      voiceChannelUsers: new Set(voiceChannelUsers),
+      createdAt: Date.now(),
+      isActive: true,
+      captions: [],
+      maxCaptions: 50,
+    };
+
+    this.sessions.set(guildId, session);
+    console.log(`[SessionMgr] Created session for guild ${guildId}: ${sessionId}`);
+    return {
+      sessionId,
+      accessToken,
+      voiceChannelUsers: Array.from(voiceChannelUsers),
+    };
+  },
+
+  validateToken(guildId, accessToken) {
+    const session = this.sessions.get(guildId);
+    if (!session || !session.isActive) {
+      return false;
+    }
+    return session.accessToken === accessToken;
+  },
+
+  getSession(guildId) {
+    return this.sessions.get(guildId) || null;
+  },
+
+  addCaption(guildId, captionData) {
+    const session = this.sessions.get(guildId);
+    if (!session) return;
+
+    session.captions.push({
+      ...captionData,
+      timestamp: Date.now(),
+    });
+
+    if (session.captions.length > session.maxCaptions) {
+      session.captions.shift();
+    }
+  },
+
+  getRecentCaptions(guildId) {
+    const session = this.sessions.get(guildId);
+    return session ? session.captions : [];
+  },
+
+  endSession(guildId) {
+    const session = this.sessions.get(guildId);
+    if (session) {
+      session.isActive = false;
+      console.log(`[SessionMgr] Ended session for guild ${guildId}: ${session.sessionId}`);
+      setTimeout(() => {
+        this.sessions.delete(guildId);
+      }, 5000);
+    }
+  },
+
+  hasActiveSession(guildId) {
+    const session = this.sessions.get(guildId);
+    return session ? session.isActive : false;
+  },
+};
+
+// Voice capture and transcription
+const voiceCaptures = new Map();
+
+async function startVoiceCapture(voiceChannel, guild, initiator) {
+  try {
+    const guildId = guild.id;
+
+    if (voiceCaptures.has(guildId)) {
+      return {
+        success: false,
+        message: "Already transcribing in this guild",
+      };
+    }
+
+    const voiceChannelUsers = voiceChannel.members
+      .map((member) => member.user.id)
+      .filter((id) => id !== client.user.id);
+
+    if (voiceChannelUsers.length === 0) {
+      return {
+        success: false,
+        message: "No users to transcribe in the voice channel",
+      };
+    }
+
+    const connection = joinVoiceChannel({
+      channelId: voiceChannel.id,
+      guildId: guildId,
+      adapterCreator: guild.voiceAdapterCreator,
+      selfDeaf: false,
+      selfMute: true,
+    });
+
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("Voice connection timeout")),
+        30000
+      );
+
+      const stateChangeHandler = (oldState, newState) => {
+        if (newState.status === VoiceConnectionStatus.Ready) {
+          connection.off("stateChange", stateChangeHandler);
+          clearTimeout(timeout);
+          resolve();
+        } else if (newState.status === VoiceConnectionStatus.Disconnected) {
+          connection.off("stateChange", stateChangeHandler);
+          clearTimeout(timeout);
+          reject(new Error("Voice connection failed"));
+        }
+      };
+
+      connection.on("stateChange", stateChangeHandler);
+    });
+
+    console.log(`[VoiceCapture] Connected to voice channel in guild ${guildId}`);
+
+    const sessionData = sessionManager.createSession(
+      guildId,
+      voiceChannel.id,
+      initiator.id,
+      voiceChannelUsers
+    );
+
+    const receiver = connection.receiver;
+    const activeUsers = new Map();
+
+    connection.receiver.speaking.on("start", async (userId) => {
+      if (userId === client.user.id) return;
+      if (activeUsers.has(userId)) return;
+
+      const user = await client.users.fetch(userId).catch(() => null);
+      if (!user) return;
+
+      try {
+        const audioStream = receiver.subscribe(userId, {
+          end: {
+            behavior: EndBehaviorType.AfterSilence,
+            duration: 1000,
+          },
+        });
+
+        console.log(`[VoiceCapture] Started capturing audio from ${user.username}`);
+
+        const decoder = new prism.opus.Decoder({ rate: 48000, channels: 2, frameSize: 960 });
+        const pcmStream = audioStream.pipe(decoder);
+
+        const audioChunks = [];
+        let totalSize = 0;
+        const maxAudioSize = 25 * 1024 * 1024;
+        let streamEnded = false;
+
+        pcmStream.on("data", (chunk) => {
+          if (!streamEnded && totalSize < maxAudioSize) {
+            audioChunks.push(chunk);
+            totalSize += chunk.length;
+          }
+        });
+
+        pcmStream.on("end", async () => {
+          activeUsers.delete(userId);
+          streamEnded = true;
+          console.log(`[VoiceCapture] Finished capturing audio from ${user.username}`);
+
+          try {
+            const audioBuffer = Buffer.concat(audioChunks);
+
+            if (audioBuffer.length < 1000) {
+              console.log(`[VoiceCapture] Skipped empty/silent audio from ${user.username}`);
+              return;
+            }
+
+            // Transcribe
+            const wavBuffer = pcmToWav(audioBuffer);
+            const tempFile = path.join(
+              process.env.TEMP || "/tmp",
+              `audio_${userId}_${Date.now()}.wav`
+            );
+
+            fs.writeFileSync(tempFile, wavBuffer);
+
+            let transcription = { text: "", language: "en" };
+            try {
+              const result = await groq.audio.transcriptions.create({
+                file: fs.createReadStream(tempFile),
+                model: "whisper-large-v3-turbo",
+                response_format: "verbose_json",
+              });
+              // Groq Whisper returns: { text, language }
+              // Language is ISO-639-1 code (e.g., "es", "fr", "de", "en")
+              transcription = { 
+                text: result.text || "", 
+                language: result.language || "en" 
+              };
+              console.log(`[Transcription] Detected language: ${transcription.language}, Text: ${transcription.text.substring(0, 50)}...`);
+            } catch (err) {
+              console.error("[Transcription] Error:", err.message);
+            } finally {
+              try {
+                fs.unlinkSync(tempFile);
+              } catch (e) {}
+            }
+
+            if (!transcription.text || transcription.text.trim().length === 0) {
+              return;
+            }
+
+            // Always translate via LLM to ensure English output
+            // This handles cases where language detection might be inaccurate
+            let translatedText = transcription.text;
+            let isOriginalEnglish = transcription.language === "en";
+
+            try {
+              // Always run through translation LLM to normalize and ensure English
+              const completion = await groq.chat.completions.create({
+                messages: [
+                  {
+                    role: "system",
+                    content: `You are a professional translator. Your task:
+1. If the text is in English, respond with EXACTLY the same text
+2. If the text is in another language, translate it to English
+3. Do NOT add explanations, formatting, or any additions
+4. Only output the final text (English)`,
+                  },
+                  {
+                    role: "user",
+                    content: `Process this text and ensure it's in English:\n\n${transcription.text}`,
+                  },
+                ],
+                model: "llama-3.1-8b-instant",
+                temperature: 0.1,
+                max_tokens: 512,
+              });
+
+              translatedText = completion.choices[0]?.message?.content?.trim() || transcription.text;
+              console.log(`[Translation] Translated: "${transcription.text}" -> "${translatedText}"`);
+            } catch (err) {
+              console.error("[Translation] Error:", err.message);
+              translatedText = transcription.text;
+            }
+
+            const member = guild.members.cache.get(userId);
+            const speakerName = member?.displayName || user.username;
+
+            streamingServer.broadcastCaption(guildId, {
+              speakerId: userId,
+              speakerName,
+              originalLanguage: transcription.language,
+              originalText: transcription.text,
+              translatedText,
+              isOriginalEnglish,
+            });
+          } catch (error) {
+            console.error(`[VoiceCapture] Processing error for ${user.username}:`, error.message);
+          }
+        });
+
+        pcmStream.on("error", (error) => {
+          if (!error.message.includes("Invalid packet")) {
+            console.error(`[VoiceCapture] PCM stream error: ${error.message}`);
+          }
+        });
+
+        audioStream.on("error", (error) => {
+          if (!error.message.includes("stream.push() after EOF")) {
+            console.error(`[VoiceCapture] Audio stream error for ${user.username}: ${error.message}`);
+          }
+          if (activeUsers.has(userId)) {
+            activeUsers.delete(userId);
+          }
+        });
+
+        activeUsers.set(userId, { stream: audioStream, decoder });
+      } catch (error) {
+        console.error(`[VoiceCapture] Failed to subscribe to ${user.username}: ${error.message}`);
+      }
+    });
+
+    voiceCaptures.set(guildId, {
+      connection,
+      receiver,
+      voiceChannel,
+      sessionId: sessionData.sessionId,
+      startTime: Date.now(),
+      activeUsers,
+    });
+
+    const emptyCheckInterval = setInterval(() => {
+      const memberCount = voiceChannel.members.filter((m) => !m.user.bot).size;
+      if (memberCount === 0) {
+        console.log(`[VoiceCapture] Voice channel empty, stopping capture for guild ${guildId}`);
+        stopVoiceCapture(guildId);
+        clearInterval(emptyCheckInterval);
+      }
+    }, 5000);
+
+    return {
+      success: true,
+      message: `Started transcribing in ${voiceChannel.name}`,
+      accessToken: sessionData.accessToken,
+      voiceChannelUsers: sessionData.voiceChannelUsers,
+    };
+  } catch (error) {
+    console.error("[VoiceCapture] Start capture error:", error.message);
+    return {
+      success: false,
+      message: `Error starting capture: ${error.message}`,
+    };
+  }
+}
+
+function stopVoiceCapture(guildId) {
+  const capture = voiceCaptures.get(guildId);
+  if (!capture) {
+    return;
+  }
+
+  try {
+    if (capture.connection) {
+      capture.connection.destroy();
+    }
+
+    streamingServer.broadcastSessionEnd(guildId);
+    sessionManager.endSession(guildId);
+    voiceCaptures.delete(guildId);
+
+    console.log(`[VoiceCapture] Stopped capture for guild ${guildId}`);
+  } catch (error) {
+    console.error(`[VoiceCapture] Error stopping capture: ${error.message}`);
+  }
+}
+
+function pcmToWav(pcmBuffer, sampleRate = 48000, channels = 2, bitsPerSample = 16) {
+  const byteRate = (sampleRate * channels * bitsPerSample) / 8;
+  const blockAlign = (channels * bitsPerSample) / 8;
+  const pcmDataLength = pcmBuffer.length;
+
+  const wavBuffer = Buffer.alloc(44 + pcmDataLength);
+  const view = new DataView(wavBuffer.buffer);
+
+  wavBuffer.write("RIFF", 0);
+  view.setUint32(4, 36 + pcmDataLength, true);
+  wavBuffer.write("WAVE", 8);
+
+  wavBuffer.write("fmt ", 12);
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+
+  wavBuffer.write("data", 36);
+  view.setUint32(40, pcmDataLength, true);
+
+  pcmBuffer.copy(wavBuffer, 44);
+
+  return wavBuffer;
+}
+
+// Initialize streaming server
+const streamingServer = new StreamingServer(
+  parseInt(process.env.STREAMING_PORT) || 8080
+);
+
+streamingServer.start().catch((err) => {
+  console.error("Failed to start streaming server:", err);
+  process.exit(1);
+});
+
 // Register slash commands
+
 const commands = [
   new SlashCommandBuilder()
     .setName("summarize")
@@ -58,6 +625,20 @@ const commands = [
     .setName("coffee-pair")
     .setDescription(
       "Randomly pair users that have the coffee-chat role and send them a DM to meet"
+    )
+    .toJSON(),
+  new SlashCommandBuilder()
+    .setName("translate")
+    .setDescription("Transcribe and translate voice channel audio to live captions")
+    .addSubcommand((sub) =>
+      sub
+        .setName("start")
+        .setDescription("Start transcribing and get live caption URL")
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("stop")
+        .setDescription("Stop transcribing and close live captions")
     )
     .toJSON(),
 ];
@@ -916,6 +1497,102 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
       }
     }
+  } else if (interaction.commandName === "translate") {
+    try {
+      const subcommand = interaction.options.getSubcommand();
+
+      if (subcommand === "start") {
+        await interaction.deferReply({ ephemeral: true });
+
+        const voiceChannel = interaction.member?.voice?.channel;
+        if (!voiceChannel) {
+          await interaction.editReply({
+            content: "❌ You must be in a voice channel to start transcription.",
+          });
+          return;
+        }
+
+        const result = await startVoiceCapture(voiceChannel, interaction.guild, interaction.user);
+
+        if (!result.success) {
+          await interaction.editReply({
+            content: `❌ ${result.message}`,
+          });
+          return;
+        }
+
+        // Generate caption URL automatically
+        const session = sessionManager.getSession(interaction.guildId);
+        if (!session) {
+          await interaction.editReply({
+            content: `✅ ${result.message}\n\n⚠️ Session created but URL generation failed. Please try again.`,
+          });
+          return;
+        }
+
+        const baseUrl =
+          process.env.CAPTION_URL || `http://localhost:${process.env.STREAMING_PORT || 8080}`;
+        const captionUrl = `${baseUrl}/public/captions.html?token=${session.accessToken}&guild=${interaction.guildId}`;
+
+        const embed = new EmbedBuilder()
+          .setTitle("🎤 Voice Translation Started")
+          .setDescription(
+            `Started transcribing and translating in **${voiceChannel.name}**\n\nShare the URL below with users in the voice channel to view live captions in real-time.`
+          )
+          .addFields({
+            name: "Live Caption URL",
+            value: `[Open Live Captions](${captionUrl})`,
+            inline: false,
+          })
+          .addFields({
+            name: "Direct Link",
+            value: `\`\`\`\n${captionUrl}\n\`\`\``,
+            inline: false,
+          })
+          .setColor("#10b981")
+          .setTimestamp();
+
+        await interaction.editReply({
+          embeds: [embed],
+        });
+
+        notifyAdmin(
+          `/translate start by ${interaction.user.tag} in voice channel ${voiceChannel.name}`
+        ).catch(() => {});
+      } else if (subcommand === "stop") {
+        await interaction.deferReply({ ephemeral: true });
+
+        if (!voiceCaptures.has(interaction.guildId)) {
+          await interaction.editReply({
+            content: "❌ No active transcription session in this guild.",
+          });
+          return;
+        }
+
+        stopVoiceCapture(interaction.guildId);
+
+        await interaction.editReply({
+          content: "✅ Transcription stopped. Captions will no longer be streamed.",
+        });
+
+        notifyAdmin(
+          `/translate stop by ${interaction.user.tag}`
+        ).catch(() => {});
+      }
+    } catch (error) {
+      await logError(error, `/translate interaction error`);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: "❌ An error occurred while processing your request.",
+          ephemeral: true,
+        });
+      } else {
+        await interaction.editReply({
+          content: "❌ An error occurred while processing your request.",
+          ephemeral: true,
+        });
+      }
+    }
   }
 });
 
@@ -1417,8 +2094,43 @@ process.on("uncaughtException", async (error) => {
   await logError(error, "Uncaught exception");
 });
 
+// Graceful shutdown handler
+process.on("SIGINT", async () => {
+  console.log("🛑 Shutting down gracefully...");
+  try {
+    // Stop all voice captures
+    for (const guildId of voiceCaptures.keys()) {
+      stopVoiceCapture(guildId);
+    }
+    // Shutdown streaming server
+    await streamingServer.shutdown();
+    // Logout Discord client
+    await client.destroy();
+    process.exit(0);
+  } catch (err) {
+    console.error("Error during shutdown:", err);
+    process.exit(1);
+  }
+});
+
 const port = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
+  // Serve captions.html
+  if (req.url === "/public/captions.html" || req.url.startsWith("/public/captions.html?")) {
+    const captionsPath = path.join(__dirname, "public", "captions.html");
+    try {
+      const html = fs.readFileSync(captionsPath, "utf-8");
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(html);
+      return;
+    } catch (err) {
+      console.error("Failed to serve captions.html:", err.message);
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("Error loading captions page");
+      return;
+    }
+  }
+
   res.writeHead(200);
   res.end("Discord summarizer bot is running.");
 });
