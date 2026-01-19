@@ -877,58 +877,22 @@ async function getMembersWithCoffeeRole(
   // Prefer cached role members to avoid long fetches. If enabled, try fetching members with timeout
   let members = role.members.filter((m) => !m.user.bot).map((m) => m);
   if (members.length < 2 && COFFEE_FETCH_MEMBERS) {
+    // Always refresh to ensure we have the most current member list
     try {
       await fetchGuildMembersWithTimeout(guild, COFFEE_FETCH_TIMEOUT_MS);
       members = role.members.filter((m) => !m.user.bot).map((m) => m);
     } catch (err) {
-      // The underlying discord.js fetch can throw a GuildMembersTimeout error or our timed out error
-      console.warn(
-        "Could not refresh member cache (fetch timed out or failed). Falling back to cached role members.",
-        err && err.message ? err.message : err
-      );
+      console.warn("Member fetch failed, using cached members...");
     }
   }
   let memberList = Array.from(members.values());
 
-  // Optionally filter by Mee6 minimum level if configured
-  if (COFFEE_MIN_MEE6_LEVEL > 0) {
-    let levels = {};
-    try {
-      levels = await fetchMee6LevelsForGuildMembers(
-        guild.id,
-        memberList.map((m) => m.id)
-      );
-    } catch (err) {
-      console.warn(
-        "Could not fetch Mee6 leaderboard for guild or apply min level filter:",
-        err?.message || err
-      );
-      if (COFFEE_MEE6_STRICT) {
-        console.warn(
-          "COFFEE_MEE6_STRICT is enabled — aborting coffee pairing due to failed Mee6 lookup."
-        );
-        return [];
-      }
-    }
-    // If the lookup returned no data and strict mode is disabled, skip the filter
-    const hasMee6Data = levels && Object.keys(levels).length > 0;
-    if (!hasMee6Data && !COFFEE_MEE6_STRICT) {
-      console.log(
-        "Mee6 filter configured, but no Mee6 data found — skipping Mee6 filtering (set COFFEE_MEE6_STRICT=true to abort instead).\n"
-      );
-    } else {
-      const before = memberList.length;
-      memberList = memberList.filter((m) => {
-        // map keys are IDs returned from the Mee6 leaderboard; default to level 0 if not present
-        const lvl = Number(levels[String(m.id)] || levels[m.id] || 0);
-        return lvl >= COFFEE_MIN_MEE6_LEVEL;
-      });
-      const after = memberList.length;
-      console.log(
-        `Mee6 level filter: required >=${COFFEE_MIN_MEE6_LEVEL} — filtered ${before} -> ${after}`
-      );
-    }
-  }
+  // Capture username data at this point when we know user data is available
+  memberList = memberList.map((m) => {
+    m._capturedUsername = m.user?.username || "Unknown";
+    m._capturedDiscriminator = m.user?.discriminator || "0000";
+    return m;
+  });
 
   return memberList;
 }
@@ -1136,26 +1100,20 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
   // Warn admin if DM delivery fails for all or many users
   let totalFailedDMs = 0;
   for (const pair of pairs) {
+    // Use captured username data (set when role members were loaded)
     const usernames = pair.map(
-      (m) => `${m.user.username}#${m.user.discriminator}`
+      (m) => `${m._capturedUsername}#${m._capturedDiscriminator}`
     );
-    const mentionText = pair.map((m) => `<@${m.id}>`).join(" and ");
-    const first = pair[0];
-    const partnerList = pair
-      .slice(1)
-      .map((m) => `<@${m.id}>`)
-      .join(", ");
-    const msg = `☕ Hi ${first.user.username}! I've paired you with ${
-      partnerList || "someone"
-    } for a coffee-chat. Please DM them to arrange a time — you'd make a great match!`;
 
     // Send DM to each member listing their partner(s)
     for (const m of pair) {
       const others = pair
         .filter((p) => p.id !== m.id)
-        .map((p) => `<@${p.id}>`)
-        .join(", ");
-      const content = `☕ Hi ${m.user.username}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
+        .map((p) => `${p._capturedUsername} (${p.id})`)
+        .join(" and ");
+      
+      const senderName = m._capturedUsername;
+      const content = `☕ Hi ${senderName}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
       try {
         await m.send({ content });
         await delay(500);
@@ -2485,7 +2443,7 @@ function scheduleReminder(reminder, delay) {
   );
 }
 
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   console.log(`✅ Logged in as ${client.user.tag} (pid ${process.pid})`);
   // Debug: show env and cached guilds for diagnosing scheduling issues
   const GUILD_ID_IN_USE = process.env.GUILD_ID || "885547853567635476";
