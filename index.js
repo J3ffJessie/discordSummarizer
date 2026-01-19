@@ -312,6 +312,13 @@ async function getMembersWithCoffeeRole(
   }
   let memberList = Array.from(members.values());
 
+  // Capture username data at this point when we know user data is available
+  memberList = memberList.map((m) => {
+    m._capturedUsername = m.user?.username || "Unknown";
+    m._capturedDiscriminator = m.user?.discriminator || "0000";
+    return m;
+  });
+
   return memberList;
 }
 
@@ -518,26 +525,20 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
   // Warn admin if DM delivery fails for all or many users
   let totalFailedDMs = 0;
   for (const pair of pairs) {
+    // Use captured username data (set when role members were loaded)
     const usernames = pair.map(
-      (m) => `${m.user.username}#${m.user.discriminator}`
+      (m) => `${m._capturedUsername}#${m._capturedDiscriminator}`
     );
-    const mentionText = pair.map((m) => `<@${m.id}>`).join(" and ");
-    const first = pair[0];
-    const partnerList = pair
-      .slice(1)
-      .map((m) => `<@${m.id}>`)
-      .join(", ");
-    const msg = `☕ Hi ${first.user.username}! I've paired you with ${
-      partnerList || "someone"
-    } for a coffee-chat. Please DM them to arrange a time — you'd make a great match!`;
 
     // Send DM to each member listing their partner(s)
     for (const m of pair) {
       const others = pair
         .filter((p) => p.id !== m.id)
-        .map((p) => `<@${p.id}>`)
-        .join(", ");
-      const content = `☕ Hi ${m.user.username}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
+        .map((p) => `${p._capturedUsername} (${p.id})`)
+        .join(" and ");
+      
+      const senderName = m._capturedUsername;
+      const content = `☕ Hi ${senderName}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
       try {
         await m.send({ content });
         await delay(500);
