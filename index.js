@@ -1787,7 +1787,7 @@ function scheduleReminder(reminder, delay) {
   );
 }
 
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   console.log(`✅ Logged in as ${client.user.tag} (pid ${process.pid})`);
   // Debug: show env and cached guilds for diagnosing scheduling issues
   const GUILD_ID_IN_USE = process.env.GUILD_ID || "885547853567635476";
