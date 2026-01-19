@@ -31,7 +31,7 @@ Already done! Dependencies were added to `package.json`:
 
 ## Commands
 
-### `/translate-voice start`
+### `/translate start`
 - Starts transcription in your voice channel
 - Bot joins the channel and begins capturing audio
 - Returns an access token for reference
@@ -48,16 +48,7 @@ Access Token: abc123def...
 Use `/translate-voice get-url` to get the viewing URL.
 ```
 
-### `/translate-voice get-url`
-- Generates a shareable link to view live captions
-- Only users in the voice channel can access
-
-**Example URL:**
-```
-http://localhost:3000/public/captions.html?token=abc123&guild=xyz789
-```
-
-### `/translate-voice stop`
+### `/translate stop`
 - Stops audio capture
 - Closes connections to all viewers
 - Ends the session

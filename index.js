@@ -1180,31 +1180,7 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
     results.push({ pair: usernames });
   }
   saveCoffeePairs(history);
-  // Also post a summary to the church channel if available
-  const logChannelId = process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID;
-  const logChannel = guild.channels.cache.get(logChannelId);
-  if (logChannel && logChannel.type === ChannelType.GuildText) {
-    for (const p of results) {
-      await logChannel.send(
-        `☕ Coffee Pairing (${new Date().toLocaleString()}): ${p.pair.join(
-          " <> "
-        )}`
-      );
-      await delay(400);
-    }
-  }
-  if (totalFailedDMs > 0) {
-    try {
-      const logChannel2 = guild.channels.cache.get(
-        process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID
-      );
-      if (logChannel2 && logChannel2.type === ChannelType.GuildText) {
-        await logChannel2.send(
-          `⚠️ DM delivery failed for ${totalFailedDMs} recipients during the recent pairing. Users may have DMs disabled.`
-        );
-      }
-    } catch {}
-  }
+  // ✅ Removed: Coffee pairings no longer posted to summary channel per user request
   return results;
 }
 
