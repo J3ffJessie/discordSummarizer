@@ -60,6 +60,12 @@ const commands = [
       "Randomly pair users that have the coffee-chat role and send them a DM to meet"
     )
     .toJSON(),
+  new SlashCommandBuilder()
+    .setName("coffee-list")
+    .setDescription(
+      "Debug: Check how many members have the coffee-chat role (admin only)"
+    )
+    .toJSON(),
 ];
 
 const TARGET_CHANNEL_ID = "1392954859803644014"; // Replace with your target channel ID for weekly summaries
@@ -296,58 +302,15 @@ async function getMembersWithCoffeeRole(
   // Prefer cached role members to avoid long fetches. If enabled, try fetching members with timeout
   let members = role.members.filter((m) => !m.user.bot).map((m) => m);
   if (members.length < 2 && COFFEE_FETCH_MEMBERS) {
+    // Always refresh to ensure we have the most current member list
     try {
       await fetchGuildMembersWithTimeout(guild, COFFEE_FETCH_TIMEOUT_MS);
       members = role.members.filter((m) => !m.user.bot).map((m) => m);
     } catch (err) {
-      // The underlying discord.js fetch can throw a GuildMembersTimeout error or our timed out error
-      console.warn(
-        "Could not refresh member cache (fetch timed out or failed). Falling back to cached role members.",
-        err && err.message ? err.message : err
-      );
+      console.warn("Member fetch failed, using cached members...");
     }
   }
   let memberList = Array.from(members.values());
-
-  // Optionally filter by Mee6 minimum level if configured
-  if (COFFEE_MIN_MEE6_LEVEL > 0) {
-    let levels = {};
-    try {
-      levels = await fetchMee6LevelsForGuildMembers(
-        guild.id,
-        memberList.map((m) => m.id)
-      );
-    } catch (err) {
-      console.warn(
-        "Could not fetch Mee6 leaderboard for guild or apply min level filter:",
-        err?.message || err
-      );
-      if (COFFEE_MEE6_STRICT) {
-        console.warn(
-          "COFFEE_MEE6_STRICT is enabled — aborting coffee pairing due to failed Mee6 lookup."
-        );
-        return [];
-      }
-    }
-    // If the lookup returned no data and strict mode is disabled, skip the filter
-    const hasMee6Data = levels && Object.keys(levels).length > 0;
-    if (!hasMee6Data && !COFFEE_MEE6_STRICT) {
-      console.log(
-        "Mee6 filter configured, but no Mee6 data found — skipping Mee6 filtering (set COFFEE_MEE6_STRICT=true to abort instead).\n"
-      );
-    } else {
-      const before = memberList.length;
-      memberList = memberList.filter((m) => {
-        // map keys are IDs returned from the Mee6 leaderboard; default to level 0 if not present
-        const lvl = Number(levels[String(m.id)] || levels[m.id] || 0);
-        return lvl >= COFFEE_MIN_MEE6_LEVEL;
-      });
-      const after = memberList.length;
-      console.log(
-        `Mee6 level filter: required >=${COFFEE_MIN_MEE6_LEVEL} — filtered ${before} -> ${after}`
-      );
-    }
-  }
 
   return memberList;
 }
@@ -599,31 +562,6 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
     results.push({ pair: usernames });
   }
   saveCoffeePairs(history);
-  // Also post a summary to the church channel if available
-  const logChannelId = process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID;
-  const logChannel = guild.channels.cache.get(logChannelId);
-  if (logChannel && logChannel.type === ChannelType.GuildText) {
-    for (const p of results) {
-      await logChannel.send(
-        `☕ Coffee Pairing (${new Date().toLocaleString()}): ${p.pair.join(
-          " <> "
-        )}`
-      );
-      await delay(400);
-    }
-  }
-  if (totalFailedDMs > 0) {
-    try {
-      const logChannel2 = guild.channels.cache.get(
-        process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID
-      );
-      if (logChannel2 && logChannel2.type === ChannelType.GuildText) {
-        await logChannel2.send(
-          `⚠️ DM delivery failed for ${totalFailedDMs} recipients during the recent pairing. Users may have DMs disabled.`
-        );
-      }
-    } catch {}
-  }
   return results;
 }
 
@@ -912,6 +850,57 @@ client.on(Events.InteractionCreate, async (interaction) => {
       } else {
         await interaction.editReply({
           content: "❌ Failed to run coffee pairing.",
+          ephemeral: true,
+        });
+      }
+    }
+  } else if (interaction.commandName === "coffee-list") {
+    try {
+      // Only allow admin users to run debug commands
+      if (!ALLOWED_USER_IDS.includes(interaction.user.id)) {
+        await interaction.reply({
+          content: "❌ You don't have permission to run this command.",
+          ephemeral: true,
+        });
+        return;
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+      const guild = interaction.guild;
+
+      // Get all members with coffee role (this runs the member detection logic)
+      const members = await getMembersWithCoffeeRole(guild, COFFEE_ROLE_NAME);
+
+      const memberNames = members
+        .map((m) => `${m.user.username}#${m.user.discriminator}`)
+        .join("\n");
+
+      const response = `
+**☕ Coffee Role Member Detection Debug**
+
+**Role Name:** ${COFFEE_ROLE_NAME}
+**Total Members Found:** ${members.length}
+
+**Member List:**
+${memberNames || "(No members found)"}
+
+**Next Steps:**
+- If this count is correct, run \`/coffee-pair\` to create pairings
+- If this count is low, the bot's member cache may be outdated
+- Check logs for any fetch timeout warnings
+      `.trim();
+
+      await interaction.editReply({ content: response });
+    } catch (err) {
+      await logError(err, `/debug-coffee-members interaction error`);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: "❌ Failed to debug coffee members.",
+          ephemeral: true,
+        });
+      } else {
+        await interaction.editReply({
+          content: "❌ Failed to debug coffee members.",
           ephemeral: true,
         });
       }
