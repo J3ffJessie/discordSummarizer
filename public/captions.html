@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Captions - Discord Voice Transcription</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e1e2e 0%, #2d2d3d 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: rgba(30, 30, 46, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            display: flex;
+            flex-direction: column;
+            height: 90vh;
+            max-height: 800px;
+        }
+
+        header {
+            padding: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(20, 20, 30, 0.5);
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.disconnected {
+            background: #ef4444;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .status-text {
+            font-size: 16px;
+            color: #a0a0b0;
+        }
+
+        #captions-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .caption-entry {
+            background: rgba(255, 255, 255, 0.05);
+            border-left: 3px solid #3b82f6;
+            padding: 12px;
+            border-radius: 6px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .caption-entry.translated {
+            border-left-color: #10b981;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .caption-entry:hover {
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .speaker-name {
+            font-weight: 600;
+            color: #60a5fa;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .caption-text {
+            font-size: 15px;
+            line-height: 1.5;
+            margin-bottom: 6px;
+        }
+
+        .original-text {
+            color: #d0d0e0;
+        }
+
+        .translated-text {
+            color: #90ee90;
+            font-size: 14px;
+            font-style: italic;
+            margin-top: 6px;
+        }
+
+        .language-badge {
+            display: inline-block;
+            background: rgba(59, 130, 246, 0.2);
+            color: #60a5fa;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #60606a;
+            margin-top: 6px;
+        }
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            color: #707080;
+            text-align: center;
+        }
+
+        footer {
+            padding: 15px 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            background: rgba(20, 20, 30, 0.5);
+            font-size: 16px;
+            color: #707080;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .connection-info {
+            display: flex;
+            gap: 20px;
+        }
+
+        .info-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .info-item strong {
+            color: #a0a0b0;
+        }
+
+        .error-message {
+            padding: 20px;
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 6px;
+            color: #fca5a5;
+            margin: 20px;
+        }
+
+        .scroll-to-bottom-btn {
+            position: absolute;
+            bottom: 100px;
+            right: 30px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            z-index: 100;
+        }
+
+        .scroll-to-bottom-btn:hover {
+            background: #2563eb;
+        }
+
+        .scroll-to-bottom-btn.visible {
+            display: flex;
+        }
+
+        #captions-container::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #captions-container::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        #captions-container::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+        }
+
+        #captions-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <span class="status-indicator" id="status-indicator"></span>
+                Torc Live Captions
+            </h1>
+            <div class="status-text" id="status-text">Connecting...</div>
+        </header>
+
+        <div id="captions-container">
+            <div class="empty-state">
+                <p>Waiting for captions...</p>
+            </div>
+        </div>
+
+        <footer>
+            <div class="connection-info">
+                <div class="info-item">
+                    <strong>Captions:</strong>
+                    <span id="caption-count">0</span>
+                </div>
+                <div class="info-item">
+                    <strong>Connection:</strong>
+                    <span id="connection-status">Disconnected</span>
+                </div>
+            </div>
+            <div class="info-item">
+                <strong>Session:</strong>
+                <span id="session-id">Loading...</span>
+            </div>
+        </footer>
+    </div>
+
+    <button class="scroll-to-bottom-btn" id="scroll-btn"></button>
+
+    <script>
+        class LiveCaptionViewer {
+            constructor() {
+                this.ws = null;
+                this.token = null;
+                this.guildId = null;
+                this.captionCount = 0;
+                this.isAtBottom = true;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 10;
+                this.reconnectDelay = 3000;
+
+                this.elements = {
+                    container: document.getElementById('captions-container'),
+                    statusIndicator: document.getElementById('status-indicator'),
+                    statusText: document.getElementById('status-text'),
+                    captionCount: document.getElementById('caption-count'),
+                    connectionStatus: document.getElementById('connection-status'),
+                    sessionId: document.getElementById('session-id'),
+                    scrollBtn: document.getElementById('scroll-btn'),
+                };
+
+                this.init();
+            }
+
+            init() {
+                const params = new URLSearchParams(window.location.search);
+                this.token = params.get('token');
+                this.guildId = params.get('guild');
+
+                if (!this.token || !this.guildId) {
+                    this.showError('Missing token or guild ID in URL');
+                    return;
+                }
+
+                this.elements.sessionId.textContent = this.guildId.substring(0, 8) + '...';
+
+                this.elements.container.addEventListener('scroll', () => this.onScroll());
+                this.elements.scrollBtn.addEventListener('click', () => this.scrollToBottom());
+
+                this.connect();
+
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+                        this.reconnect();
+                    }
+                });
+
+                setInterval(() => this.sendPing(), 30000);
+            }
+
+            connect() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const hostname = window.location.hostname;
+                const port = 8080;
+                const url = `${protocol}//${hostname}:${port}?token=${this.token}&guild=${this.guildId}`;
+
+                try {
+                    this.ws = new WebSocket(url);
+
+                    this.ws.onopen = () => this.onOpen();
+                    this.ws.onmessage = (event) => this.onMessage(event);
+                    this.ws.onclose = () => this.onClose();
+                    this.ws.onerror = (error) => this.onError(error);
+                } catch (error) {
+                    this.showError(`Connection error: ${error.message}`);
+                }
+            }
+
+            onOpen() {
+                console.log('✅ Connected to caption stream');
+                this.updateStatus(true);
+                this.reconnectAttempts = 0;
+                this.elements.statusText.textContent = 'Connected - Listening for captions';
+            }
+
+            onMessage(event) {
+                try {
+                    const message = JSON.parse(event.data);
+
+                    switch (message.type) {
+                        case 'caption':
+                            this.addCaption(message.data);
+                            break;
+                        case 'initial':
+                            this.loadInitialCaptions(message.captions);
+                            break;
+                        case 'session-end':
+                            this.onSessionEnd();
+                            break;
+                        case 'pong':
+                            break;
+                    }
+                } catch (error) {
+                    console.error('Message parse error:', error);
+                }
+            }
+
+            onClose() {
+                console.log('Connection closed');
+                this.updateStatus(false);
+                this.attemptReconnect();
+            }
+
+            onError(error) {
+                console.error('WebSocket error:', error);
+                this.updateStatus(false);
+            }
+
+            addCaption(data) {
+                if (this.elements.container.querySelector('.empty-state')) {
+                    this.elements.container.innerHTML = '';
+                }
+
+                const entry = document.createElement('div');
+                entry.className = data.isOriginalEnglish ? 'caption-entry' : 'caption-entry translated';
+
+                const time = new Date(data.timestamp).toLocaleTimeString();
+
+                let html = `
+                    <div class="speaker-name">
+                        ${this.escapeHtml(data.speakerName)}
+                        ${data.originalLanguage && data.originalLanguage !== 'en' ? `<span class="language-badge">${data.originalLanguage.toUpperCase()}</span>` : ''}
+                    </div>
+                    <div class="caption-text original-text">${this.escapeHtml(data.originalText)}</div>
+                `;
+
+                if (!data.isOriginalEnglish && data.translatedText && data.translatedText !== data.originalText) {
+                    html += `<div class="translated-text">📝 ${this.escapeHtml(data.translatedText)}</div>`;
+                }
+
+                html += `<div class="timestamp">${time}</div>`;
+
+                entry.innerHTML = html;
+                this.elements.container.appendChild(entry);
+
+                this.captionCount++;
+                this.elements.captionCount.textContent = this.captionCount;
+
+                if (this.isAtBottom) {
+                    this.scrollToBottom();
+                } else {
+                    this.elements.scrollBtn.classList.add('visible');
+                }
+            }
+
+            loadInitialCaptions(captions) {
+                if (captions && captions.length > 0) {
+                    captions.forEach(caption => this.addCaption(caption));
+                }
+            }
+
+            onSessionEnd() {
+                this.updateStatus(false);
+                this.elements.statusText.textContent = 'Session ended';
+                const msg = document.createElement('div');
+                msg.className = 'error-message';
+                msg.textContent = 'Transcription session has ended.';
+                this.elements.container.appendChild(msg);
+            }
+
+            attemptReconnect() {
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    const delay = this.reconnectDelay * Math.pow(1.5, this.reconnectAttempts - 1);
+                    console.log(`Attempting to reconnect in ${Math.round(delay / 1000)}s...`);
+                    this.elements.statusText.textContent = `Reconnecting (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`;
+                    setTimeout(() => this.connect(), delay);
+                } else {
+                    this.showError('Connection lost and failed to reconnect');
+                }
+            }
+
+            reconnect() {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    return;
+                }
+                this.reconnectAttempts = 0;
+                this.connect();
+            }
+
+            sendPing() {
+                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    this.ws.send(JSON.stringify({ type: 'ping' }));
+                }
+            }
+
+            updateStatus(connected) {
+                if (connected) {
+                    this.elements.statusIndicator.classList.remove('disconnected');
+                    this.elements.connectionStatus.textContent = 'Connected';
+                } else {
+                    this.elements.statusIndicator.classList.add('disconnected');
+                    this.elements.connectionStatus.textContent = 'Disconnected';
+                }
+            }
+
+            onScroll() {
+                const container = this.elements.container;
+                this.isAtBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 50;
+                if (this.isAtBottom) {
+                    this.elements.scrollBtn.classList.remove('visible');
+                }
+            }
+
+            scrollToBottom() {
+                this.elements.container.scrollTo({
+                    top: this.elements.container.scrollHeight,
+                    behavior: 'smooth',
+                });
+                this.isAtBottom = true;
+                this.elements.scrollBtn.classList.remove('visible');
+            }
+
+            showError(message) {
+                const error = document.createElement('div');
+                error.className = 'error-message';
+                error.textContent = message;
+                this.elements.container.innerHTML = '';
+                this.elements.container.appendChild(error);
+                this.updateStatus(false);
+            }
+
+            escapeHtml(text) {
+                const map = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;',
+                };
+                return text.replace(/[&<>"']/g, m => map[m]);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            new LiveCaptionViewer();
+        });
+    </script>
+</body>
+</html>

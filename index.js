@@ -1,6 +1,7 @@
 // Import required dependencies
 /** @type {*} */
 const http = require("http");
+const WebSocket = require("ws");
 const {
   Client,
   GatewayIntentBits,
@@ -11,6 +12,13 @@ const {
   EmbedBuilder,
   ChannelType, // ✅ Added this to fix ChannelType error
 } = require("discord.js");
+const {
+  joinVoiceChannel,
+  VoiceConnectionStatus,
+  EndBehaviorType,
+} = require("@discordjs/voice");
+const prism = require("prism-media");
+const crypto = require("crypto");
 const dotenv = require("dotenv");
 const Groq = require("groq-sdk");
 const axios = require("axios");
@@ -36,6 +44,7 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildVoiceStates,
   ],
 });
 
@@ -44,7 +53,618 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+// ============================================
+// VOICE TRANSCRIPTION & TRANSLATION SYSTEM
+// ============================================
+
+// WebSocket streaming server for live captions
+class StreamingServer {
+  constructor(port = 8080) {
+    this.port = port;
+    this.server = null;
+    this.wss = null;
+    this.clients = new Map();
+  }
+
+  start() {
+    return new Promise((resolve) => {
+      this.server = http.createServer((req, res) => {
+        if (req.url === "/health") {
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "ok" }));
+          return;
+        }
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not Found");
+      });
+
+      this.wss = new WebSocket.Server({ server: this.server });
+      this.wss.on("connection", (ws, req) =>
+        this.handleClientConnection(ws, req),
+      );
+
+      this.server.listen(this.port, () => {
+        console.log(
+          `[StreamingServer] WebSocket server started on port ${this.port}`,
+        );
+        resolve();
+      });
+    });
+  }
+
+  handleClientConnection(ws, req) {
+    const params = new URL(`http://localhost${req.url}`).searchParams;
+    const token = params.get("token");
+    const guildId = params.get("guild");
+
+    if (!token || !guildId) {
+      ws.close(4000, "Missing token or guild parameter");
+      return;
+    }
+
+    if (!sessionManager.validateToken(guildId, token)) {
+      ws.close(4001, "Invalid or expired token");
+      return;
+    }
+
+    if (!this.clients.has(guildId)) {
+      this.clients.set(guildId, new Set());
+    }
+    this.clients.get(guildId).add(ws);
+
+    const recentCaptions = sessionManager.getRecentCaptions(guildId);
+    ws.send(
+      JSON.stringify({
+        type: "initial",
+        captions: recentCaptions,
+        guildId,
+      }),
+    );
+
+    ws.on("message", (data) => {
+      try {
+        const msg = JSON.parse(data);
+        if (msg.type === "ping") {
+          ws.send(JSON.stringify({ type: "pong" }));
+        }
+      } catch (err) {
+        console.error("[StreamingServer] Message parse error:", err.message);
+      }
+    });
+
+    ws.on("close", () => {
+      const guildClients = this.clients.get(guildId);
+      if (guildClients) {
+        guildClients.delete(ws);
+        if (guildClients.size === 0) {
+          this.clients.delete(guildId);
+        }
+      }
+    });
+
+    ws.on("error", (error) => {
+      console.error(`[StreamingServer] WebSocket error: ${error.message}`);
+    });
+  }
+
+  broadcastCaption(guildId, captionData) {
+    sessionManager.addCaption(guildId, captionData);
+
+    const guildClients = this.clients.get(guildId);
+    if (!guildClients || guildClients.size === 0) {
+      return;
+    }
+
+    const message = JSON.stringify({
+      type: "caption",
+      data: {
+        ...captionData,
+        timestamp: Date.now(),
+      },
+    });
+
+    let disconnectedClients = [];
+    for (const clientWs of guildClients) {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(message);
+      } else {
+        disconnectedClients.push(clientWs);
+      }
+    }
+
+    disconnectedClients.forEach((clientWs) => {
+      guildClients.delete(clientWs);
+    });
+  }
+
+  broadcastSessionEnd(guildId) {
+    const guildClients = this.clients.get(guildId);
+    if (!guildClients) {
+      return;
+    }
+
+    const message = JSON.stringify({
+      type: "session-end",
+      guildId,
+      timestamp: Date.now(),
+    });
+
+    for (const clientWs of guildClients) {
+      if (clientWs.readyState === WebSocket.OPEN) {
+        clientWs.send(message);
+        clientWs.close(1000, "Session ended");
+      }
+    }
+
+    this.clients.delete(guildId);
+  }
+
+  shutdown() {
+    return new Promise((resolve) => {
+      for (const guildClients of this.clients.values()) {
+        for (const clientWs of guildClients) {
+          clientWs.close(1001, "Server shutting down");
+        }
+      }
+      this.clients.clear();
+
+      if (this.wss) {
+        this.wss.close(() => {
+          console.log("[StreamingServer] WebSocket server closed");
+        });
+      }
+
+      if (this.server) {
+        this.server.close(() => {
+          console.log("[StreamingServer] HTTP server closed");
+          resolve();
+        });
+      } else {
+        resolve();
+      }
+    });
+  }
+}
+
+// Session Manager
+const sessionManager = {
+  sessions: new Map(),
+
+  createSession(guildId, channelId, initiatorId, voiceChannelUsers) {
+    const sessionId = crypto.randomBytes(16).toString("hex");
+    const accessToken = crypto.randomBytes(32).toString("hex");
+
+    const session = {
+      sessionId,
+      accessToken,
+      guildId,
+      channelId,
+      initiatorId,
+      voiceChannelUsers: new Set(voiceChannelUsers),
+      createdAt: Date.now(),
+      isActive: true,
+      captions: [],
+      maxCaptions: 50,
+    };
+
+    this.sessions.set(guildId, session);
+    console.log(
+      `[SessionMgr] Created session for guild ${guildId}: ${sessionId}`,
+    );
+    return {
+      sessionId,
+      accessToken,
+      voiceChannelUsers: Array.from(voiceChannelUsers),
+    };
+  },
+
+  validateToken(guildId, accessToken) {
+    const session = this.sessions.get(guildId);
+    if (!session || !session.isActive) {
+      return false;
+    }
+    return session.accessToken === accessToken;
+  },
+
+  getSession(guildId) {
+    return this.sessions.get(guildId) || null;
+  },
+
+  addCaption(guildId, captionData) {
+    const session = this.sessions.get(guildId);
+    if (!session) return;
+
+    session.captions.push({
+      ...captionData,
+      timestamp: Date.now(),
+    });
+
+    if (session.captions.length > session.maxCaptions) {
+      session.captions.shift();
+    }
+  },
+
+  getRecentCaptions(guildId) {
+    const session = this.sessions.get(guildId);
+    return session ? session.captions : [];
+  },
+
+  endSession(guildId) {
+    const session = this.sessions.get(guildId);
+    if (session) {
+      session.isActive = false;
+      console.log(
+        `[SessionMgr] Ended session for guild ${guildId}: ${session.sessionId}`,
+      );
+      setTimeout(() => {
+        this.sessions.delete(guildId);
+      }, 5000);
+    }
+  },
+
+  hasActiveSession(guildId) {
+    const session = this.sessions.get(guildId);
+    return session ? session.isActive : false;
+  },
+};
+
+// Voice capture and transcription
+const voiceCaptures = new Map();
+
+async function startVoiceCapture(voiceChannel, guild, initiator) {
+  try {
+    const guildId = guild.id;
+
+    if (voiceCaptures.has(guildId)) {
+      return {
+        success: false,
+        message: "Already transcribing in this guild",
+      };
+    }
+
+    const voiceChannelUsers = voiceChannel.members
+      .map((member) => member.user.id)
+      .filter((id) => id !== client.user.id);
+
+    if (voiceChannelUsers.length === 0) {
+      return {
+        success: false,
+        message: "No users to transcribe in the voice channel",
+      };
+    }
+
+    const connection = joinVoiceChannel({
+      channelId: voiceChannel.id,
+      guildId: guildId,
+      adapterCreator: guild.voiceAdapterCreator,
+      selfDeaf: false,
+      selfMute: true,
+    });
+
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(new Error("Voice connection timeout")),
+        30000,
+      );
+
+      const stateChangeHandler = (oldState, newState) => {
+        if (newState.status === VoiceConnectionStatus.Ready) {
+          connection.off("stateChange", stateChangeHandler);
+          clearTimeout(timeout);
+          resolve();
+        } else if (newState.status === VoiceConnectionStatus.Disconnected) {
+          connection.off("stateChange", stateChangeHandler);
+          clearTimeout(timeout);
+          reject(new Error("Voice connection failed"));
+        }
+      };
+
+      connection.on("stateChange", stateChangeHandler);
+    });
+
+    console.log(
+      `[VoiceCapture] Connected to voice channel in guild ${guildId}`,
+    );
+
+    const sessionData = sessionManager.createSession(
+      guildId,
+      voiceChannel.id,
+      initiator.id,
+      voiceChannelUsers,
+    );
+
+    const receiver = connection.receiver;
+    const activeUsers = new Map();
+
+    connection.receiver.speaking.on("start", async (userId) => {
+      if (userId === client.user.id) return;
+      if (activeUsers.has(userId)) return;
+
+      const user = await client.users.fetch(userId).catch(() => null);
+      if (!user) return;
+
+      try {
+        const audioStream = receiver.subscribe(userId, {
+          end: {
+            behavior: EndBehaviorType.AfterSilence,
+            duration: 1000,
+          },
+        });
+
+        console.log(
+          `[VoiceCapture] Started capturing audio from ${user.username}`,
+        );
+
+        const decoder = new prism.opus.Decoder({
+          rate: 48000,
+          channels: 2,
+          frameSize: 960,
+        });
+        const pcmStream = audioStream.pipe(decoder);
+
+        const audioChunks = [];
+        let totalSize = 0;
+        const maxAudioSize = 25 * 1024 * 1024;
+        let streamEnded = false;
+
+        pcmStream.on("data", (chunk) => {
+          if (!streamEnded && totalSize < maxAudioSize) {
+            audioChunks.push(chunk);
+            totalSize += chunk.length;
+          }
+        });
+
+        pcmStream.on("end", async () => {
+          activeUsers.delete(userId);
+          streamEnded = true;
+          console.log(
+            `[VoiceCapture] Finished capturing audio from ${user.username}`,
+          );
+
+          try {
+            const audioBuffer = Buffer.concat(audioChunks);
+
+            if (audioBuffer.length < 1000) {
+              console.log(
+                `[VoiceCapture] Skipped empty/silent audio from ${user.username}`,
+              );
+              return;
+            }
+
+            // Transcribe
+            const wavBuffer = pcmToWav(audioBuffer);
+            const tempFile = path.join(
+              process.env.TEMP || "/tmp",
+              `audio_${userId}_${Date.now()}.wav`,
+            );
+
+            fs.writeFileSync(tempFile, wavBuffer);
+
+            let transcription = { text: "", language: "en" };
+            try {
+              const result = await groq.audio.transcriptions.create({
+                file: fs.createReadStream(tempFile),
+                model: "whisper-large-v3-turbo",
+                response_format: "verbose_json",
+              });
+              // Groq Whisper returns: { text, language }
+              // Language is ISO-639-1 code (e.g., "es", "fr", "de", "en")
+              transcription = {
+                text: result.text || "",
+                language: result.language || "en",
+              };
+              console.log(
+                `[Transcription] Detected language: ${transcription.language}, Text: ${transcription.text.substring(0, 50)}...`,
+              );
+            } catch (err) {
+              console.error("[Transcription] Error:", err.message);
+            } finally {
+              try {
+                fs.unlinkSync(tempFile);
+              } catch (e) {}
+            }
+
+            if (!transcription.text || transcription.text.trim().length === 0) {
+              return;
+            }
+
+            // Always translate via LLM to ensure English output
+            // This handles cases where language detection might be inaccurate
+            let translatedText = transcription.text;
+            let isOriginalEnglish = transcription.language === "en";
+
+            try {
+              // Always run through translation LLM to normalize and ensure English
+              const completion = await groq.chat.completions.create({
+                messages: [
+                  {
+                    role: "system",
+                    content: `You are a professional translator. Your task:
+                    1. If the text is in English, respond with EXACTLY the same text
+                    2. If the text is in another language, translate it to English
+                    3. Do NOT add explanations, formatting, or any additions
+                    4. Only output the final text (English)`,
+                  },
+                  {
+                    role: "user",
+                    content: `Process this text and ensure it's in English:\n\n${transcription.text}`,
+                  },
+                ],
+                model: "llama-3.1-8b-instant",
+                temperature: 0.1,
+                max_tokens: 512,
+              });
+
+              translatedText =
+                completion.choices[0]?.message?.content?.trim() ||
+                transcription.text;
+              console.log(
+                `[Translation] Translated: "${transcription.text}" -> "${translatedText}"`,
+              );
+            } catch (err) {
+              console.error("[Translation] Error:", err.message);
+              translatedText = transcription.text;
+            }
+
+            const member = guild.members.cache.get(userId);
+            const speakerName = member?.displayName || user.username;
+
+            streamingServer.broadcastCaption(guildId, {
+              speakerId: userId,
+              speakerName,
+              originalLanguage: transcription.language,
+              originalText: transcription.text,
+              translatedText,
+              isOriginalEnglish,
+            });
+          } catch (error) {
+            console.error(
+              `[VoiceCapture] Processing error for ${user.username}:`,
+              error.message,
+            );
+          }
+        });
+
+        pcmStream.on("error", (error) => {
+          if (!error.message.includes("Invalid packet")) {
+            console.error(`[VoiceCapture] PCM stream error: ${error.message}`);
+          }
+        });
+
+        audioStream.on("error", (error) => {
+          if (!error.message.includes("stream.push() after EOF")) {
+            console.error(
+              `[VoiceCapture] Audio stream error for ${user.username}: ${error.message}`,
+            );
+          }
+          if (activeUsers.has(userId)) {
+            activeUsers.delete(userId);
+          }
+        });
+
+        activeUsers.set(userId, { stream: audioStream, decoder });
+      } catch (error) {
+        console.error(
+          `[VoiceCapture] Failed to subscribe to ${user.username}: ${error.message}`,
+        );
+      }
+    });
+
+    voiceCaptures.set(guildId, {
+      connection,
+      receiver,
+      voiceChannel,
+      sessionId: sessionData.sessionId,
+      startTime: Date.now(),
+      activeUsers,
+    });
+
+    const emptyCheckInterval = setInterval(() => {
+      const memberCount = voiceChannel.members.filter((m) => !m.user.bot).size;
+      if (memberCount === 0) {
+        console.log(
+          `[VoiceCapture] Voice channel empty, stopping capture for guild ${guildId}`,
+        );
+        stopVoiceCapture(guildId);
+        clearInterval(emptyCheckInterval);
+      }
+    }, 5000);
+
+    return {
+      success: true,
+      message: `Started transcribing in ${voiceChannel.name}`,
+      accessToken: sessionData.accessToken,
+      voiceChannelUsers: sessionData.voiceChannelUsers,
+    };
+  } catch (error) {
+    console.error("[VoiceCapture] Start capture error:", error.message);
+    return {
+      success: false,
+      message: `Error starting capture: ${error.message}`,
+    };
+  }
+}
+
+function stopVoiceCapture(guildId) {
+  const capture = voiceCaptures.get(guildId);
+  if (!capture) {
+    return;
+  }
+
+  try {
+    // Send final system message to caption viewers
+    streamingServer.broadcastCaption(guildId, {
+      speakerId: "system",
+      speakerName: "System",
+      originalLanguage: "en",
+      originalText: "This translation was brought to you by Botman fueled by Pepsi 🥤",
+      translatedText:
+        "",
+      isOriginalEnglish: true,
+      isSystemMessage: true,
+    });
+
+    if (capture.connection) {
+      capture.connection.destroy();
+    }
+
+    streamingServer.broadcastSessionEnd(guildId);
+    sessionManager.endSession(guildId);
+    voiceCaptures.delete(guildId);
+
+    console.log(`[VoiceCapture] Stopped capture for guild ${guildId}`);
+  } catch (error) {
+    console.error(`[VoiceCapture] Error stopping capture: ${error.message}`);
+  }
+}
+
+
+function pcmToWav(
+  pcmBuffer,
+  sampleRate = 48000,
+  channels = 2,
+  bitsPerSample = 16,
+) {
+  const byteRate = (sampleRate * channels * bitsPerSample) / 8;
+  const blockAlign = (channels * bitsPerSample) / 8;
+  const pcmDataLength = pcmBuffer.length;
+
+  const wavBuffer = Buffer.alloc(44 + pcmDataLength);
+  const view = new DataView(wavBuffer.buffer);
+
+  wavBuffer.write("RIFF", 0);
+  view.setUint32(4, 36 + pcmDataLength, true);
+  wavBuffer.write("WAVE", 8);
+
+  wavBuffer.write("fmt ", 12);
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bitsPerSample, true);
+
+  wavBuffer.write("data", 36);
+  view.setUint32(40, pcmDataLength, true);
+
+  pcmBuffer.copy(wavBuffer, 44);
+
+  return wavBuffer;
+}
+
+// Initialize streaming server
+const streamingServer = new StreamingServer(
+  parseInt(process.env.STREAMING_PORT) || 8080,
+);
+
+streamingServer.start().catch((err) => {
+  console.error("Failed to start streaming server:", err);
+  process.exit(1);
+});
+
 // Register slash commands
+
 const commands = [
   new SlashCommandBuilder()
     .setName("summarize")
@@ -57,13 +677,23 @@ const commands = [
   new SlashCommandBuilder()
     .setName("coffee-pair")
     .setDescription(
-      "Randomly pair users that have the coffee-chat role and send them a DM to meet"
+      "Randomly pair users that have the coffee-chat role and send them a DM to meet",
     )
     .toJSON(),
   new SlashCommandBuilder()
-    .setName("coffee-list")
+    .setName("translate")
     .setDescription(
-      "Debug: Check how many members have the coffee-chat role (admin only)"
+      "Transcribe and translate voice channel audio to live captions",
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("start")
+        .setDescription("Start transcribing and get live caption URL"),
+    )
+    .addSubcommand((sub) =>
+      sub
+        .setName("stop")
+        .setDescription("Stop transcribing and close live captions"),
     )
     .toJSON(),
 ];
@@ -203,7 +833,7 @@ const COFFEE_ROLE_NAME = process.env.COFFEE_ROLE_NAME || "coffee chat";
 const COFFEE_CRON_SCHEDULE =
   process.env.COFFEE_CRON_SCHEDULE || process.env.COFFEE_CRON || "0 9 * * 1"; // every other Monday at 09:00 UTC
 const COFFEE_PAIRING_COOLDOWN_DAYS = Number(
-  process.env.COFFEE_PAIRING_COOLDOWN_DAYS || 30
+  process.env.COFFEE_PAIRING_COOLDOWN_DAYS || 30,
 );
 const COFFEE_PAIRING_COOLDOWN_MS =
   COFFEE_PAIRING_COOLDOWN_DAYS * 24 * 60 * 60 * 1000;
@@ -213,12 +843,12 @@ const COFFEE_FETCH_MEMBERS =
     ? process.env.COFFEE_FETCH_MEMBERS === "true"
     : true; // if true, attempt guild.members.fetch() when cache is insufficient (default true)
 const COFFEE_FETCH_TIMEOUT_MS = Number(
-  process.env.COFFEE_FETCH_TIMEOUT_MS || 10000
+  process.env.COFFEE_FETCH_TIMEOUT_MS || 10000,
 );
 
 function getISOWeek(date = new Date()) {
   const d = new Date(
-    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate())
+    Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()),
   );
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
@@ -239,7 +869,7 @@ function readCoffeePairs() {
   try {
     if (!fs.existsSync(COFFEE_PAIRING_FILE)) return {};
     const raw = JSON.parse(
-      fs.readFileSync(COFFEE_PAIRING_FILE, "utf-8") || "{}"
+      fs.readFileSync(COFFEE_PAIRING_FILE, "utf-8") || "{}",
     );
     // Normalize older format to history array structure
     Object.keys(raw).forEach((userId) => {
@@ -290,10 +920,10 @@ function shuffle(array) {
 
 async function getMembersWithCoffeeRole(
   guild,
-  roleIdentifier = COFFEE_ROLE_NAME
+  roleIdentifier = COFFEE_ROLE_NAME,
 ) {
   let role = guild.roles.cache.find(
-    (r) => r.name === roleIdentifier || r.id === roleIdentifier
+    (r) => r.name === roleIdentifier || r.id === roleIdentifier,
   );
   if (!role) {
     console.warn(`Role ${roleIdentifier} not found in ${guild.name}`);
@@ -331,7 +961,7 @@ async function getMembersWithCoffeeRole(
 async function fetchMee6LevelsForGuildMembers(
   guildId,
   memberIds = [],
-  limit = 1000
+  limit = 1000,
 ) {
   // Fast path: if no members requested, return empty mapping
   if (!memberIds || memberIds.length === 0) return {};
@@ -370,7 +1000,7 @@ async function fetchMee6LevelsForGuildMembers(
     // We prefer to avoid blocking pairings entirely in case of a temporary issue
     console.warn(
       `Failed to fetch Mee6 leaderboard for guild ${guildId}:`,
-      err?.message || err
+      err?.message || err,
     );
   }
 
@@ -383,7 +1013,10 @@ async function fetchGuildMembersWithTimeout(guild, timeoutMs = 10000) {
   return Promise.race([
     guild.members.fetch(),
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error("GuildMembersFetchTimeout")), timeoutMs)
+      setTimeout(
+        () => reject(new Error("GuildMembersFetchTimeout")),
+        timeoutMs,
+      ),
     ),
   ]);
 }
@@ -418,7 +1051,7 @@ function getPairCount(history, userA, userB) {
     return 0;
   return history[userA].history.reduce(
     (acc, h) => acc + (h.partnerId === userB ? 1 : 0),
-    0
+    0,
   );
 }
 
@@ -459,7 +1092,7 @@ function pairUpWithCooldown(members, history, cooldownMs) {
           getPairCount(history, cand.id, a.id); // symmetric count
         const ts = Math.max(
           getLastPairTimestamp(history, a.id, cand.id) || 0,
-          getLastPairTimestamp(history, cand.id, a.id) || 0
+          getLastPairTimestamp(history, cand.id, a.id) || 0,
         );
 
         // Prefer candidates never-paired first
@@ -493,13 +1126,13 @@ function pairUpWithCooldown(members, history, cooldownMs) {
         console.warn(
           `Soft fallback: pairing ${a.user?.username || a.id} with ${
             b.user?.username || b.id
-          } despite cooldown (pairCount=${pairCount})`
+          } despite cooldown (pairCount=${pairCount})`,
         );
       } else if (pairCount > 0) {
         console.info(
           `Fallback to least-matched partner: pairing ${
             a.user?.username || a.id
-          } with ${b.user?.username || b.id} (pairCount=${pairCount})`
+          } with ${b.user?.username || b.id} (pairCount=${pairCount})`,
         );
       }
     } catch (err) {}
@@ -527,7 +1160,7 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
   for (const pair of pairs) {
     // Use captured username data (set when role members were loaded)
     const usernames = pair.map(
-      (m) => `${m._capturedUsername}#${m._capturedDiscriminator}`
+      (m) => `${m._capturedUsername}#${m._capturedDiscriminator}`,
     );
 
     // Send DM to each member listing their partner(s)
@@ -536,7 +1169,7 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
         .filter((p) => p.id !== m.id)
         .map((p) => `${p._capturedUsername} (${p.id})`)
         .join(" and ");
-      
+
       const senderName = m._capturedUsername;
       const content = `☕ Hi ${senderName}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
       try {
@@ -555,7 +1188,7 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
       const entry = history[m.id];
       const partnersToAdd = pair.filter((p) => p.id !== m.id).map((p) => p.id);
       partnersToAdd.forEach((pid) =>
-        entry.history.push({ partnerId: pid, timestamp: timeNow })
+        entry.history.push({ partnerId: pid, timestamp: timeNow }),
       );
       // Keep history manageable
       if (entry.history.length > 200) entry.history = entry.history.slice(-200);
@@ -563,20 +1196,21 @@ async function notifyPairs(pairs, guild, source = "scheduled") {
     results.push({ pair: usernames });
   }
   saveCoffeePairs(history);
+  // ✅ Removed: Coffee pairings no longer posted to summary channel per user request
   return results;
 }
 
 async function runCoffeePairing(
   guild,
   roleIdentifier = COFFEE_ROLE_NAME,
-  source = "scheduled"
+  source = "scheduled",
 ) {
   try {
     const members = await getMembersWithCoffeeRole(guild, roleIdentifier);
     console.log(
       `Coffee pairing: found ${members.length} eligible member(s): ${members
         .map((m) => m.user?.tag || m.id)
-        .join(", ")}`
+        .join(", ")}`,
     );
     if (!members || members.length < 2) {
       console.log("Not enough members to pair for coffee.");
@@ -587,7 +1221,7 @@ async function runCoffeePairing(
     const pairs = pairUpWithCooldown(
       members,
       history,
-      COFFEE_PAIRING_COOLDOWN_MS
+      COFFEE_PAIRING_COOLDOWN_MS,
     );
     // Check if any pairings violated cooldown (should be minimized by algorithm)
     const violated = [];
@@ -607,7 +1241,7 @@ async function runCoffeePairing(
 
     if (violated.length > 0) {
       console.warn(
-        "Some pairings violated the configured cooldown. This can happen if there are too few eligible members."
+        "Some pairings violated the configured cooldown. This can happen if there are too few eligible members.",
       );
     }
 
@@ -618,7 +1252,7 @@ async function runCoffeePairing(
     // If this is a fetch timeout, return empty and avoid throwing to let the cron continue
     if (e && e.message && e.message.includes("GuildMembersFetchTimeout")) {
       console.warn(
-        "Member fetch timed out; using cache or skipping pairing. Try setting COFFEE_FETCH_MEMBERS=true to force refresh or increase COFFEE_FETCH_TIMEOUT_MS."
+        "Member fetch timed out; using cache or skipping pairing. Try setting COFFEE_FETCH_MEMBERS=true to force refresh or increase COFFEE_FETCH_TIMEOUT_MS.",
       );
       return [];
     }
@@ -636,11 +1270,11 @@ async function fetchUpcomingEvents() {
           accept: "application/json",
           "x-luma-api-key": process.env.LUMA_API_KEY,
         },
-      }
+      },
     );
 
     const events = response.data.sort(
-      (a, b) => new Date(a.startTime) - new Date(b.startTime)
+      (a, b) => new Date(a.startTime) - new Date(b.startTime),
     );
 
     return events;
@@ -660,7 +1294,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         interaction.user.tag
       } (${interaction.user.id}) ${
         interaction.guild ? `in guild ${interaction.guild.id}` : "in DM"
-      }`
+      }`,
     );
   } catch (ignore) {}
 
@@ -673,7 +1307,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         .sort((a, b) => a.createdTimestamp - b.createdTimestamp)
         .map(
           (msg) =>
-            `${msg.member?.displayName || msg.author.username}: ${msg.content}`
+            `${msg.member?.displayName || msg.author.username}: ${msg.content}`,
         )
         .join("\n");
 
@@ -694,7 +1328,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
         // Notify admin of successful completion
         notifyAdmin(
-          `/summarize completed for ${interaction.user.tag} (${interaction.user.id})`
+          `/summarize completed for ${interaction.user.tag} (${interaction.user.id})`,
         ).catch(() => {});
       } catch (dmError) {
         console.error("Failed to send DM:", dmError);
@@ -743,7 +1377,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
             event.description
               ? event.description.substring(0, 200) +
                   (event.description.length > 200 ? "..." : "")
-              : "No description"
+              : "No description",
           )
           .addFields(
             {
@@ -764,7 +1398,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
               name: "Visibility",
               value: event.visibility,
               inline: true,
-            }
+            },
           )
           .setColor("#0099ff")
           .setTimestamp(new Date(event.startAt))
@@ -785,7 +1419,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           embeds,
         });
         notifyAdmin(
-          `/events completed for ${interaction.user.tag} (${interaction.user.id})`
+          `/events completed for ${interaction.user.tag} (${interaction.user.id})`,
         ).catch(() => {});
       } catch (dmError) {
         console.error("Could not DM user:", dmError);
@@ -838,7 +1472,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
           ephemeral: true,
         });
         notifyAdmin(
-          `/coffee-pair completed for ${interaction.user.tag} (${interaction.user.id}) — pairs: ${res.length}`
+          `/coffee-pair completed for ${interaction.user.tag} (${interaction.user.id}) — pairs: ${res.length}`,
         ).catch(() => {});
       }
     } catch (err) {
@@ -855,53 +1489,111 @@ client.on(Events.InteractionCreate, async (interaction) => {
         });
       }
     }
-  } else if (interaction.commandName === "coffee-list") {
+  } else if (interaction.commandName === "translate") {
     try {
-      // Only allow admin users to run debug commands
-      if (!ALLOWED_USER_IDS.includes(interaction.user.id)) {
-        await interaction.reply({
-          content: "❌ You don't have permission to run this command.",
-          ephemeral: true,
+      const subcommand = interaction.options.getSubcommand();
+
+      if (subcommand === "start") {
+        await interaction.deferReply({ ephemeral: true });
+
+        const voiceChannel = interaction.member?.voice?.channel;
+        if (!voiceChannel) {
+          await interaction.editReply({
+            content:
+              "❌ You must be in a voice channel to start transcription.",
+          });
+          return;
+        }
+
+        const result = await startVoiceCapture(
+          voiceChannel,
+          interaction.guild,
+          interaction.user,
+        );
+
+        if (!result.success) {
+          await interaction.editReply({
+            content: `❌ ${result.message}`,
+          });
+          return;
+        }
+
+        // Generate caption URL automatically
+        const session = sessionManager.getSession(interaction.guildId);
+        if (!session) {
+          await interaction.editReply({
+            content: `✅ ${result.message}\n\n⚠️ Session created but URL generation failed. Please try again.`,
+          });
+          return;
+        }
+
+        const baseUrl =
+          process.env.CAPTION_URL ||
+          `http://localhost:${process.env.STREAMING_PORT || 8080}`;
+        /**
+         * Constructs a URL for accessing captions with user authentication and guild context.
+         * @type {string}
+         * @description Generates a caption page URL by appending the user's access token and guild ID as query parameters.
+         *              The baseUrl should be set to the production domain/host for live deployment.
+         */
+        const captionUrl = `${baseUrl}/public/captions.html?token=${session.accessToken}&guild=${interaction.guildId}`;
+
+        const embed = new EmbedBuilder()
+          .setTitle("🎤 Voice Translation Started")
+          .setDescription(
+            `Started transcribing and translating in **${voiceChannel.name}**\n\nShare the URL below with users in the voice channel to view live captions in real-time.`,
+          )
+          .addFields({
+            name: "Live Caption URL",
+            value: `[Open Live Captions](${captionUrl})`,
+            inline: false,
+          })
+          .addFields({
+            name: "Direct Link",
+            value: `\`\`\`\n${captionUrl}\n\`\`\``,
+            inline: false,
+          })
+          .setColor("#10b981")
+          .setTimestamp();
+
+        await interaction.editReply({
+          embeds: [embed],
         });
-        return;
+
+        notifyAdmin(
+          `/translate start by ${interaction.user.tag} in voice channel ${voiceChannel.name}`,
+        ).catch(() => {});
+      } else if (subcommand === "stop") {
+        await interaction.deferReply({ ephemeral: true });
+
+        if (!voiceCaptures.has(interaction.guildId)) {
+          await interaction.editReply({
+            content: "❌ No active transcription session in this guild.",
+          });
+          return;
+        }
+
+        stopVoiceCapture(interaction.guildId);
+
+        await interaction.editReply({
+          content:
+            "✅ Transcription stopped. Captions will no longer be streamed.",
+        });
+
+        notifyAdmin(`/translate stop by ${interaction.user.tag}`).catch(
+          () => {},
+        );
       }
-
-      await interaction.deferReply({ ephemeral: true });
-      const guild = interaction.guild;
-
-      // Get all members with coffee role (this runs the member detection logic)
-      const members = await getMembersWithCoffeeRole(guild, COFFEE_ROLE_NAME);
-
-      const memberNames = members
-        .map((m) => `${m.user.username}#${m.user.discriminator}`)
-        .join("\n");
-
-      const response = `
-**☕ Coffee Role Member Detection Debug**
-
-**Role Name:** ${COFFEE_ROLE_NAME}
-**Total Members Found:** ${members.length}
-
-**Member List:**
-${memberNames || "(No members found)"}
-
-**Next Steps:**
-- If this count is correct, run \`/coffee-pair\` to create pairings
-- If this count is low, the bot's member cache may be outdated
-- Check logs for any fetch timeout warnings
-      `.trim();
-
-      await interaction.editReply({ content: response });
-    } catch (err) {
-      await logError(err, `/debug-coffee-members interaction error`);
+    } catch (error) {
+      await logError(error, `/translate interaction error`);
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
-          content: "❌ Failed to debug coffee members.",
+          content: "❌ An error occurred while processing your request.",
           ephemeral: true,
         });
       } else {
         await interaction.editReply({
-          content: "❌ Failed to debug coffee members.",
+          content: "❌ An error occurred while processing your request.",
           ephemeral: true,
         });
       }
@@ -912,7 +1604,7 @@ ${memberNames || "(No members found)"}
 // Helper to gather conversations across all channels in a server
 async function gatherServerConversationsAndSummarize(
   guild,
-  useServerSummarize = false
+  useServerSummarize = false,
 ) {
   let allMessages = [];
 
@@ -926,13 +1618,13 @@ async function gatherServerConversationsAndSummarize(
             (msg) =>
               `[${channel.name}] ${
                 msg.member?.displayName || msg.author.username
-              }: ${msg.content}`
+              }: ${msg.content}`,
           );
         allMessages.push(...formatted);
       } catch (err) {
         console.warn(
           `Could not fetch messages for #${channel.name}:`,
-          err.message
+          err.message,
         );
       }
     }
@@ -974,7 +1666,7 @@ async function logError(err, context = "") {
     if (context) console.error(context, err);
     else console.error(err);
     await notifyAdmin(
-      `${context ? `${context} — ` : ""}${(err && err.message) || String(err)}`
+      `${context ? `${context} — ` : ""}${(err && err.message) || String(err)}`,
     );
   } catch (ignore) {
     // swallowing errors intentionally
@@ -1002,14 +1694,14 @@ client.on(Events.MessageCreate, async (message) => {
           message.author.tag || message.author.username
         } (${message.author.id}) in ${
           message.guild ? `guild ${message.guild.id}` : `DM`
-        }`
+        }`,
       ).catch(() => {});
     } catch (ignore) {}
 
     if (command === "remindme") {
       if (args.length < 2) {
         const replyMsg = await message.reply(
-          "Usage: `!remindme <time> <message>` (e.g., `!remindme 2 weeks Take out the trash`)"
+          "Usage: `!remindme <time> <message>` (e.g., `!remindme 2 weeks Take out the trash`)",
         );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
         return;
@@ -1020,7 +1712,7 @@ client.on(Events.MessageCreate, async (message) => {
 
       if (!timeStr || !duration || !reminderMsg) {
         const replyMsg = await message.reply(
-          "Invalid format. Try `!remindme 2 weeks Do something` or `!remindme 3 months 2 days Task`."
+          "Invalid format. Try `!remindme 2 weeks Do something` or `!remindme 3 months 2 days Task`.",
         );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
         return;
@@ -1038,7 +1730,7 @@ client.on(Events.MessageCreate, async (message) => {
         const addRes = await addReminderSafely(reminder);
         if (!addRes.created && addRes.existing) {
           const replyMsg = await message.reply(
-            `⚠️ A similar reminder already exists (ID: ${addRes.existing.id}). I won't create a duplicate.`
+            `⚠️ A similar reminder already exists (ID: ${addRes.existing.id}). I won't create a duplicate.`,
           );
           setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
           return;
@@ -1052,7 +1744,7 @@ client.on(Events.MessageCreate, async (message) => {
       }
 
       const replyMsg = await message.reply(
-        `⏰ Reminder set! I'll remind you in ${timeStr}. (ID: ${reminderId})`
+        `⏰ Reminder set! I'll remind you in ${timeStr}. (ID: ${reminderId})`,
       );
       setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
     }
@@ -1062,19 +1754,19 @@ client.on(Events.MessageCreate, async (message) => {
       // Read authoritative reminders from file in case multiple processes exist
       const persisted = loadRemindersFromFile();
       const userReminders = persisted.filter(
-        (r) => r.userId === message.author.id
+        (r) => r.userId === message.author.id,
       );
       console.log(
         `!listreminders run by ${
           message.author.tag || message.author.username
         } (${message.author.id}) — pid ${process.pid} — returning ${
           userReminders.length
-        } reminder(s)`
+        } reminder(s)`,
       );
 
       if (userReminders.length === 0) {
         const replyMsg = await message.reply(
-          "You don't have any pending reminders"
+          "You don't have any pending reminders",
         );
 
         // Only auto-delete if run in a guild channel
@@ -1113,7 +1805,7 @@ client.on(Events.MessageCreate, async (message) => {
     if (command === "cancelreminder") {
       if (args.length < 1) {
         const replyMsg = await message.reply(
-          "Usage: `!cancelreminder <id|all>`"
+          "Usage: `!cancelreminder <id|all>`",
         );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
         return;
@@ -1124,12 +1816,12 @@ client.on(Events.MessageCreate, async (message) => {
       if (arg === "all") {
         // Remove all reminders for this user
         const userReminders = reminders.filter(
-          (r) => r.userId === message.author.id
+          (r) => r.userId === message.author.id,
         );
 
         if (userReminders.length === 0) {
           const replyMsg = await message.reply(
-            "❌ You don't have any reminders to cancel."
+            "❌ You don't have any reminders to cancel.",
           );
           setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
           return;
@@ -1141,7 +1833,7 @@ client.on(Events.MessageCreate, async (message) => {
             clearTimeout(scheduledTimeouts.get(r.id));
             scheduledTimeouts.delete(r.id);
             console.log(
-              `Cleared scheduled timeout for reminder ${r.id} (user ${message.author.id})`
+              `Cleared scheduled timeout for reminder ${r.id} (user ${message.author.id})`,
             );
           }
         });
@@ -1151,7 +1843,7 @@ client.on(Events.MessageCreate, async (message) => {
         saveReminders();
 
         const replyMsg = await message.reply(
-          `✅ All your reminders have been canceled.`
+          `✅ All your reminders have been canceled.`,
         );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
         return;
@@ -1160,12 +1852,12 @@ client.on(Events.MessageCreate, async (message) => {
       // Otherwise, treat it as a reminder ID
       const id = arg;
       const index = reminders.findIndex(
-        (r) => r.id === id && r.userId === message.author.id
+        (r) => r.id === id && r.userId === message.author.id,
       );
 
       if (index === -1) {
         const replyMsg = await message.reply(
-          `❌ No reminder found with ID \`${id}\`.`
+          `❌ No reminder found with ID \`${id}\`.`,
         );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
         return;
@@ -1176,7 +1868,7 @@ client.on(Events.MessageCreate, async (message) => {
         clearTimeout(scheduledTimeouts.get(id));
         scheduledTimeouts.delete(id);
         console.log(
-          `Cleared scheduled timeout for reminder ${id} (user ${message.author.id})`
+          `Cleared scheduled timeout for reminder ${id} (user ${message.author.id})`,
         );
       }
 
@@ -1184,7 +1876,7 @@ client.on(Events.MessageCreate, async (message) => {
       saveReminders();
 
       const replyMsg = await message.reply(
-        `✅ Reminder with ID \`${id}\` has been canceled.`
+        `✅ Reminder with ID \`${id}\` has been canceled.`,
       );
       setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
     }
@@ -1235,7 +1927,7 @@ client.on(Events.MessageCreate, async (message) => {
       }
 
       const replyMsg = await message.reply(
-        "✅ Location data has been summarized and logged."
+        "✅ Location data has been summarized and logged.",
       );
       setTimeout(() => replyMsg.delete().catch(() => {}), 3000);
     } catch (err) {
@@ -1288,7 +1980,7 @@ client.on(Events.MessageCreate, async (message) => {
       fs.unlinkSync(tempFile);
 
       const replyMsg = await message.reply(
-        "📄 Sorted log file sent to your DMs!"
+        "📄 Sorted log file sent to your DMs!",
       );
       setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
     } else {
@@ -1309,7 +2001,7 @@ client.on(Events.MessageCreate, async (message) => {
     }
 
     const statusMsg = await message.channel.send(
-      "⏳ Gathering and summarizing conversations across all channels. Please wait..."
+      "⏳ Gathering and summarizing conversations across all channels. Please wait...",
     );
     setTimeout(() => statusMsg.delete().catch(() => {}), 500);
 
@@ -1328,25 +2020,25 @@ client.on(Events.MessageCreate, async (message) => {
           await delay(1000);
         }
         const doneMsg = await message.channel.send(
-          "✅ Server summary sent to the summary channel!"
+          "✅ Server summary sent to the summary channel!",
         );
         // Notify admin that the manual server summary completed
         notifyAdmin(
           `!server manual summary completed by ${
             message.author.tag || message.author.username
-          } (${message.author.id})`
+          } (${message.author.id})`,
         ).catch(() => {});
         setTimeout(() => doneMsg.delete().catch(() => {}), 500);
       } else {
         const replyMsg = await message.channel.send(
-          "❌ Could not find the summary channel."
+          "❌ Could not find the summary channel.",
         );
         setTimeout(() => replyMsg.delete().catch(() => {}), 5000);
       }
     } catch (error) {
       await logError(error, "Error summarizing server");
       const errorMsg = await message.channel.send(
-        "❌ Error summarizing server conversations."
+        "❌ Error summarizing server conversations.",
       );
       setTimeout(() => errorMsg.delete().catch(() => {}), 500);
     }
@@ -1363,26 +2055,26 @@ client.on(Events.MessageCreate, async (message) => {
       return;
     }
     const replyMsg = await message.reply(
-      "☕ Running coffee pairing... This may take a moment."
+      "☕ Running coffee pairing... This may take a moment.",
     );
     try {
       const res = await runCoffeePairing(
         message.guild,
         COFFEE_ROLE_NAME,
-        "manual"
+        "manual",
       );
       if (!res || res.length === 0) {
         await message.channel.send(
-          "⚠️ No pairings created — not enough eligible members or member fetch timed out. Check logs or set COFFEE_FETCH_MEMBERS=true to force refresh."
+          "⚠️ No pairings created — not enough eligible members or member fetch timed out. Check logs or set COFFEE_FETCH_MEMBERS=true to force refresh.",
         );
       } else {
         await message.channel.send(
-          `✅ Paired ${res.length} groups for coffee.`
+          `✅ Paired ${res.length} groups for coffee.`,
         );
         notifyAdmin(
           `!paircoffee completed by ${
             message.author.tag || message.author.username
-          } (${message.author.id}) — pairs: ${res.length}`
+          } (${message.author.id}) — pairs: ${res.length}`,
         ).catch(() => {});
       }
     } catch (e) {
@@ -1407,8 +2099,46 @@ process.on("uncaughtException", async (error) => {
   await logError(error, "Uncaught exception");
 });
 
+// Graceful shutdown handler
+process.on("SIGINT", async () => {
+  console.log("🛑 Shutting down gracefully...");
+  try {
+    // Stop all voice captures
+    for (const guildId of voiceCaptures.keys()) {
+      stopVoiceCapture(guildId);
+    }
+    // Shutdown streaming server
+    await streamingServer.shutdown();
+    // Logout Discord client
+    await client.destroy();
+    process.exit(0);
+  } catch (err) {
+    console.error("Error during shutdown:", err);
+    process.exit(1);
+  }
+});
+
 const port = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
+  // Serve captions.html
+  if (
+    req.url === "/public/captions.html" ||
+    req.url.startsWith("/public/captions.html?")
+  ) {
+    const captionsPath = path.join(__dirname, "public", "captions.html");
+    try {
+      const html = fs.readFileSync(captionsPath, "utf-8");
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(html);
+      return;
+    } catch (err) {
+      console.error("Failed to serve captions.html:", err.message);
+      res.writeHead(500, { "Content-Type": "text/plain" });
+      res.end("Error loading captions page");
+      return;
+    }
+  }
+
   res.writeHead(200);
   res.end("Discord summarizer bot is running.");
 });
@@ -1434,7 +2164,7 @@ function readLoggedUsernames() {
           return null;
         }
       })
-      .filter(Boolean)
+      .filter(Boolean),
   );
 }
 
@@ -1554,7 +2284,7 @@ async function addReminderSafely(reminder) {
       reminders = persisted;
       scheduleReminder(reminder, Math.max(0, reminder.time - Date.now()));
       console.log(
-        `(fallback) Created reminder ${reminder.id} for user ${reminder.userId}`
+        `(fallback) Created reminder ${reminder.id} for user ${reminder.userId}`,
       );
       return { created: true };
     } catch (e) {
@@ -1567,7 +2297,7 @@ async function addReminderSafely(reminder) {
     const dup = findDuplicatePersistedReminder(reminder, persisted);
     if (dup) {
       console.log(
-        `Duplicate reminder detected for user ${reminder.userId}; existing ID: ${dup.id}`
+        `Duplicate reminder detected for user ${reminder.userId}; existing ID: ${dup.id}`,
       );
       return { created: false, existing: dup };
     }
@@ -1579,8 +2309,8 @@ async function addReminderSafely(reminder) {
         reminder.userId
       } (scheduled in ${Math.max(
         0,
-        Math.round((reminder.time - Date.now()) / 1000)
-      )}s)`
+        Math.round((reminder.time - Date.now()) / 1000),
+      )}s)`,
     );
     scheduleReminder(reminder, Math.max(0, reminder.time - Date.now()));
     return { created: true };
@@ -1716,13 +2446,13 @@ async function sendReminder(reminder) {
     try {
       if (fs.existsSync(REMINDER_FILE)) {
         persistedReminders = JSON.parse(
-          fs.readFileSync(REMINDER_FILE, "utf8") || "[]"
+          fs.readFileSync(REMINDER_FILE, "utf8") || "[]",
         );
       }
     } catch (err) {
       console.warn(
         "Failed to read reminders.json while sending reminder; proceeding with in-memory checks.",
-        err?.message || err
+        err?.message || err,
       );
     }
 
@@ -1731,7 +2461,7 @@ async function sendReminder(reminder) {
       reminders.some((r) => r.id === reminder.id);
     if (!stillActive) {
       console.log(
-        `Reminder ${reminder.id} was canceled (not found in persisted reminders). Skipping send.`
+        `Reminder ${reminder.id} was canceled (not found in persisted reminders). Skipping send.`,
       );
       if (scheduledTimeouts.has(reminder.id)) {
         clearTimeout(scheduledTimeouts.get(reminder.id));
@@ -1746,7 +2476,7 @@ async function sendReminder(reminder) {
     } catch (dmErr) {
       console.log(
         `Failed to DM user ${reminder.userId}, reminder was: ${reminder.msg}`,
-        dmErr?.message || dmErr
+        dmErr?.message || dmErr,
       );
     }
 
@@ -1773,7 +2503,7 @@ function scheduleReminder(reminder, delay) {
       clearTimeout(scheduledTimeouts.get(reminder.id));
       scheduledTimeouts.delete(reminder.id);
       console.log(
-        `Cleared existing scheduled timeout when re-scheduling reminder ${reminder.id}`
+        `Cleared existing scheduled timeout when re-scheduling reminder ${reminder.id}`,
       );
     } catch (ignore) {}
   }
@@ -1782,8 +2512,8 @@ function scheduleReminder(reminder, delay) {
   console.log(
     `Scheduled reminder ${reminder.id} in ${Math.max(
       0,
-      Math.round(delay / 1000)
-    )}s for user ${reminder.userId}`
+      Math.round(delay / 1000),
+    )}s for user ${reminder.userId}`,
   );
 }
 
@@ -1808,10 +2538,10 @@ client.once("clientReady", async () => {
     cron.schedule("0 10 * * 1", async () => {
       try {
         console.log(
-          `⏰ [CRON] Server summary job triggered at ${new Date().toISOString()}`
+          `⏰ [CRON] Server summary job triggered at ${new Date().toISOString()}`,
         );
         notifyAdmin(
-          `Cron job: Server summary started at ${new Date().toISOString()}`
+          `Cron job: Server summary started at ${new Date().toISOString()}`,
         ).catch(() => {});
         const serverGuildId = process.env.GUILD_ID || "885547853567635476";
         let guild = client.guilds.cache.get(serverGuildId);
@@ -1819,27 +2549,27 @@ client.once("clientReady", async () => {
           // Attempt to fetch the guild as a fallback in case cache was evicted or not populated
           try {
             console.log(
-              `DEBUG: guild ${serverGuildId} not in cache; attempting client.guilds.fetch(${serverGuildId})`
+              `DEBUG: guild ${serverGuildId} not in cache; attempting client.guilds.fetch(${serverGuildId})`,
             );
             guild = await client.guilds.fetch(serverGuildId);
           } catch (fetchErr) {
             await logError(
               fetchErr,
-              `Failed to fetch guild ${serverGuildId} for server summary`
+              `Failed to fetch guild ${serverGuildId} for server summary`,
             );
           }
         }
         if (!guild) {
           logError(
             new Error("Guild not found for server summary."),
-            "Server summary cron"
+            "Server summary cron",
           ).catch(() => {});
           return;
         }
 
         const summary = await gatherServerConversationsAndSummarize(
           guild,
-          true
+          true,
         );
         const chunks = summary.match(/[\s\S]{1,1900}/g) || [
           "No summary available.",
@@ -1855,7 +2585,7 @@ client.once("clientReady", async () => {
           } catch (fetchErr) {
             await logError(
               fetchErr,
-              `Failed to fetch target channel ${TARGET_CHANNEL_ID} for server summary`
+              `Failed to fetch target channel ${TARGET_CHANNEL_ID} for server summary`,
             );
           }
         }
@@ -1868,7 +2598,7 @@ client.once("clientReady", async () => {
 
         console.log("✅ Weekly server summary sent.");
         notifyAdmin(
-          `Cron job: Server summary completed at ${new Date().toISOString()}`
+          `Cron job: Server summary completed at ${new Date().toISOString()}`,
         ).catch(() => {});
       } catch (error) {
         await logError(error, "Error running scheduled summary");
@@ -1876,12 +2606,12 @@ client.once("clientReady", async () => {
           const channel = client.channels.cache.get(TARGET_CHANNEL_ID);
           if (channel && channel.type === ChannelType.GuildText) {
             await channel.send(
-              `❌ Error running scheduled summary: ${error?.message || error}`
+              `❌ Error running scheduled summary: ${error?.message || error}`,
             );
           }
         } catch (sendErr) {
           logError(sendErr, "Failed to send scheduling error to channel").catch(
-            () => {}
+            () => {},
           );
         }
       }
@@ -1898,16 +2628,16 @@ client.once("clientReady", async () => {
       const isoWeek = getISOWeek();
       if (isoWeek % 2 !== 0) {
         console.log(
-          `☕ [CRON] Skipping coffee pairing (off week, ISO week ${isoWeek})`
+          `☕ [CRON] Skipping coffee pairing (off week, ISO week ${isoWeek})`,
         );
         return;
       }
 
       console.log(
-        `☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`
+        `☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`,
       );
       notifyAdmin(
-        `Cron job: Coffee pairing started at ${new Date().toISOString()}`
+        `Cron job: Coffee pairing started at ${new Date().toISOString()}`,
       ).catch(() => {});
 
       try {
@@ -1916,20 +2646,20 @@ client.once("clientReady", async () => {
         if (!guild) {
           try {
             console.log(
-              `DEBUG: guild ${coffeeGuildId} not in cache; attempting client.guilds.fetch(${coffeeGuildId})`
+              `DEBUG: guild ${coffeeGuildId} not in cache; attempting client.guilds.fetch(${coffeeGuildId})`,
             );
             guild = await client.guilds.fetch(coffeeGuildId);
           } catch (fetchErr) {
             await logError(
               fetchErr,
-              `Failed to fetch guild ${coffeeGuildId} for coffee pairing`
+              `Failed to fetch guild ${coffeeGuildId} for coffee pairing`,
             );
           }
         }
         if (!guild) {
           logError(
             new Error("Guild not found for coffee pairing."),
-            "Coffee pairing cron"
+            "Coffee pairing cron",
           ).catch(() => {});
           return;
         }
@@ -1938,7 +2668,7 @@ client.once("clientReady", async () => {
         notifyAdmin(
           `Cron job: Coffee pairing completed with ${
             result.length
-          } pairs at ${new Date().toISOString()}`
+          } pairs at ${new Date().toISOString()}`,
         ).catch(() => {});
       } catch (e) {
         await logError(e, "Error running coffee pairing cron job");
@@ -1952,24 +2682,24 @@ client.once("clientReady", async () => {
             } catch (fetchErr) {
               console.warn(
                 `Failed to fetch coffee log channel ${logChannelId}: `,
-                fetchErr?.message || fetchErr
+                fetchErr?.message || fetchErr,
               );
             }
           }
           if (logChannel && logChannel.type === ChannelType.GuildText) {
             await logChannel.send(
-              `❌ Coffee pairing cron job failed: ${e?.message || e}`
+              `❌ Coffee pairing cron job failed: ${e?.message || e}`,
             );
           }
         } catch (sendErr) {
           logError(sendErr, "Failed to send cron error to log channel").catch(
-            () => {}
+            () => {},
           );
         }
       }
     });
     console.log(
-      `☕ Coffee pairing scheduled with cron: ${COFFEE_CRON_SCHEDULE}`
+      `☕ Coffee pairing scheduled with cron: ${COFFEE_CRON_SCHEDULE}`,
     );
   } catch (e) {
     await logError(e, "Error scheduling coffee pairing");
