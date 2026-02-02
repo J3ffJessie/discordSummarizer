@@ -310,14 +310,38 @@ async function getMembersWithCoffeeRole(
       console.warn("Member fetch failed, using cached members...");
     }
   }
-  let memberList = Array.from(members.values());
+   // Convert to an array (works whether `members` is an array or a Collection)
+  let memberList = Array.isArray(members)
+    ? members.slice()
+    : Array.from(members && typeof members.values === "function"
+        ? members.values()
+        : members || []);
 
-  // Capture username data at this point when we know user data is available
+  // Optional: debug log to spot duplicates before dedupe
+  const beforeIds = memberList.map((m) => m?.id).filter(Boolean);
+  const dupesBefore = beforeIds.filter((v, i, a) => a.indexOf(v) !== i);
+  if (dupesBefore.length) {
+    console.warn("Duplicate member IDs found before dedupe:", [...new Set(dupesBefore)]);
+  }
+
+  // Dedupe by user id
+  const unique = new Map();
+  memberList.forEach((m) => {
+    if (!m || !m.id) return;
+    unique.set(String(m.id), m);
+  });
+  memberList = Array.from(unique.values());
+
+  // Capture username/discriminator snapshot
   memberList = memberList.map((m) => {
     m._capturedUsername = m.user?.username || "Unknown";
     m._capturedDiscriminator = m.user?.discriminator || "0000";
     return m;
   });
+
+  // Optional: debug log after dedupe
+  const afterIds = memberList.map((m) => m.id);
+  console.log(`getMembersWithCoffeeRole: returning ${memberList.length} unique member(s)`);
 
   return memberList;
 }
@@ -1892,86 +1916,86 @@ client.once("clientReady", async () => {
   }
 
   // Coffee pairing cron job (configurable)
-  try {
-    cron.schedule(COFFEE_CRON_SCHEDULE, async () => {
-      // ⛔ Every-other-week guard (ISO weeks)
-      const isoWeek = getISOWeek();
-      if (isoWeek % 2 !== 0) {
-        console.log(
-          `☕ [CRON] Skipping coffee pairing (off week, ISO week ${isoWeek})`
-        );
-        return;
-      }
+  // try {
+  //   cron.schedule(COFFEE_CRON_SCHEDULE, async () => {
+  //     // ⛔ Every-other-week guard (ISO weeks)
+  //     const isoWeek = getISOWeek();
+  //     if (isoWeek % 2 !== 0) {
+  //       console.log(
+  //         `☕ [CRON] Skipping coffee pairing (off week, ISO week ${isoWeek})`
+  //       );
+  //       return;
+  //     }
 
-      console.log(
-        `☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`
-      );
-      notifyAdmin(
-        `Cron job: Coffee pairing started at ${new Date().toISOString()}`
-      ).catch(() => {});
+  //     console.log(
+  //       `☕ [CRON] Coffee pairing job triggered at ${new Date().toISOString()}`
+  //     );
+  //     notifyAdmin(
+  //       `Cron job: Coffee pairing started at ${new Date().toISOString()}`
+  //     ).catch(() => {});
 
-      try {
-        const coffeeGuildId = process.env.GUILD_ID || "885547853567635476";
-        let guild = client.guilds.cache.get(coffeeGuildId);
-        if (!guild) {
-          try {
-            console.log(
-              `DEBUG: guild ${coffeeGuildId} not in cache; attempting client.guilds.fetch(${coffeeGuildId})`
-            );
-            guild = await client.guilds.fetch(coffeeGuildId);
-          } catch (fetchErr) {
-            await logError(
-              fetchErr,
-              `Failed to fetch guild ${coffeeGuildId} for coffee pairing`
-            );
-          }
-        }
-        if (!guild) {
-          logError(
-            new Error("Guild not found for coffee pairing."),
-            "Coffee pairing cron"
-          ).catch(() => {});
-          return;
-        }
-        const result = await runCoffeePairing(guild, COFFEE_ROLE_NAME);
-        console.log(`☕ Coffee pairing job completed, pairs: ${result.length}`);
-        notifyAdmin(
-          `Cron job: Coffee pairing completed with ${
-            result.length
-          } pairs at ${new Date().toISOString()}`
-        ).catch(() => {});
-      } catch (e) {
-        await logError(e, "Error running coffee pairing cron job");
-        try {
-          const logChannelId =
-            process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID;
-          let logChannel = client.channels.cache.get(logChannelId);
-          if (!logChannel) {
-            try {
-              logChannel = await client.channels.fetch(logChannelId);
-            } catch (fetchErr) {
-              console.warn(
-                `Failed to fetch coffee log channel ${logChannelId}: `,
-                fetchErr?.message || fetchErr
-              );
-            }
-          }
-          if (logChannel && logChannel.type === ChannelType.GuildText) {
-            await logChannel.send(
-              `❌ Coffee pairing cron job failed: ${e?.message || e}`
-            );
-          }
-        } catch (sendErr) {
-          logError(sendErr, "Failed to send cron error to log channel").catch(
-            () => {}
-          );
-        }
-      }
-    });
-    console.log(
-      `☕ Coffee pairing scheduled with cron: ${COFFEE_CRON_SCHEDULE}`
-    );
-  } catch (e) {
-    await logError(e, "Error scheduling coffee pairing");
-  }
+  //     try {
+  //       const coffeeGuildId = process.env.GUILD_ID || "885547853567635476";
+  //       let guild = client.guilds.cache.get(coffeeGuildId);
+  //       if (!guild) {
+  //         try {
+  //           console.log(
+  //             `DEBUG: guild ${coffeeGuildId} not in cache; attempting client.guilds.fetch(${coffeeGuildId})`
+  //           );
+  //           guild = await client.guilds.fetch(coffeeGuildId);
+  //         } catch (fetchErr) {
+  //           await logError(
+  //             fetchErr,
+  //             `Failed to fetch guild ${coffeeGuildId} for coffee pairing`
+  //           );
+  //         }
+  //       }
+  //       if (!guild) {
+  //         logError(
+  //           new Error("Guild not found for coffee pairing."),
+  //           "Coffee pairing cron"
+  //         ).catch(() => {});
+  //         return;
+  //       }
+  //       const result = await runCoffeePairing(guild, COFFEE_ROLE_NAME);
+  //       console.log(`☕ Coffee pairing job completed, pairs: ${result.length}`);
+  //       notifyAdmin(
+  //         `Cron job: Coffee pairing completed with ${
+  //           result.length
+  //         } pairs at ${new Date().toISOString()}`
+  //       ).catch(() => {});
+  //     } catch (e) {
+  //       await logError(e, "Error running coffee pairing cron job");
+  //       try {
+  //         const logChannelId =
+  //           process.env.COFFEE_LOG_CHANNEL_ID || TARGET_CHANNEL_ID;
+  //         let logChannel = client.channels.cache.get(logChannelId);
+  //         if (!logChannel) {
+  //           try {
+  //             logChannel = await client.channels.fetch(logChannelId);
+  //           } catch (fetchErr) {
+  //             console.warn(
+  //               `Failed to fetch coffee log channel ${logChannelId}: `,
+  //               fetchErr?.message || fetchErr
+  //             );
+  //           }
+  //         }
+  //         if (logChannel && logChannel.type === ChannelType.GuildText) {
+  //           await logChannel.send(
+  //             `❌ Coffee pairing cron job failed: ${e?.message || e}`
+  //           );
+  //         }
+  //       } catch (sendErr) {
+  //         logError(sendErr, "Failed to send cron error to log channel").catch(
+  //           () => {}
+  //         );
+  //       }
+  //     }
+  //   });
+  //   console.log(
+  //     `☕ Coffee pairing scheduled with cron: ${COFFEE_CRON_SCHEDULE}`
+  //   );
+  // } catch (e) {
+  //   await logError(e, "Error scheduling coffee pairing");
+  // }
 });
