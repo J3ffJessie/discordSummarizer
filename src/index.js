@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const http = require('http');
 
 dotenv.config();
 
@@ -76,5 +77,15 @@ reminders.rescheduleAll();
 scheduler.init(client);
 // Start scheduled jobs if configured
 scheduler.startScheduledJobs();
+
+
+const port = process.env.PORT || 3000;
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Discord summarizer bot is running.\n');
+});
+server.listen(port, () => {
+  console.log(`HTTP server listening on port ${port}`);
+});
 
 module.exports = client;
