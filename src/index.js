@@ -1,18 +1,33 @@
 /*
-  Refactored bootstrap for discord-summarizer.
-  This file initializes the Discord client and wires in the modular command + event structure.
-  The original index.js is preserved in the project root.
+  Production bootstrap for discord-summarizer
+  - Modular commands/events
+  - Single HTTP server (Render safe)
+  - WebSocket streaming
+  - Voice + Whisper pipeline
+  - Graceful shutdown
 */
+
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
-const http = require('http');
 
 dotenv.config();
 
-const commandsPath = path.join(__dirname, 'commands');
-const eventsPath = path.join(__dirname, 'events');
+/* ===========================
+   IMPORT SERVICES
+=========================== */
+
+const { createHttpServer } = require('./services/httpServer');
+const { StreamingService } = require('./services/streamingService');
+const { SessionService } = require('./services/sessionService');
+const { VoiceService } = require('./services/voiceService');
+const { TranscriptionService } = require('./services/transcriptionService');
+const { TranslationService } = require('./services/translationService');
+
+/* ===========================
+   DISCORD CLIENT SETUP
+=========================== */
 
 const client = new Client({
   intents: [
@@ -21,71 +36,105 @@ const client = new Client({
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildVoiceStates,
   ],
 });
 
 client.commands = new Collection();
 
-// Load command modules
+/* ===========================
+   LOAD COMMANDS
+=========================== */
+
+const commandsPath = path.join(__dirname, 'commands');
+
 if (fs.existsSync(commandsPath)) {
-  const commandFiles = fs.readdirSync(commandsPath).filter((f) => f.endsWith('.js'));
+  const commandFiles = fs.readdirSync(commandsPath).filter(f => f.endsWith('.js'));
+
   for (const file of commandFiles) {
-    const filePath = path.join(commandsPath, file);
-    try {
-      const command = require(filePath);
-      if (command?.data && command?.execute) {
-        client.commands.set(command.data.name, command);
-      }
-    } catch (err) {
-      console.error(`Failed to load command ${file}:`, err?.message || err);
+    const command = require(path.join(commandsPath, file));
+    if (command?.data && command?.execute) {
+      client.commands.set(command.data.name, command);
     }
   }
 }
 
-// Load event handlers and bind them
+/* ===========================
+   LOAD EVENTS
+=========================== */
+
+const eventsPath = path.join(__dirname, 'events');
+
 if (fs.existsSync(eventsPath)) {
-  const eventFiles = fs.readdirSync(eventsPath).filter((f) => f.endsWith('.js'));
+  const eventFiles = fs.readdirSync(eventsPath).filter(f => f.endsWith('.js'));
+
   for (const file of eventFiles) {
-    const filePath = path.join(eventsPath, file);
-    try {
-      const eventHandler = require(filePath);
-      if (typeof eventHandler === 'function') {
-        eventHandler(client);
-      }
-    } catch (err) {
-      console.error(`Failed to load event ${file}:`, err?.message || err);
+    const eventHandler = require(path.join(eventsPath, file));
+    if (typeof eventHandler === 'function') {
+      eventHandler(client);
     }
   }
 }
 
-// Ready handler present in src/events/ready.js will be registered above when the file is loaded
+/* ===========================
+   HTTP SERVER (RENDER SAFE)
+=========================== */
 
-const token = process.env.DISCORD_TOKEN;
-if (!token) {
-  console.error('DISCORD_TOKEN not set in environment. Refactored bot will not log in.');
-} else {
-  client.login(token).catch((err) => {
-    console.error('Failed to login refactored client:', err?.message || err);
+const PORT = process.env.PORT || 3000;
+
+const server = createHttpServer();
+const sessionService = new SessionService();
+const streamingService = new StreamingService(server, sessionService);
+
+const transcriptionService = new TranscriptionService();
+const translationService = new TranslationService();
+
+const voiceService = new VoiceService(
+  sessionService,
+  streamingService,
+  transcriptionService,
+  translationService
+);
+
+client.services = {
+  sessionService,
+  streamingService,
+  voiceService,
+};
+
+server.listen(PORT, () => {
+  console.log(`HTTP server listening on port ${PORT}`);
+});
+
+/* ===========================
+   GRACEFUL SHUTDOWN
+=========================== */
+
+function shutdown() {
+  console.log('Graceful shutdown initiated...');
+
+  for (const guildId of sessionService.sessions.keys()) {
+    voiceService.stop(guildId);
+    sessionService.deleteSession(guildId);
+  }
+
+  server.close(() => {
+    console.log('HTTP server closed.');
+    process.exit(0);
   });
 }
 
-// Wire client into services that require it
-const reminders = require('./services/reminders');
-const scheduler = require('./services/scheduler');
-reminders.init(client);
-reminders.rescheduleAll();
-scheduler.init(client);
-// Start scheduled jobs if configured
-scheduler.startScheduledJobs();
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
+/* ===========================
+   LOGIN
+=========================== */
 
-const port = process.env.PORT || 3000;
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Discord summarizer bot is running.\n');
-});
-server.listen(port, () => {
-  console.log(`HTTP server listening on port ${port}`);
-});
+if (!process.env.DISCORD_TOKEN) {
+  console.error('DISCORD_TOKEN not set.');
+} else {
+  client.login(process.env.DISCORD_TOKEN);
+}
 
 module.exports = client;
