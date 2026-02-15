@@ -7,9 +7,6 @@ yarn-error.log*
 # Logs
 logs/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # Environment variables
 .env
@@ -40,16 +37,16 @@ Thumbs.db
 # Optional npm cache directory
 .npm
 
-# Optional eslint cache
+# Optional eslint/stylelint cache
 .eslintcache
-
-# Optional stylelint cache
 .stylelintcache
 
 # Temporary audio files
 temp_*.pcm
 temp_*.wav
-
 *.pcm
 *.wav
 
+# Jest coverage and reports
+coverage/
+jest-stare/

@@ -25,6 +25,7 @@ class TranscriptionService {
   }
 
   async transcribe(filePath) {
+    if (!filePath) throw new Error('Invalid file path');
     return await this.groq.audio.transcriptions.create({
       file: fs.createReadStream(filePath),
       model: 'whisper-large-v3-turbo',
