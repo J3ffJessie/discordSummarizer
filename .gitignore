@@ -45,3 +45,11 @@ Thumbs.db
 
 # Optional stylelint cache
 .stylelintcache
+
+# Temporary audio files
+temp_*.pcm
+temp_*.wav
+
+*.pcm
+*.wav
+

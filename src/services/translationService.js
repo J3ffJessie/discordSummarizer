@@ -6,15 +6,21 @@ class TranslationService {
   }
 
   async translate(text) {
+    if (!text || !text.trim()) return '';
+
     const response = await this.groq.chat.completions.create({
       model: 'llama-3.1-8b-instant',
+      temperature: 0, // 🔥 important for consistency
       messages: [
         {
           role: 'system',
           content:
-            'Translate the following text to English. If already English, return it unchanged. Do not add commentary.',
+            'You are a translation engine. Translate ALL input text to English. Return ONLY the translated text. Do not explain. Do not add commentary.',
         },
-        { role: 'user', content: text },
+        {
+          role: 'user',
+          content: text,
+        },
       ],
     });
 

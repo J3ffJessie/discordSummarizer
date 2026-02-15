@@ -42,6 +42,10 @@
         display: flex;
         flex-direction: column;
         gap: 12px;
+
+        height: calc(100vh - 180px);
+        overflow-y: auto;
+        padding-right: 6px;
       }
 
       .caption {
@@ -112,6 +116,11 @@
         const div = document.createElement("div");
         div.className = "caption";
 
+        const speaker = document.createElement("div");
+        speaker.style.fontWeight = "bold";
+        speaker.style.color = "#00ffcc";
+        speaker.innerText = data.speaker || data.userId;
+
         const translated = document.createElement("div");
         translated.className = "translated";
         translated.innerText = data.translated;
@@ -124,12 +133,20 @@
         timestamp.className = "timestamp";
         timestamp.innerText = new Date(data.timestamp).toLocaleTimeString();
 
+        div.appendChild(speaker);
         div.appendChild(translated);
         div.appendChild(original);
         div.appendChild(timestamp);
 
+        const isNearBottom =
+          captionsDiv.scrollHeight - captionsDiv.scrollTop <=
+          captionsDiv.clientHeight + 50;
+
         captionsDiv.appendChild(div);
-        captionsDiv.scrollTop = captionsDiv.scrollHeight;
+
+        if (isNearBottom) {
+          captionsDiv.scrollTop = captionsDiv.scrollHeight;
+        }
       };
     </script>
   </body>

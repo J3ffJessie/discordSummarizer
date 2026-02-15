@@ -90,6 +90,7 @@ const transcriptionService = new TranscriptionService();
 const translationService = new TranslationService();
 
 const voiceService = new VoiceService(
+  client,
   sessionService,
   streamingService,
   transcriptionService,
