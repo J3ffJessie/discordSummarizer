@@ -48,8 +48,10 @@ module.exports = {
         });
       }
 
-      // Create session
-      const session = sessionService.createSession(interaction.guildId);
+      // Create session — stop voice capture when session auto-expires after 1 hour
+      const session = sessionService.createSession(interaction.guildId, () => {
+        if (voiceService) voiceService.stop(interaction.guildId);
+      });
 
       // Start voice capture (handled in your voiceService)
       if (voiceService) {

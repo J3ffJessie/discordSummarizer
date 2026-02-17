@@ -2,9 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <header>
-      <title>Torclation by Botman</title>
-    </header>
+    <title>Torclation by Botman</title>
     <style>
       .header {
         display: flex;
@@ -93,61 +91,66 @@
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${protocol}//${window.location.host}?guild=${guild}&token=${token}`;
 
-      const ws = new WebSocket(wsUrl);
-
       const captionsDiv = document.getElementById("captions");
       const statusDiv = document.getElementById("status");
 
-      ws.onopen = () => {
-        statusDiv.innerText = "Connected";
-      };
+      function connect() {
+        const ws = new WebSocket(wsUrl);
 
-      ws.onclose = () => {
-        statusDiv.innerText = "Disconnected";
-      };
+        ws.onopen = () => {
+          statusDiv.innerText = "Connected";
+        };
 
-      ws.onerror = () => {
-        statusDiv.innerText = "Connection error";
-      };
+        ws.onclose = () => {
+          statusDiv.innerText = "Disconnected. Reconnecting...";
+          setTimeout(connect, 3000);
+        };
 
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
+        ws.onerror = () => {
+          statusDiv.innerText = "Connection error. Reconnecting...";
+        };
 
-        const div = document.createElement("div");
-        div.className = "caption";
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
 
-        const speaker = document.createElement("div");
-        speaker.style.fontWeight = "bold";
-        speaker.style.color = "#00ffcc";
-        speaker.innerText = data.speaker || data.userId;
+          const div = document.createElement("div");
+          div.className = "caption";
 
-        const translated = document.createElement("div");
-        translated.className = "translated";
-        translated.innerText = data.translated;
+          const speaker = document.createElement("div");
+          speaker.style.fontWeight = "bold";
+          speaker.style.color = "#00ffcc";
+          speaker.innerText = data.displayName || data.userId;
 
-        const original = document.createElement("div");
-        original.className = "original";
-        original.innerText = data.original;
+          const translated = document.createElement("div");
+          translated.className = "translated";
+          translated.innerText = data.translated;
 
-        const timestamp = document.createElement("div");
-        timestamp.className = "timestamp";
-        timestamp.innerText = new Date(data.timestamp).toLocaleTimeString();
+          const original = document.createElement("div");
+          original.className = "original";
+          original.innerText = data.original;
 
-        div.appendChild(speaker);
-        div.appendChild(translated);
-        div.appendChild(original);
-        div.appendChild(timestamp);
+          const timestamp = document.createElement("div");
+          timestamp.className = "timestamp";
+          timestamp.innerText = new Date(data.timestamp).toLocaleTimeString();
 
-        const isNearBottom =
-          captionsDiv.scrollHeight - captionsDiv.scrollTop <=
-          captionsDiv.clientHeight + 50;
+          div.appendChild(speaker);
+          div.appendChild(translated);
+          div.appendChild(original);
+          div.appendChild(timestamp);
 
-        captionsDiv.appendChild(div);
+          const isNearBottom =
+            captionsDiv.scrollHeight - captionsDiv.scrollTop <=
+            captionsDiv.clientHeight + 50;
 
-        if (isNearBottom) {
-          captionsDiv.scrollTop = captionsDiv.scrollHeight;
-        }
-      };
+          captionsDiv.appendChild(div);
+
+          if (isNearBottom) {
+            captionsDiv.scrollTop = captionsDiv.scrollHeight;
+          }
+        };
+      }
+
+      connect();
     </script>
   </body>
 </html>

@@ -5,7 +5,7 @@ class SessionService {
     this.sessions = new Map();
   }
 
-  createSession(guildId) {
+  createSession(guildId, onExpire) {
     const token = crypto.randomBytes(16).toString('hex');
 
     const session = {
@@ -19,6 +19,7 @@ class SessionService {
 
     setTimeout(() => {
       this.deleteSession(guildId);
+      if (onExpire) onExpire();
     }, 1000 * 60 * 60);
 
     return session;

@@ -1,12 +1,12 @@
 const { joinVoiceChannel, EndBehaviorType } = require("@discordjs/voice");
-const prism = require("prism-media");
+const OpusScript = require("opusscript");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { pipeline } = require("stream");
-const { promisify } = require("util");
 
-const pipelineAsync = promisify(pipeline);
+// Force-process audio in chunks so continuous speech doesn't pile up into
+// one big delayed translation. 4s balances latency vs. Whisper accuracy.
+const MAX_CAPTURE_MS = 4000;
 
 class VoiceService {
   constructor(
@@ -41,12 +41,12 @@ class VoiceService {
     const receiver = connection.receiver;
 
     receiver.speaking.on("start", (userId) => {
-      // 🔒 Small delay prevents mid-frame corruption
+      // Brief delay avoids the corrupted first Opus frame Discord sends
+      // when a user's encoder initializes.
       setTimeout(() => {
         if (!this.connections.has(guildId)) return;
-
         this.captureAudio(receiver, userId, guildId).catch(() => {});
-      }, 150);
+      }, 100);
     });
   }
 
@@ -67,52 +67,83 @@ class VoiceService {
     const opusStream = receiver.subscribe(userId, {
       end: {
         behavior: EndBehaviorType.AfterSilence,
-        duration: 800,
+        duration: 300,
       },
     });
 
-    const decoder = new prism.opus.Decoder({
-      rate: 48000,
-      channels: 2,
-      frameSize: 960,
-    });
+    let audioBytes = 0;
+    let hitMaxDuration = false;
 
-    // ✅ Use OS temp directory (no repo pollution)
+    const decoder = new OpusScript(48000, 2, OpusScript.Application.AUDIO);
+    const pcmChunks = [];
+
+    try {
+      await new Promise((resolve, reject) => {
+        let settled = false;
+
+        const settle = (err) => {
+          if (settled) return;
+          settled = true;
+          if (err) reject(err);
+          else resolve();
+        };
+
+        const maxTimer = setTimeout(() => {
+          hitMaxDuration = true;
+          opusStream.destroy();
+          settle();
+        }, MAX_CAPTURE_MS);
+
+        opusStream.on("data", (packet) => {
+          try {
+            const pcm = decoder.decode(packet);
+            pcmChunks.push(pcm);
+            audioBytes += pcm.length;
+          } catch {
+            // Corrupted Opus frame — skip this frame, keep going
+          }
+        });
+
+        opusStream.on("end",   () => { clearTimeout(maxTimer); settle(); });
+        opusStream.on("close", () => { clearTimeout(maxTimer); settle(); });
+        opusStream.on("error", (err) => { clearTimeout(maxTimer); settle(err); });
+      });
+    } catch (err) {
+      console.error(`Capture error for user ${userId}:`, err?.message);
+    } finally {
+      decoder.delete();
+
+      // Release the lock immediately — the next utterance can start capturing
+      // without waiting for the Whisper + translation API calls to finish.
+      this.activeCaptures.delete(userId);
+
+      // User is still speaking — re-subscribe right away before yielding to
+      // the event loop so we don't miss audio between chunks.
+      if (hitMaxDuration && this.connections.has(guildId)) {
+        this.captureAudio(receiver, userId, guildId).catch(() => {});
+      }
+
+      try { opusStream.destroy(); } catch {}
+    }
+
+    // Hand off to background processing — does not block the next capture.
+    const minBytes = 48000 * 2 * 2 * 0.3;
+    if (audioBytes >= minBytes && pcmChunks.length > 0) {
+      this.processAudio(pcmChunks, userId, guildId).catch((err) => {
+        console.error(`Process error for user ${userId}:`, err?.message);
+      });
+    }
+  }
+
+  async processAudio(pcmChunks, userId, guildId) {
     const tempPcmFile = path.join(
       os.tmpdir(),
       `voice_${Date.now()}_${userId}.pcm`,
     );
-    const writeStream = fs.createWriteStream(tempPcmFile);
-
-    let audioBytes = 0;
     let wavFile;
-    let hasErrored = false;
-
-    decoder.on("data", (chunk) => {
-      audioBytes += chunk.length;
-    });
-
-    // 🔒 Fully safe Opus error handling
-    decoder.on("error", (err) => {
-      if (err?.message?.includes("corrupted")) {
-        console.warn(`⚠️ Corrupted Opus frame ignored for user ${userId}`);
-        return;
-      }
-
-      console.error("Decoder error:", err);
-      hasErrored = true;
-    });
-
-    opusStream.on("error", () => {});
-    writeStream.on("error", () => {});
 
     try {
-      await pipelineAsync(opusStream, decoder, writeStream);
-
-      if (hasErrored) return;
-
-      const minBytes = 48000 * 2 * 2 * 0.3;
-      if (audioBytes < minBytes) return;
+      await fs.promises.writeFile(tempPcmFile, Buffer.concat(pcmChunks));
 
       wavFile = await this.transcriptionService.convertPcmToWav(tempPcmFile);
       const transcript = await this.transcriptionService.transcribe(wavFile);
@@ -127,23 +158,14 @@ class VoiceService {
 
       const translated = await this.translationService.translate(cleaned);
 
-      // ✅ Proper member lookup (no cache assumption)
-      // const guild = await this.client.guilds.fetch(guildId);
-      // const member = await guild.members.fetch(userId).catch(() => null);
-      // const displayName = member?.displayName || 'Unknown User';
-
-      // member look up to display user name for who is speaking in the discord voice channel
-      // ✅ Safer member lookup
-      let displayName = userId; // fallback to ID if everything fails
+      let displayName = userId;
 
       try {
         const guild = this.client.guilds.cache.get(guildId);
 
         if (guild) {
-          // Try cache first
           let member = guild.members.cache.get(userId);
 
-          // If not cached, fetch from API
           if (!member) {
             member = await guild.members.fetch(userId).catch(() => null);
           }
@@ -163,23 +185,7 @@ class VoiceService {
         translated,
         timestamp: Date.now(),
       });
-    } catch (err) {
-      if (!err?.message?.includes("corrupted")) {
-        console.error(`Capture error for user ${userId}:`, err?.message);
-      }
     } finally {
-      this.activeCaptures.delete(userId);
-
-      try {
-        opusStream.destroy();
-      } catch {}
-      try {
-        decoder.destroy();
-      } catch {}
-      try {
-        writeStream.destroy();
-      } catch {}
-
       if (fs.existsSync(tempPcmFile)) {
         fs.unlink(tempPcmFile, () => {});
       }
