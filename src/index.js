@@ -24,6 +24,7 @@ const { SessionService } = require('./services/sessionService');
 const { VoiceService } = require('./services/voiceService');
 const { TranscriptionService } = require('./services/transcriptionService');
 const { TranslationService } = require('./services/translationService');
+const { SchedulerService } = require('./services/schedulerService');
 
 /* ===========================
    DISCORD CLIENT SETUP
@@ -127,6 +128,14 @@ function shutdown() {
 
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
+
+
+/* ===========================
+   SCHEDULER
+=========================== */
+
+const schedulerService = new SchedulerService(client);
+schedulerService.start();
 
 /* ===========================
    LOGIN
