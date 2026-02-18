@@ -40,10 +40,12 @@
         display: flex;
         flex-direction: column;
         gap: 12px;
-
         height: calc(100vh - 180px);
         overflow-y: auto;
-        padding-right: 6px;
+        padding: 10px;
+        border: 1px solid white;
+        border-radius: 25px;
+        position: relative;
       }
 
       .caption {
@@ -51,15 +53,18 @@
         padding: 10px 14px;
         border-radius: 8px;
         border-left: 4px solid #00ffcc;
+        
       }
 
       .original {
-        font-size: 13px;
+        font-size: 15px;
         opacity: 0.6;
+        color: silver;
+        font-style: italic;
       }
 
       .translated {
-        font-size: 16px;
+        font-size: 20px;
         margin-top: 4px;
       }
 
@@ -118,7 +123,8 @@
 
           const speaker = document.createElement("div");
           speaker.style.fontWeight = "bold";
-          speaker.style.color = "#00ffcc";
+          speaker.style.color = "#008080";
+          speaker.style.fontSize = '20px';
           speaker.innerText = data.displayName || data.userId;
 
           const translated = document.createElement("div");

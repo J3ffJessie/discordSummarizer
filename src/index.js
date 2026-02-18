@@ -25,6 +25,7 @@ const { VoiceService } = require('./services/voiceService');
 const { TranscriptionService } = require('./services/transcriptionService');
 const { TranslationService } = require('./services/translationService');
 const { SchedulerService } = require('./services/schedulerService');
+const logger = require('./utils/logger');
 
 /* ===========================
    DISCORD CLIENT SETUP
@@ -144,7 +145,9 @@ schedulerService.start();
 if (!process.env.DISCORD_TOKEN) {
   console.error('DISCORD_TOKEN not set.');
 } else {
-  client.login(process.env.DISCORD_TOKEN);
+  client.login(process.env.DISCORD_TOKEN).then(() => {
+    logger.init(client);
+  });
 }
 
 module.exports = client;
