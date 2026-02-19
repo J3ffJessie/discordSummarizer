@@ -5,7 +5,7 @@ async function gatherServerConversationsAndSummarize(guild, useServerSummarize =
   let allMessages = [];
 
   for (const channel of guild.channels.cache.values()) {
-    if (channel.isTextBased && channel.viewable && !channel.isThread && channel.type === ChannelType.GuildText) {
+    if (channel.type === ChannelType.GuildText && channel.viewable) {
       try {
         const messages = await channel.messages.fetch({ limit: 100 });
         const formatted = messages

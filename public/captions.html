@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Torclation by Botman</title>
+    <style>
+      .header {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.5rem;
+      }
+      img {
+        width: 50px;
+        height: 50px;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        background: #111;
+        color: #fff;
+        margin: 0;
+        padding: 20px;
+      }
+
+      h1 {
+        margin-top: 0;
+        color: #00ffcc;
+      }
+
+      #status {
+        margin-bottom: 15px;
+        font-size: 14px;
+        opacity: 0.7;
+        display: flex;
+        justify-content: center;
+      }
+
+      #captions {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        height: calc(100vh - 180px);
+        overflow-y: auto;
+        padding: 10px;
+        border: 1px solid white;
+        border-radius: 25px;
+        position: relative;
+      }
+
+      .caption {
+        background: #1e1e1e;
+        padding: 10px 14px;
+        border-radius: 8px;
+        border-left: 4px solid #00ffcc;
+        
+      }
+
+      .original {
+        font-size: 15px;
+        opacity: 0.6;
+        color: silver;
+        font-style: italic;
+      }
+
+      .translated {
+        font-size: 20px;
+        margin-top: 4px;
+      }
+
+      .timestamp {
+        font-size: 11px;
+        opacity: 0.4;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <img src="torc-logo.png" alt="Bot Logo" width="150" />
+      <h1>Live Voice Translation</h1>
+    </div>
+    <div id="status">Connecting...</div>
+    <div id="captions"></div>
+
+    <script>
+      const params = new URLSearchParams(window.location.search);
+      const guild = params.get("guild");
+      const token = params.get("token");
+
+      if (!guild || !token) {
+        document.getElementById("status").innerText = "Invalid session.";
+        throw new Error("Missing session parameters.");
+      }
+
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${protocol}//${window.location.host}?guild=${guild}&token=${token}`;
+
+      const captionsDiv = document.getElementById("captions");
+      const statusDiv = document.getElementById("status");
+
+      function connect() {
+        const ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          statusDiv.innerText = "Connected";
+        };
+
+        ws.onclose = () => {
+          statusDiv.innerText = "Disconnected. Reconnecting...";
+          setTimeout(connect, 3000);
+        };
+
+        ws.onerror = () => {
+          statusDiv.innerText = "Connection error. Reconnecting...";
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+
+          const div = document.createElement("div");
+          div.className = "caption";
+
+          const speaker = document.createElement("div");
+          speaker.style.fontWeight = "bold";
+          speaker.style.color = "#008080";
+          speaker.style.fontSize = '20px';
+          speaker.innerText = data.displayName || data.userId;
+
+          const translated = document.createElement("div");
+          translated.className = "translated";
+          translated.innerText = data.translated;
+
+          const original = document.createElement("div");
+          original.className = "original";
+          original.innerText = data.original;
+
+          const timestamp = document.createElement("div");
+          timestamp.className = "timestamp";
+          timestamp.innerText = new Date(data.timestamp).toLocaleTimeString();
+
+          div.appendChild(speaker);
+          div.appendChild(translated);
+          div.appendChild(original);
+          div.appendChild(timestamp);
+
+          const isNearBottom =
+            captionsDiv.scrollHeight - captionsDiv.scrollTop <=
+            captionsDiv.clientHeight + 50;
+
+          captionsDiv.appendChild(div);
+
+          if (isNearBottom) {
+            captionsDiv.scrollTop = captionsDiv.scrollHeight;
+          }
+        };
+      }
+
+      connect();
+    </script>
+  </body>
+</html>

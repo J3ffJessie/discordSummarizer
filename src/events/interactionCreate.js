@@ -1,5 +1,4 @@
 const { Events } = require('discord.js');
-const logger = require('../utils/logger');
 
 module.exports = (client) => {
   client.on(Events.InteractionCreate, async (interaction) => {
@@ -9,17 +8,15 @@ module.exports = (client) => {
     if (!command) return;
 
     try {
-      await command.execute(interaction, client);
+      await command.execute(interaction, client.services);
     } catch (err) {
-      console.error(`Error executing command ${interaction.commandName}:`, err?.message || err);
-      logger.logError(err, `Command ${interaction.commandName} failed`).catch(() => {});
-      try {
-        if (interaction.replied || interaction.deferred) {
-          await interaction.editReply({ content: '❌ An error occurred while processing your command.' });
-        } else {
-          await interaction.reply({ content: '❌ An error occurred while processing your command.', ephemeral: true });
-        }
-      } catch (e) {}
+      console.error(err);
+
+      if (interaction.replied || interaction.deferred) {
+        await interaction.editReply({ content: '❌ Error processing command.' });
+      } else {
+        await interaction.reply({ content: '❌ Error processing command.', ephemeral: true });
+      }
     }
   });
 };
