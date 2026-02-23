@@ -48,6 +48,10 @@ module.exports = {
         });
       }
 
+      // Acknowledge immediately — joinVoiceChannel can take longer than
+      // Discord's 3-second interaction window, causing error 10062.
+      await interaction.deferReply();
+
       // Create session — stop voice capture when session auto-expires after 1 hour
       const session = sessionService.createSession(interaction.guildId, () => {
         if (voiceService) voiceService.stop(interaction.guildId);
@@ -62,9 +66,6 @@ module.exports = {
         );
       }
 
-      // Generate caption URL
-
-      const PORT = process.env.PORT || 3000;
       const baseUrl =
         process.env.CAPTION_URL ||
         `http://localhost:${process.env.PORT || 3000}`;
@@ -81,7 +82,7 @@ module.exports = {
         .setFooter({ text: "Share this link with anyone who needs live captions." })
         .setTimestamp();
 
-      await interaction.reply({ embeds: [embed] });
+      await interaction.editReply({ embeds: [embed] });
     }
 
     if (subcommand === "stop") {
@@ -93,6 +94,8 @@ module.exports = {
           ephemeral: true
         });
       }
+
+      await interaction.deferReply();
 
       // Stop voice capture
       if (voiceService) {
@@ -108,7 +111,7 @@ module.exports = {
         .setColor(0xe74c3c)
         .setTimestamp();
 
-      await interaction.reply({ embeds: [embed] });
+      await interaction.editReply({ embeds: [embed] });
     }
   }
 };
