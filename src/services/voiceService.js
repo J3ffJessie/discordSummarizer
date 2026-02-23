@@ -61,8 +61,9 @@ class VoiceService {
   }
 
   async captureAudio(receiver, userId, guildId) {
-    if (this.activeCaptures.get(userId)) return;
-    this.activeCaptures.set(userId, true);
+    const captureKey = `${guildId}-${userId}`;
+    if (this.activeCaptures.get(captureKey)) return;
+    this.activeCaptures.set(captureKey, true);
 
     const opusStream = receiver.subscribe(userId, {
       end: {
@@ -115,7 +116,7 @@ class VoiceService {
 
       // Release the lock immediately — the next utterance can start capturing
       // without waiting for the Whisper + translation API calls to finish.
-      this.activeCaptures.delete(userId);
+      this.activeCaptures.delete(captureKey);
 
       // User is still speaking — re-subscribe right away before yielding to
       // the event loop so we don't miss audio between chunks.
@@ -153,8 +154,9 @@ class VoiceService {
       const cleaned = transcript.text.trim();
       if (!cleaned) return;
 
-      if (this.lastTranscript.get(userId) === cleaned) return;
-      this.lastTranscript.set(userId, cleaned);
+      const transcriptKey = `${guildId}-${userId}`;
+      if (this.lastTranscript.get(transcriptKey) === cleaned) return;
+      this.lastTranscript.set(transcriptKey, cleaned);
 
       // Translate to every language currently requested by connected viewers,
       // all in parallel so multiple languages add no extra sequential latency.
