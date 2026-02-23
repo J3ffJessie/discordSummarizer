@@ -85,7 +85,7 @@ module.exports = {
       await interaction.editReply({ embeds: [embed] });
     }
 
-    if (subcommand === "stop") {
+    else if (subcommand === "stop") {
       const existingSession = sessionService.getSession(interaction.guildId);
 
       if (!existingSession) {
