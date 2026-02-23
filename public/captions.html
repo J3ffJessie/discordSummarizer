@@ -36,11 +36,41 @@
         justify-content: center;
       }
 
+      #language-bar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-bottom: 10px;
+        font-size: 13px;
+        opacity: 0.85;
+      }
+
+      #language-bar label {
+        color: #00ffcc;
+        font-weight: bold;
+      }
+
+      #language-select {
+        background: #1e1e1e;
+        color: #fff;
+        border: 1px solid #00ffcc;
+        border-radius: 8px;
+        padding: 4px 10px;
+        font-size: 13px;
+        cursor: pointer;
+        outline: none;
+      }
+
+      #language-select:hover {
+        background: #2a2a2a;
+      }
+
       #captions {
         display: flex;
         flex-direction: column;
         gap: 12px;
-        height: calc(100vh - 180px);
+        height: calc(100vh - 220px);
         overflow-y: auto;
         padding: 10px;
         border: 1px solid white;
@@ -48,12 +78,24 @@
         position: relative;
       }
 
+      #captions::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: url(./torc-logo.png);
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 50%;
+        opacity: 0.15;
+        border-radius: 25px;
+        pointer-events: none;
+      }
+
       .caption {
         background: #1e1e1e;
         padding: 10px 14px;
         border-radius: 8px;
         border-left: 4px solid #00ffcc;
-        
       }
 
       .original {
@@ -73,6 +115,99 @@
         opacity: 0.4;
         margin-top: 4px;
       }
+
+      /* ── Welcome / onboarding modal ── */
+      #welcome-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.85);
+        z-index: 200;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #welcome-modal.open {
+        display: flex;
+      }
+
+      #welcome-modal-content {
+        background: #1a1a1a;
+        border: 1px solid #00ffcc;
+        border-radius: 20px;
+        padding: 36px 40px;
+        max-width: 440px;
+        width: 90%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+        text-align: center;
+      }
+
+      #welcome-modal-content img {
+        width: 72px;
+        height: 72px;
+        opacity: 0.9;
+      }
+
+      #welcome-modal-content h2 {
+        margin: 0;
+        font-size: 22px;
+        color: #00ffcc;
+      }
+
+      #welcome-modal-content p {
+        margin: 0;
+        font-size: 14px;
+        color: #bbb;
+        line-height: 1.6;
+      }
+
+      #welcome-lang-select {
+        background: #1e1e1e;
+        color: #fff;
+        border: 1px solid #00ffcc;
+        border-radius: 10px;
+        padding: 8px 14px;
+        font-size: 15px;
+        cursor: pointer;
+        outline: none;
+        width: 100%;
+      }
+
+      #welcome-lang-select:hover {
+        background: #2a2a2a;
+      }
+
+      #welcome-start-btn {
+        background: #00ffcc;
+        color: #111;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 28px;
+        font-size: 15px;
+        font-weight: bold;
+        cursor: pointer;
+        width: 100%;
+      }
+
+      #welcome-start-btn:hover {
+        background: #00e6b8;
+      }
+
+      #welcome-skip {
+        font-size: 12px;
+        color: #555;
+        cursor: pointer;
+        text-decoration: underline;
+        background: none;
+        border: none;
+      }
+
+      #welcome-skip:hover {
+        color: #888;
+      }
     </style>
   </head>
   <body>
@@ -81,7 +216,83 @@
       <h1>Live Voice Translation</h1>
     </div>
     <div id="status">Connecting...</div>
+
+    <div id="language-bar">
+      <label for="language-select">Caption language:</label>
+      <select id="language-select">
+        <option value="English">English</option>
+        <option value="Arabic">Arabic</option>
+        <option value="Bengali">Bengali</option>
+        <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+        <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+        <option value="Czech">Czech</option>
+        <option value="Dutch">Dutch</option>
+        <option value="French">French</option>
+        <option value="German">German</option>
+        <option value="Greek">Greek</option>
+        <option value="Hebrew">Hebrew</option>
+        <option value="Hindi">Hindi</option>
+        <option value="Hungarian">Hungarian</option>
+        <option value="Indonesian">Indonesian</option>
+        <option value="Italian">Italian</option>
+        <option value="Japanese">Japanese</option>
+        <option value="Korean">Korean</option>
+        <option value="Malay">Malay</option>
+        <option value="Polish">Polish</option>
+        <option value="Portuguese">Portuguese</option>
+        <option value="Romanian">Romanian</option>
+        <option value="Russian">Russian</option>
+        <option value="Spanish">Spanish</option>
+        <option value="Swedish">Swedish</option>
+        <option value="Thai">Thai</option>
+        <option value="Turkish">Turkish</option>
+        <option value="Ukrainian">Ukrainian</option>
+        <option value="Vietnamese">Vietnamese</option>
+      </select>
+    </div>
+
     <div id="captions"></div>
+
+    <!-- First-time language selection modal -->
+    <div id="welcome-modal">
+      <div id="welcome-modal-content">
+        <img src="torc-logo.png" alt="Torc Logo" />
+        <h2>Welcome to Live Captions</h2>
+        <p>Choose the language you'd like captions displayed in. You can change this at any time using the dropdown at the top of the page.</p>
+        <select id="welcome-lang-select">
+          <option value="English">English</option>
+          <option value="Arabic">Arabic</option>
+          <option value="Bengali">Bengali</option>
+          <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+          <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+          <option value="Czech">Czech</option>
+          <option value="Dutch">Dutch</option>
+          <option value="French">French</option>
+          <option value="German">German</option>
+          <option value="Greek">Greek</option>
+          <option value="Hebrew">Hebrew</option>
+          <option value="Hindi">Hindi</option>
+          <option value="Hungarian">Hungarian</option>
+          <option value="Indonesian">Indonesian</option>
+          <option value="Italian">Italian</option>
+          <option value="Japanese">Japanese</option>
+          <option value="Korean">Korean</option>
+          <option value="Malay">Malay</option>
+          <option value="Polish">Polish</option>
+          <option value="Portuguese">Portuguese</option>
+          <option value="Romanian">Romanian</option>
+          <option value="Russian">Russian</option>
+          <option value="Spanish">Spanish</option>
+          <option value="Swedish">Swedish</option>
+          <option value="Thai">Thai</option>
+          <option value="Turkish">Turkish</option>
+          <option value="Ukrainian">Ukrainian</option>
+          <option value="Vietnamese">Vietnamese</option>
+        </select>
+        <button id="welcome-start-btn">Get Started</button>
+        <button id="welcome-skip">Skip (use English)</button>
+      </div>
+    </div>
 
     <script>
       const params = new URLSearchParams(window.location.search);
@@ -98,15 +309,36 @@
 
       const captionsDiv = document.getElementById("captions");
       const statusDiv = document.getElementById("status");
+      const langSelect = document.getElementById("language-select");
+
+      // Restore saved language preference
+      const savedLang = localStorage.getItem("captionLanguage");
+      if (savedLang) langSelect.value = savedLang;
+
+      let activeWs = null;
+
+      function sendLanguage(ws) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "setLanguage", language: langSelect.value }));
+        }
+      }
+
+      langSelect.addEventListener("change", () => {
+        localStorage.setItem("captionLanguage", langSelect.value);
+        sendLanguage(activeWs);
+      });
 
       function connect() {
         const ws = new WebSocket(wsUrl);
+        activeWs = ws;
 
         ws.onopen = () => {
           statusDiv.innerText = "Connected";
+          sendLanguage(ws);
         };
 
         ws.onclose = () => {
+          activeWs = null;
           statusDiv.innerText = "Disconnected. Reconnecting...";
           setTimeout(connect, 3000);
         };
@@ -157,6 +389,32 @@
       }
 
       connect();
+
+      // ── Welcome modal (first-time visit only) ──
+      const welcomeModal = document.getElementById("welcome-modal");
+      const welcomeLangSelect = document.getElementById("welcome-lang-select");
+      const welcomeStartBtn = document.getElementById("welcome-start-btn");
+      const welcomeSkipBtn = document.getElementById("welcome-skip");
+
+      function confirmLanguage(lang) {
+        langSelect.value = lang;
+        localStorage.setItem("captionLanguage", lang);
+        sendLanguage(activeWs);
+        welcomeModal.classList.remove("open");
+      }
+
+      welcomeStartBtn.addEventListener("click", () => {
+        confirmLanguage(welcomeLangSelect.value);
+      });
+
+      welcomeSkipBtn.addEventListener("click", () => {
+        confirmLanguage("English");
+      });
+
+      // Show modal only if no preference has been saved yet
+      if (!savedLang) {
+        welcomeModal.classList.add("open");
+      }
     </script>
   </body>
 </html>
