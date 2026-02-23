@@ -5,17 +5,16 @@ class TranslationService {
     this.groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   }
 
-  async translate(text) {
+  async translate(text, targetLanguage = 'English') {
     if (!text || !text.trim()) return '';
 
     const response = await this.groq.chat.completions.create({
       model: 'llama-3.1-8b-instant',
-      temperature: 0, // 🔥 important for consistency
+      temperature: 0,
       messages: [
         {
           role: 'system',
-          content:
-            'You are a translation engine. Translate ALL input text to English. Return ONLY the translated text. Do not explain. Do not add commentary.',
+          content: `You are a translation engine. Translate ALL input text to ${targetLanguage}. Return ONLY the translated text. Do not explain. Do not add commentary.`,
         },
         {
           role: 'user',

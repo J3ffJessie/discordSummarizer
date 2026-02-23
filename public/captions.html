@@ -36,11 +36,41 @@
         justify-content: center;
       }
 
+      #language-bar {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-bottom: 10px;
+        font-size: 13px;
+        opacity: 0.85;
+      }
+
+      #language-bar label {
+        color: #00ffcc;
+        font-weight: bold;
+      }
+
+      #language-select {
+        background: #1e1e1e;
+        color: #fff;
+        border: 1px solid #00ffcc;
+        border-radius: 8px;
+        padding: 4px 10px;
+        font-size: 13px;
+        cursor: pointer;
+        outline: none;
+      }
+
+      #language-select:hover {
+        background: #2a2a2a;
+      }
+
       #captions {
         display: flex;
         flex-direction: column;
         gap: 12px;
-        height: calc(100vh - 180px);
+        height: calc(100vh - 220px);
         overflow-y: auto;
         padding: 10px;
         border: 1px solid white;
@@ -48,12 +78,24 @@
         position: relative;
       }
 
+      #captions::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: url(./torc-logo.png);
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: 50%;
+        opacity: 0.15;
+        border-radius: 25px;
+        pointer-events: none;
+      }
+
       .caption {
         background: #1e1e1e;
         padding: 10px 14px;
         border-radius: 8px;
         border-left: 4px solid #00ffcc;
-        
       }
 
       .original {
@@ -81,6 +123,41 @@
       <h1>Live Voice Translation</h1>
     </div>
     <div id="status">Connecting...</div>
+
+    <div id="language-bar">
+      <label for="language-select">Caption language:</label>
+      <select id="language-select">
+        <option value="English">English</option>
+        <option value="Arabic">Arabic</option>
+        <option value="Bengali">Bengali</option>
+        <option value="Chinese (Simplified)">Chinese (Simplified)</option>
+        <option value="Chinese (Traditional)">Chinese (Traditional)</option>
+        <option value="Czech">Czech</option>
+        <option value="Dutch">Dutch</option>
+        <option value="French">French</option>
+        <option value="German">German</option>
+        <option value="Greek">Greek</option>
+        <option value="Hebrew">Hebrew</option>
+        <option value="Hindi">Hindi</option>
+        <option value="Hungarian">Hungarian</option>
+        <option value="Indonesian">Indonesian</option>
+        <option value="Italian">Italian</option>
+        <option value="Japanese">Japanese</option>
+        <option value="Korean">Korean</option>
+        <option value="Malay">Malay</option>
+        <option value="Polish">Polish</option>
+        <option value="Portuguese">Portuguese</option>
+        <option value="Romanian">Romanian</option>
+        <option value="Russian">Russian</option>
+        <option value="Spanish">Spanish</option>
+        <option value="Swedish">Swedish</option>
+        <option value="Thai">Thai</option>
+        <option value="Turkish">Turkish</option>
+        <option value="Ukrainian">Ukrainian</option>
+        <option value="Vietnamese">Vietnamese</option>
+      </select>
+    </div>
+
     <div id="captions"></div>
 
     <script>
@@ -98,15 +175,37 @@
 
       const captionsDiv = document.getElementById("captions");
       const statusDiv = document.getElementById("status");
+      const langSelect = document.getElementById("language-select");
+
+      // Restore saved language preference across page reloads
+      const savedLang = localStorage.getItem("captionLanguage");
+      if (savedLang) langSelect.value = savedLang;
+
+      let activeWs = null;
+
+      function sendLanguage(ws) {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: "setLanguage", language: langSelect.value }));
+        }
+      }
+
+      langSelect.addEventListener("change", () => {
+        localStorage.setItem("captionLanguage", langSelect.value);
+        sendLanguage(activeWs);
+      });
 
       function connect() {
         const ws = new WebSocket(wsUrl);
+        activeWs = ws;
 
         ws.onopen = () => {
           statusDiv.innerText = "Connected";
+          // Tell the server which language this viewer wants
+          sendLanguage(ws);
         };
 
         ws.onclose = () => {
+          activeWs = null;
           statusDiv.innerText = "Disconnected. Reconnecting...";
           setTimeout(connect, 3000);
         };

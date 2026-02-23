@@ -156,7 +156,17 @@ class VoiceService {
       if (this.lastTranscript.get(userId) === cleaned) return;
       this.lastTranscript.set(userId, cleaned);
 
-      const translated = await this.translationService.translate(cleaned);
+      // Translate to every language currently requested by connected viewers,
+      // all in parallel so multiple languages add no extra sequential latency.
+      const requestedLanguages = this.streamingService.getRequestedLanguages(guildId);
+      const translations = new Map(
+        await Promise.all(
+          Array.from(requestedLanguages).map(async (lang) => {
+            const text = await this.translationService.translate(cleaned, lang);
+            return [lang, text];
+          })
+        )
+      );
 
       let displayName = userId;
 
@@ -182,9 +192,8 @@ class VoiceService {
         userId,
         displayName,
         original: cleaned,
-        translated,
         timestamp: Date.now(),
-      });
+      }, translations);
     } finally {
       if (fs.existsSync(tempPcmFile)) {
         fs.unlink(tempPcmFile, () => {});
