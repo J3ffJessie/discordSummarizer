@@ -12,100 +12,138 @@ function getISOWeek(date) {
 }
 
 class SchedulerService {
-  constructor(client) {
+  constructor(client, guildConfigService) {
     this.client = client;
+    this.guildConfigService = guildConfigService;
+    // Map<guildId, { summaryTask: ScheduledTask|null, coffeeTask: ScheduledTask|null }>
+    this.tasks = new Map();
   }
 
   start() {
     this.client.once('ready', () => {
-      this.registerServerSummary();
-      this.registerCoffeePairing();
+      this._scheduleAllGuilds();
     });
   }
 
-  registerServerSummary() {
-    const cronExpr = process.env.SERVER_SUMMARY_CRON || '0 10 * * 1';
-    const timezone = process.env.CRON_TIMEZONE || 'UTC';
+  _scheduleAllGuilds() {
+    const summaryGuilds = this.guildConfigService.getAllWithSummaryEnabled();
+    const coffeeGuilds = this.guildConfigService.getAllWithCoffeeEnabled();
 
-    cron.schedule(cronExpr, async () => {
-      try {
-        logger.notifyAdmin(
-          `Cron job: Server summary started at ${new Date().toISOString()}`
-        ).catch(() => {});
+    const allGuildIds = new Set([
+      ...summaryGuilds.map(g => g.guild_id),
+      ...coffeeGuilds.map(g => g.guild_id),
+    ]);
 
-        const guildId = process.env.GUILD_ID;
-        if (!guildId) return;
+    for (const guildId of allGuildIds) {
+      const config = this.guildConfigService.getConfig(guildId);
+      this._applyConfig(guildId, config);
+    }
 
-        let guild = this.client.guilds.cache.get(guildId);
-        if (!guild) {
-          guild = await this.client.guilds.fetch(guildId).catch(() => null);
-        }
-        if (!guild) return;
-
-        const summary =
-          await gather.gatherServerConversationsAndSummarize(guild, true);
-
-        const chunks =
-          summary.match(/[\s\S]{1,1900}/g) || ['No summary available.'];
-
-        const channelId = process.env.TARGET_CHANNEL_ID;
-        let channel = guild.channels.cache.get(channelId);
-        if (!channel) {
-          channel = await this.client.channels.fetch(channelId).catch(() => null);
-        }
-        if (!channel) return;
-
-        for (const chunk of chunks) {
-          await channel.send(chunk);
-        }
-
-        logger.notifyAdmin(
-          `Cron job: Server summary completed at ${new Date().toISOString()}`
-        ).catch(() => {});
-      } catch (err) {
-        logger.logError(err, 'Scheduled server summary failed').catch(() => {});
-      }
-    }, { timezone });
-
-    console.log(`Scheduled server summary cron: ${cronExpr} (timezone: ${timezone})`);
+    console.log(`Scheduler: loaded cron tasks for ${allGuildIds.size} guild(s)`);
   }
 
-  registerCoffeePairing() {
-    const coffeeCron =
-      process.env.COFFEE_CRON_SCHEDULE || process.env.COFFEE_CRON;
-    const timezone = process.env.CRON_TIMEZONE || 'UTC';
+  refreshGuild(guildId) {
+    this._stopGuild(guildId);
+    const config = this.guildConfigService.getConfig(guildId);
+    if (config) this._applyConfig(guildId, config);
+  }
 
-    if (!coffeeCron) return;
+  _stopGuild(guildId) {
+    const existing = this.tasks.get(guildId);
+    if (!existing) return;
+    if (existing.summaryTask) existing.summaryTask.stop();
+    if (existing.coffeeTask) existing.coffeeTask.stop();
+    this.tasks.delete(guildId);
+  }
 
-    const biweekly = process.env.COFFEE_BIWEEKLY === 'true';
+  _applyConfig(guildId, config) {
+    const entry = { summaryTask: null, coffeeTask: null };
 
-    cron.schedule(coffeeCron, async () => {
+    if (config.summary_enabled && config.summary_channel_id) {
+      entry.summaryTask = this._scheduleSummary(guildId, config);
+    }
+
+    if (config.coffee_enabled && config.coffee_cron) {
+      entry.coffeeTask = this._scheduleCoffee(guildId, config);
+    }
+
+    this.tasks.set(guildId, entry);
+  }
+
+  _scheduleSummary(guildId, config) {
+    const cronExpr = config.summary_cron || '0 10 * * 1';
+    const timezone = config.timezone || 'UTC';
+
+    const task = cron.schedule(cronExpr, async () => {
       try {
-        // Skip every other Monday when biweekly mode is on.
-        // Runs on even ISO weeks (2, 4, 6 …). To shift the cycle by one week,
-        // change !== 0 to === 0.
-        if (biweekly && getISOWeek(new Date()) % 2 !== 0) return;
+        logger.notifyAdmin(
+          `Cron job: Server summary started for guild ${guildId} at ${new Date().toISOString()}`
+        ).catch(() => {});
 
-        const guildId = process.env.GUILD_ID;
-        if (!guildId) return;
-
-        let guild = this.client.guilds.cache.get(guildId);
-        if (!guild) {
-          guild = await this.client.guilds.fetch(guildId).catch(() => null);
-        }
-        if (!guild) return;
-
-        const result = await coffeeService.runCoffeePairing(guild);
+        await this._runSummaryForGuild(guildId, config);
 
         logger.notifyAdmin(
-          `Cron job: Coffee pairing completed with ${result.length} pairs`
+          `Cron job: Server summary completed for guild ${guildId} at ${new Date().toISOString()}`
         ).catch(() => {});
       } catch (err) {
-        logger.logError(err, 'Coffee pairing cron failed').catch(() => {});
+        logger.logError(err, `Scheduled server summary failed for guild ${guildId}`).catch(() => {});
       }
     }, { timezone });
 
-    console.log(`Scheduled coffee pairing cron: ${coffeeCron} (timezone: ${timezone})`);
+    console.log(`Scheduler: summary cron for guild ${guildId}: ${cronExpr} (${timezone})`);
+    return task;
+  }
+
+  _scheduleCoffee(guildId, config) {
+    const cronExpr = config.coffee_cron;
+    const timezone = config.timezone || 'UTC';
+    const biweekly = config.coffee_biweekly === 1;
+
+    const task = cron.schedule(cronExpr, async () => {
+      try {
+        if (biweekly && getISOWeek(new Date()) % 2 !== 0) return;
+        await this._runCoffeeForGuild(guildId, config);
+      } catch (err) {
+        logger.logError(err, `Coffee pairing cron failed for guild ${guildId}`).catch(() => {});
+      }
+    }, { timezone });
+
+    console.log(`Scheduler: coffee cron for guild ${guildId}: ${cronExpr} (${timezone})`);
+    return task;
+  }
+
+  async _runSummaryForGuild(guildId, config) {
+    let guild = this.client.guilds.cache.get(guildId);
+    if (!guild) guild = await this.client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) return;
+
+    const summary = await gather.gatherServerConversationsAndSummarize(guild, true);
+    const chunks = summary.match(/[\s\S]{1,1900}/g) || ['No summary available.'];
+
+    let channel = guild.channels.cache.get(config.summary_channel_id);
+    if (!channel) {
+      channel = await this.client.channels.fetch(config.summary_channel_id).catch(() => null);
+    }
+    if (!channel) return;
+
+    for (const chunk of chunks) {
+      await channel.send(chunk);
+    }
+  }
+
+  async _runCoffeeForGuild(guildId, config) {
+    let guild = this.client.guilds.cache.get(guildId);
+    if (!guild) guild = await this.client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) return;
+
+    const result = await coffeeService.runCoffeePairing(
+      guild,
+      config.coffee_role_name || process.env.COFFEE_ROLE_NAME || 'coffee chat'
+    );
+
+    logger.notifyAdmin(
+      `Cron job: Coffee pairing for guild ${guildId} completed with ${result.length} pairs`
+    ).catch(() => {});
   }
 }
 
