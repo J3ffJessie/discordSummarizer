@@ -25,6 +25,7 @@ const { VoiceService } = require('./services/voiceService');
 const { TranscriptionService } = require('./services/transcriptionService');
 const { TranslationService } = require('./services/translationService');
 const { SchedulerService } = require('./services/schedulerService');
+const { GuildConfigService } = require('./services/guildConfigService');
 const logger = require('./utils/logger');
 
 /* ===========================
@@ -85,6 +86,7 @@ if (fs.existsSync(eventsPath)) {
 const PORT = process.env.PORT || 3000;
 
 const server = createHttpServer();
+const guildConfigService = new GuildConfigService();
 const sessionService = new SessionService();
 const streamingService = new StreamingService(server, sessionService);
 
@@ -99,10 +101,14 @@ const voiceService = new VoiceService(
   translationService
 );
 
+const schedulerService = new SchedulerService(client, guildConfigService);
+
 client.services = {
+  guildConfigService,
   sessionService,
   streamingService,
   voiceService,
+  schedulerService,
 };
 
 server.listen(PORT, () => {
@@ -135,7 +141,6 @@ process.on('SIGINT', shutdown);
    SCHEDULER
 =========================== */
 
-const schedulerService = new SchedulerService(client);
 schedulerService.start();
 
 /* ===========================
@@ -147,6 +152,9 @@ if (!process.env.DISCORD_TOKEN) {
 } else {
   client.login(process.env.DISCORD_TOKEN).then(() => {
     logger.init(client);
+  }).catch((err) => {
+    console.error('Discord login failed:', err.message);
+    process.exit(1);
   });
 }
 
