@@ -208,6 +208,134 @@
       #welcome-skip:hover {
         color: #888;
       }
+
+      /* ── Session End modal ── */
+      #session-end-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.88);
+        z-index: 300;
+        align-items: center;
+        justify-content: center;
+      }
+
+      #session-end-modal.open {
+        display: flex;
+      }
+
+      #session-end-content {
+        background: #1a1a1a;
+        border: 1px solid #00ffcc;
+        border-radius: 20px;
+        padding: 36px 40px;
+        max-width: 560px;
+        width: 92%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 18px;
+        text-align: center;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      #session-end-content h2 {
+        margin: 0;
+        font-size: 22px;
+        color: #00ffcc;
+      }
+
+      #session-end-content p {
+        margin: 0;
+        font-size: 14px;
+        color: #bbb;
+        line-height: 1.6;
+      }
+
+      .end-btn {
+        background: #00ffcc;
+        color: #111;
+        border: none;
+        border-radius: 10px;
+        padding: 10px 24px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        width: 100%;
+      }
+
+      .end-btn:hover {
+        background: #00e6b8;
+      }
+
+      .end-btn.secondary {
+        background: #1e1e1e;
+        color: #00ffcc;
+        border: 1px solid #00ffcc;
+      }
+
+      .end-btn.secondary:hover {
+        background: #2a2a2a;
+      }
+
+      .end-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      #summary-section {
+        display: none;
+        width: 100%;
+        text-align: left;
+      }
+
+      #summary-section h3 {
+        color: #00ffcc;
+        margin: 0 0 10px 0;
+        font-size: 16px;
+      }
+
+      #summary-text {
+        background: #111;
+        border: 1px solid #333;
+        border-radius: 10px;
+        padding: 14px;
+        font-size: 14px;
+        color: #ddd;
+        line-height: 1.7;
+        white-space: pre-wrap;
+        word-break: break-word;
+        max-height: 260px;
+        overflow-y: auto;
+        font-family: Arial, sans-serif;
+      }
+
+      .summary-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 10px;
+        width: 100%;
+      }
+
+      .summary-actions .end-btn {
+        flex: 1;
+        font-size: 13px;
+        padding: 8px 14px;
+      }
+
+      #dismiss-btn {
+        font-size: 12px;
+        color: #555;
+        cursor: pointer;
+        text-decoration: underline;
+        background: none;
+        border: none;
+      }
+
+      #dismiss-btn:hover {
+        color: #888;
+      }
     </style>
   </head>
   <body>
@@ -294,6 +422,29 @@
       </div>
     </div>
 
+    <!-- Session ended modal -->
+    <div id="session-end-modal">
+      <div id="session-end-content">
+        <img src="torc-logo.png" alt="Torc Logo" style="width:56px;height:56px;opacity:0.85;" />
+        <h2>Session Ended</h2>
+        <p id="session-end-subtitle">The translation session has ended.</p>
+
+        <button class="end-btn" id="download-transcript-btn">Download Transcript</button>
+        <button class="end-btn secondary" id="generate-summary-btn">Generate AI Summary</button>
+
+        <div id="summary-section">
+          <h3>Event Summary</h3>
+          <div id="summary-text"></div>
+          <div class="summary-actions">
+            <button class="end-btn secondary" id="copy-summary-btn">Copy Summary</button>
+            <button class="end-btn secondary" id="download-summary-btn">Download Summary</button>
+          </div>
+        </div>
+
+        <button id="dismiss-btn">Dismiss and view captions</button>
+      </div>
+    </div>
+
     <script>
       const params = new URLSearchParams(window.location.search);
       const guild = params.get("guild");
@@ -316,6 +467,8 @@
       if (savedLang) langSelect.value = savedLang;
 
       let activeWs = null;
+      let sessionEnded = false;
+      const captionLog = [];
 
       function sendLanguage(ws) {
         if (ws && ws.readyState === WebSocket.OPEN) {
@@ -339,16 +492,31 @@
 
         ws.onclose = () => {
           activeWs = null;
+          if (sessionEnded) return; // intentional end — don't reconnect
           statusDiv.innerText = "Disconnected. Reconnecting...";
           setTimeout(connect, 3000);
         };
 
         ws.onerror = () => {
-          statusDiv.innerText = "Connection error. Reconnecting...";
+          if (!sessionEnded) statusDiv.innerText = "Connection error. Reconnecting...";
         };
 
         ws.onmessage = (event) => {
           const data = JSON.parse(event.data);
+
+          if (data.type === "sessionEnd") {
+            sessionEnded = true;
+            showSessionEndModal();
+            return;
+          }
+
+          // Track caption for export/summary
+          captionLog.push({
+            speaker: data.displayName || data.userId,
+            translated: data.translated,
+            original: data.original,
+            timestamp: new Date(data.timestamp).toLocaleTimeString(),
+          });
 
           const div = document.createElement("div");
           div.className = "caption";
@@ -389,6 +557,88 @@
       }
 
       connect();
+
+      // ── Session end modal ──
+      const sessionEndModal = document.getElementById("session-end-modal");
+      const sessionEndSubtitle = document.getElementById("session-end-subtitle");
+      const downloadTranscriptBtn = document.getElementById("download-transcript-btn");
+      const generateSummaryBtn = document.getElementById("generate-summary-btn");
+      const summarySection = document.getElementById("summary-section");
+      const summaryText = document.getElementById("summary-text");
+      const copySummaryBtn = document.getElementById("copy-summary-btn");
+      const downloadSummaryBtn = document.getElementById("download-summary-btn");
+      const dismissBtn = document.getElementById("dismiss-btn");
+
+      function showSessionEndModal() {
+        statusDiv.innerText = "Session ended";
+        const count = captionLog.length;
+        sessionEndSubtitle.innerText =
+          count > 0
+            ? `The translation session has ended. ${count} caption${count === 1 ? "" : "s"} were captured.`
+            : "The translation session has ended. No captions were captured.";
+        summarySection.style.display = "none";
+        generateSummaryBtn.disabled = captionLog.length === 0;
+        sessionEndModal.classList.add("open");
+      }
+
+      dismissBtn.addEventListener("click", () => {
+        sessionEndModal.classList.remove("open");
+      });
+
+      downloadTranscriptBtn.addEventListener("click", () => {
+        if (captionLog.length === 0) return;
+        const lines = captionLog.map(c =>
+          `[${c.timestamp}] ${c.speaker}\n  ${c.translated}\n  (${c.original})`
+        );
+        const text = lines.join("\n\n");
+        triggerDownload(text, "transcript.txt", "text/plain");
+      });
+
+      generateSummaryBtn.addEventListener("click", async () => {
+        generateSummaryBtn.disabled = true;
+        generateSummaryBtn.innerText = "Generating...";
+        summarySection.style.display = "none";
+
+        try {
+          const res = await fetch("/api/summarize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ captions: captionLog }),
+          });
+          const json = await res.json();
+          if (!res.ok) throw new Error(json.error || "Unknown error");
+
+          summaryText.innerText = json.summary;
+          summarySection.style.display = "block";
+        } catch (err) {
+          summaryText.innerText = "Failed to generate summary: " + err.message;
+          summarySection.style.display = "block";
+        } finally {
+          generateSummaryBtn.disabled = false;
+          generateSummaryBtn.innerText = "Regenerate Summary";
+        }
+      });
+
+      copySummaryBtn.addEventListener("click", () => {
+        navigator.clipboard.writeText(summaryText.innerText).then(() => {
+          copySummaryBtn.innerText = "Copied!";
+          setTimeout(() => { copySummaryBtn.innerText = "Copy Summary"; }, 2000);
+        });
+      });
+
+      downloadSummaryBtn.addEventListener("click", () => {
+        triggerDownload(summaryText.innerText, "event-summary.txt", "text/plain");
+      });
+
+      function triggerDownload(text, filename, mimeType) {
+        const blob = new Blob([text], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+      }
 
       // ── Welcome modal (first-time visit only) ──
       const welcomeModal = document.getElementById("welcome-modal");
