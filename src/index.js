@@ -19,6 +19,7 @@ dotenv.config();
 =========================== */
 
 const { createHttpServer } = require('./services/httpServer');
+const { generateSummary } = require('./services/summarizeService');
 const { StreamingService } = require('./services/streamingService');
 const { SessionService } = require('./services/sessionService');
 const { VoiceService } = require('./services/voiceService');
@@ -84,7 +85,7 @@ if (fs.existsSync(eventsPath)) {
 
 const PORT = process.env.PORT || 3000;
 
-const server = createHttpServer();
+const server = createHttpServer({ onSummarize: generateSummary });
 const sessionService = new SessionService();
 const streamingService = new StreamingService(server, sessionService);
 
@@ -117,6 +118,7 @@ function shutdown() {
   console.log('Graceful shutdown initiated...');
 
   for (const guildId of sessionService.sessions.keys()) {
+    streamingService.broadcastSessionEnd(guildId);
     voiceService.stop(guildId);
     sessionService.deleteSession(guildId);
   }

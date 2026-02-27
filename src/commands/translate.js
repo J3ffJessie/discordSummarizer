@@ -20,7 +20,7 @@ module.exports = {
 
   async execute(interaction, services) {
     const subcommand = interaction.options.getSubcommand();
-    const { sessionService, voiceService } = services;
+    const { sessionService, voiceService, streamingService } = services;
 
     if (!interaction.guild) {
       return interaction.reply({
@@ -54,6 +54,7 @@ module.exports = {
 
       // Create session — stop voice capture when session auto-expires after 1 hour
       const session = sessionService.createSession(interaction.guildId, () => {
+        if (streamingService) streamingService.broadcastSessionEnd(interaction.guildId);
         if (voiceService) voiceService.stop(interaction.guildId);
       });
 
@@ -102,7 +103,8 @@ module.exports = {
         await voiceService.stop(interaction.guildId);
       }
 
-      // Remove session
+      // Signal clients the session is ending, then remove session
+      if (streamingService) streamingService.broadcastSessionEnd(interaction.guildId);
       sessionService.deleteSession(interaction.guildId);
 
       const embed = new EmbedBuilder()

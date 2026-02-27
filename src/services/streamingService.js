@@ -49,6 +49,16 @@ class StreamingService {
     return langs;
   }
 
+  broadcastSessionEnd(guildId) {
+    const session = this.sessionService.getSession(guildId);
+    if (!session) return;
+    for (const client of session.clients) {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({ type: 'sessionEnd' }));
+      }
+    }
+  }
+
   // translations: Map<language, translatedText>
   // Each client receives only the translation for their selected language.
   broadcast(guildId, captionBase, translations) {
