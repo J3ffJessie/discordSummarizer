@@ -110,6 +110,53 @@ module.exports = {
             .setDescription('IANA timezone (e.g. America/New_York)')
             .setRequired(true)
         )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('ai')
+        .setDescription('Configure the AI provider for summarization, translation, or transcription')
+        .addStringOption(opt =>
+          opt
+            .setName('service')
+            .setDescription('Which AI service to configure')
+            .setRequired(true)
+            .addChoices(
+              { name: 'Summarization', value: 'summarization' },
+              { name: 'Translation', value: 'translation' },
+              { name: 'Transcription (voice-to-text)', value: 'transcription' },
+            )
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('provider')
+            .setDescription('AI provider to use')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Groq (default)', value: 'groq' },
+              { name: 'OpenAI', value: 'openai' },
+              { name: 'Anthropic (Claude)', value: 'anthropic' },
+              { name: 'Ollama (local)', value: 'ollama' },
+              { name: 'Custom (OpenAI-compatible)', value: 'custom' },
+            )
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('key')
+            .setDescription('API key for the selected provider')
+            .setRequired(false)
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('model')
+            .setDescription('Model name (e.g. llama-3.1-8b-instant, gpt-4o-mini, claude-haiku-4-5-20251001)')
+            .setRequired(false)
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('url')
+            .setDescription('Base URL — required for Ollama (http://localhost:11434/v1) or custom endpoints')
+            .setRequired(false)
+        )
     ),
 
   async execute(interaction, services) {
@@ -139,6 +186,16 @@ module.exports = {
       const coffeeCooldown = config?.coffee_cooldown_days ?? Number(process.env.COFFEE_PAIRING_COOLDOWN_DAYS || 30);
       const timezone = config?.timezone || process.env.CRON_TIMEZONE || 'UTC';
 
+      const summProvider = config?.summ_provider || process.env.SUMM_PROVIDER || 'groq (default)';
+      const transProvider = config?.trans_provider || process.env.TRANS_PROVIDER || 'groq (default)';
+      const sttProvider = config?.stt_provider || process.env.STT_PROVIDER || 'groq (default)';
+      const summModel = config?.summ_model || process.env.SUMM_MODEL || '(provider default)';
+      const transModel = config?.trans_model || process.env.TRANS_MODEL || '(provider default)';
+      const sttModel = config?.stt_model || process.env.STT_MODEL || '(provider default)';
+      const summKey = config?.summ_api_key ? '✅ Set' : (process.env.SUMM_API_KEY || process.env.GROQ_API_KEY ? '✅ Env var' : '❌ Not set');
+      const transKey = config?.trans_api_key ? '✅ Set' : (process.env.TRANS_API_KEY || process.env.GROQ_API_KEY ? '✅ Env var' : '❌ Not set — use `/setup ai` to configure');
+      const sttKey = config?.stt_api_key ? '✅ Set' : (process.env.STT_API_KEY || process.env.GROQ_API_KEY ? '✅ Env var' : '❌ Not set');
+
       const embed = new EmbedBuilder()
         .setTitle('Server Configuration')
         .setColor(0x5865f2)
@@ -152,6 +209,10 @@ module.exports = {
           { name: 'Coffee Schedule', value: `\`${coffeeCron}\``, inline: true },
           { name: 'Biweekly', value: coffeeBiweekly, inline: true },
           { name: 'Cooldown', value: `${coffeeCooldown} days`, inline: true },
+          { name: '\u200b', value: '\u200b', inline: false },
+          { name: 'AI — Summarization', value: `Provider: \`${summProvider}\`\nModel: \`${summModel}\`\nKey: ${summKey}`, inline: false },
+          { name: 'AI — Translation', value: `Provider: \`${transProvider}\`\nModel: \`${transModel}\`\nKey: ${transKey}`, inline: false },
+          { name: 'AI — Transcription', value: `Provider: \`${sttProvider}\`\nModel: \`${sttModel}\`\nKey: ${sttKey}`, inline: false },
         )
         .setFooter({ text: 'Use /setup <subcommand> to configure individual settings.' })
         .setTimestamp();
@@ -326,6 +387,57 @@ module.exports = {
         .setTitle('Timezone Updated')
         .setDescription(`All scheduled tasks will now use: \`${tz}\``)
         .setColor(0x5865f2)
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (subcommand === 'ai') {
+      const service  = interaction.options.getString('service');
+      const provider = interaction.options.getString('provider');
+      const key      = interaction.options.getString('key');
+      const model    = interaction.options.getString('model');
+      const url      = interaction.options.getString('url');
+
+      if (!provider && !key && !model && !url) {
+        return interaction.reply({
+          content: '❌ Please provide at least one option to update (provider, key, model, or url).',
+          ephemeral: true,
+        });
+      }
+
+      // Map service name → column prefix
+      const prefixMap = { summarization: 'summ', translation: 'trans', transcription: 'stt' };
+      const prefix = prefixMap[service];
+
+      const fields = {};
+      if (provider) fields[`${prefix}_provider`] = provider;
+      if (key)      fields[`${prefix}_api_key`]  = key;
+      if (model)    fields[`${prefix}_model`]    = model;
+      if (url)      fields[`${prefix}_base_url`] = url;
+
+      // Warn if Ollama/custom need a URL
+      if (provider === 'custom' && !url && !guildConfigService.getConfig(guildId)?.[`${prefix}_base_url`]) {
+        return interaction.reply({
+          content: '❌ The `custom` provider requires a base URL. Add `url:` to your command.',
+          ephemeral: true,
+        });
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+      guildConfigService.upsertConfig(guildId, fields);
+
+      const lines = [];
+      if (provider) lines.push(`**Provider:** \`${provider}\``);
+      if (model)    lines.push(`**Model:** \`${model}\``);
+      if (key)      lines.push(`**API Key:** ✅ Saved`);
+      if (url)      lines.push(`**Base URL:** \`${url}\``);
+
+      const embed = new EmbedBuilder()
+        .setTitle(`AI Settings Updated — ${service.charAt(0).toUpperCase() + service.slice(1)}`)
+        .setDescription(lines.join('\n'))
+        .setColor(0x2ecc71)
+        .setFooter({ text: 'Changes take effect immediately on the next request.' })
         .setTimestamp();
 
       return interaction.editReply({ embeds: [embed] });

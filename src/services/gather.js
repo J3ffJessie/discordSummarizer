@@ -1,7 +1,6 @@
 const { ChannelType } = require('discord.js');
-const groq = require('./groq');
 
-async function gatherServerConversationsAndSummarize(guild, useServerSummarize = false) {
+async function gatherServerConversationsAndSummarize(guild, useServerSummarize = false, { summarizationService, guildId } = {}) {
   let allMessages = [];
 
   for (const channel of guild.channels.cache.values()) {
@@ -22,9 +21,9 @@ async function gatherServerConversationsAndSummarize(guild, useServerSummarize =
   if (combined.length > 16000) combined = combined.slice(-16000);
 
   if (useServerSummarize) {
-    return await groq.serverSummarize(combined);
+    return await summarizationService.serverSummarize(combined, guildId);
   } else {
-    return await groq.summarizeMessages(combined);
+    return await summarizationService.summarizeMessages(combined, guildId);
   }
 }
 

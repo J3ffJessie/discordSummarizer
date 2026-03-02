@@ -26,6 +26,7 @@ const { TranscriptionService } = require('./services/transcriptionService');
 const { TranslationService } = require('./services/translationService');
 const { SchedulerService } = require('./services/schedulerService');
 const { GuildConfigService } = require('./services/guildConfigService');
+const { SummarizationService } = require('./services/groq');
 const logger = require('./utils/logger');
 
 /* ===========================
@@ -90,8 +91,9 @@ const guildConfigService = new GuildConfigService();
 const sessionService = new SessionService();
 const streamingService = new StreamingService(server, sessionService);
 
-const transcriptionService = new TranscriptionService();
-const translationService = new TranslationService();
+const transcriptionService = new TranscriptionService(guildConfigService);
+const translationService = new TranslationService(guildConfigService);
+const summarizationService = new SummarizationService(guildConfigService);
 
 const voiceService = new VoiceService(
   client,
@@ -101,7 +103,7 @@ const voiceService = new VoiceService(
   translationService
 );
 
-const schedulerService = new SchedulerService(client, guildConfigService);
+const schedulerService = new SchedulerService(client, guildConfigService, summarizationService);
 
 client.services = {
   guildConfigService,
@@ -109,6 +111,7 @@ client.services = {
   streamingService,
   voiceService,
   schedulerService,
+  summarizationService,
 };
 
 server.listen(PORT, () => {

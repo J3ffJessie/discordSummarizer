@@ -21,10 +21,37 @@ const CREATE_TABLE = `
   )
 `;
 
+// Columns added after initial schema — applied via migration on startup
+const AI_COLUMNS = [
+  'summ_provider  TEXT',
+  'summ_api_key   TEXT',
+  'summ_model     TEXT',
+  'summ_base_url  TEXT',
+  'trans_provider TEXT',
+  'trans_api_key  TEXT',
+  'trans_model    TEXT',
+  'trans_base_url TEXT',
+  'stt_provider   TEXT',
+  'stt_api_key    TEXT',
+  'stt_model      TEXT',
+  'stt_base_url   TEXT',
+];
+
 class GuildConfigService {
   constructor() {
     this.db = new Database(DB_PATH);
     this.db.exec(CREATE_TABLE);
+    this._addMissingColumns();
+  }
+
+  _addMissingColumns() {
+    const existing = this.db.pragma('table_info(guild_config)').map(r => r.name);
+    for (const colDef of AI_COLUMNS) {
+      const colName = colDef.trim().split(/\s+/)[0];
+      if (!existing.includes(colName)) {
+        this.db.exec(`ALTER TABLE guild_config ADD COLUMN ${colDef}`);
+      }
+    }
   }
 
   getConfig(guildId) {

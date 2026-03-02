@@ -12,9 +12,10 @@ function getISOWeek(date) {
 }
 
 class SchedulerService {
-  constructor(client, guildConfigService) {
+  constructor(client, guildConfigService, summarizationService) {
     this.client = client;
     this.guildConfigService = guildConfigService;
+    this.summarizationService = summarizationService;
     // Map<guildId, { summaryTask: ScheduledTask|null, coffeeTask: ScheduledTask|null }>
     this.tasks = new Map();
   }
@@ -117,7 +118,10 @@ class SchedulerService {
     if (!guild) guild = await this.client.guilds.fetch(guildId).catch(() => null);
     if (!guild) return;
 
-    const summary = await gather.gatherServerConversationsAndSummarize(guild, true);
+    const summary = await gather.gatherServerConversationsAndSummarize(guild, true, {
+      summarizationService: this.summarizationService,
+      guildId,
+    });
     const chunks = summary.match(/[\s\S]{1,1900}/g) || ['No summary available.'];
 
     let channel = guild.channels.cache.get(config.summary_channel_id);
