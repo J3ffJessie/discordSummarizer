@@ -101,6 +101,7 @@ class SchedulerService {
 
     const task = cron.schedule(cronExpr, async () => {
       try {
+        // Skip every other week when biweekly mode is on (runs on even ISO weeks).
         if (biweekly && getISOWeek(new Date()) % 2 !== 0) return;
         await this._runCoffeeForGuild(guildId, config);
       } catch (err) {
