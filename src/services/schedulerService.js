@@ -138,7 +138,9 @@ class SchedulerService {
 
     const result = await coffeeService.runCoffeePairing(
       guild,
-      config.coffee_role_name || process.env.COFFEE_ROLE_NAME || 'coffee chat'
+      config.coffee_role_name || process.env.COFFEE_ROLE_NAME || 'coffee chat',
+      'scheduled',
+      config.coffee_cooldown_days ?? null
     );
 
     logger.notifyAdmin(

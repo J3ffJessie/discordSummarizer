@@ -251,14 +251,14 @@ async function notifyPairs(pairs, guild, source = 'scheduled') {
   return { results, failed: totalFailedDMs };
 }
 
-async function runCoffeePairing(guild, roleIdentifier = process.env.COFFEE_ROLE_NAME || 'coffee chat', source = 'scheduled') {
+async function runCoffeePairing(guild, roleIdentifier = process.env.COFFEE_ROLE_NAME || 'coffee chat', source = 'scheduled', cooldownDays = null) {
   try {
     const members = await getMembersWithCoffeeRole(guild, roleIdentifier);
     console.log(`runCoffeePairing: found ${members.length} members eligible`);
     if (!members || members.length < 2) return [];
     let history = readCoffeePairs();
-    const cooldownDays = Number(process.env.COFFEE_PAIRING_COOLDOWN_DAYS || 30);
-    const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
+    const effectiveCooldownDays = cooldownDays !== null ? Number(cooldownDays) : Number(process.env.COFFEE_PAIRING_COOLDOWN_DAYS || 30);
+    const cooldownMs = effectiveCooldownDays * 24 * 60 * 60 * 1000;
     const pairs = pairUpWithCooldown(members, history, cooldownMs);
     console.log(`runCoffeePairing: created ${pairs.length} pair groups`);
     const res = await notifyPairs(pairs, guild, source);
