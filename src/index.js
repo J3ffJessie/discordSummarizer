@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const dotenv = require('dotenv');
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, Events } = require('discord.js');
 
 dotenv.config();
 
@@ -25,6 +25,7 @@ const { VoiceService } = require('./services/voiceService');
 const { TranscriptionService } = require('./services/transcriptionService');
 const { TranslationService } = require('./services/translationService');
 const { SchedulerService } = require('./services/schedulerService');
+const { MessageStatsService } = require('./services/messageStatsService');
 const logger = require('./utils/logger');
 
 /* ===========================
@@ -84,7 +85,53 @@ if (fs.existsSync(eventsPath)) {
 
 const PORT = process.env.PORT || 3000;
 
-const server = createHttpServer();
+const messageStatsService = new MessageStatsService();
+
+const server = createHttpServer({
+  getStats: () => messageStatsService.getStats(),
+  getGuild: () => {
+    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+    if (!guild) return null;
+    return { name: guild.name, iconURL: guild.iconURL({ size: 64 }) };
+  },
+  getMembers: () => {
+    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+    if (!guild) return null;
+    const cachedMembers = guild.members.cache;
+    const botCount = cachedMembers.filter(m => m.user.bot).size;
+    const roleCounts = new Map();
+    for (const [, member] of cachedMembers) {
+      if (member.user.bot) continue;
+      for (const [, role] of member.roles.cache) {
+        if (role.name === '@everyone') continue;
+        const existing = roleCounts.get(role.id);
+        roleCounts.set(role.id, {
+          name: role.name,
+          color: role.hexColor !== '#000000' ? role.hexColor : '#99aab5',
+          count: (existing?.count || 0) + 1,
+        });
+      }
+    }
+    const topRoles = [...roleCounts.values()]
+      .filter(r => r.count > 0)
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+    const channels = guild.channels.cache;
+    const textChannelCount = channels.filter(c => c.isTextBased() && !c.isDMBased() && !c.isThread()).size;
+    const voiceChannelCount = channels.filter(c => !c.isDMBased() && c.isVoiceBased?.()).size;
+    return {
+      totalMembers: guild.memberCount,
+      humanCount: guild.memberCount - botCount,
+      botCount,
+      boostTier: guild.premiumTier,
+      boostCount: guild.premiumSubscriptionCount || 0,
+      textChannelCount,
+      voiceChannelCount,
+      roleCount: guild.roles.cache.size - 1,
+      topRoles,
+    };
+  },
+});
 const sessionService = new SessionService();
 const streamingService = new StreamingService(server, sessionService);
 
@@ -103,6 +150,7 @@ client.services = {
   sessionService,
   streamingService,
   voiceService,
+  messageStats: messageStatsService,
 };
 
 server.listen(PORT, () => {
@@ -141,6 +189,12 @@ schedulerService.start();
 /* ===========================
    LOGIN
 =========================== */
+
+client.once(Events.ClientReady, () => {
+  messageStatsService.backfillHistory(client).catch(err => {
+    console.error('[messageStats] Backfill error:', err.message);
+  });
+});
 
 if (!process.env.DISCORD_TOKEN) {
   console.error('DISCORD_TOKEN not set.');
