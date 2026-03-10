@@ -88,16 +88,26 @@ if (fs.existsSync(eventsPath)) {
 const PORT = process.env.PORT || 3000;
 
 const messageStatsService = new MessageStatsService();
+const guildConfigService = new GuildConfigService();
 
 const server = createHttpServer({
-  getStats: () => messageStatsService.getStats(),
-  getGuild: () => {
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+  guildConfigService,
+  getStats: (guildId) => messageStatsService.getStats(guildId),
+  getGuild: (guildId) => {
+    const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
     if (!guild) return null;
     return { name: guild.name, iconURL: guild.iconURL({ size: 64 }) };
   },
-  getMembers: () => {
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+  getChannels: (guildId) => {
+    const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
+    if (!guild) return [];
+    return guild.channels.cache
+      .filter(c => c.isTextBased() && !c.isDMBased() && !c.isThread())
+      .map(c => ({ id: c.id, name: c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+  getMembers: (guildId) => {
+    const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
     if (!guild) return null;
     const cachedMembers = guild.members.cache;
     const botCount = cachedMembers.filter(m => m.user.bot).size;
@@ -134,7 +144,6 @@ const server = createHttpServer({
     };
   },
 });
-const guildConfigService = new GuildConfigService();
 const sessionService = new SessionService();
 const streamingService = new StreamingService(server, sessionService);
 

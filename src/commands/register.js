@@ -24,7 +24,9 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
     console.log('Registering commands...');
-    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+    // await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+    await rest.put(Routes.applicationGuildCommands(CLIENT_ID, process.env.GUILD_ID), { body: commands });
+
     console.log('Commands registered');
   } catch (err) {
     console.error('Failed to register commands:', err?.message || err);

@@ -178,10 +178,80 @@
       max-height: 600px; overflow-y: auto; overflow-x: auto;
     }
 
+    /* ── Settings ── */
+    .settings-card {
+      background: var(--surface); border-radius: 8px; padding: 24px;
+      margin-bottom: 20px; border: 1px solid var(--border);
+    }
+    .settings-card-title {
+      font-size: 15px; font-weight: 700; color: var(--bright);
+      margin-bottom: 4px;
+    }
+    .settings-card-sub {
+      font-size: 12px; color: var(--muted); margin-bottom: 20px;
+    }
+    .field-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+      margin-bottom: 16px;
+    }
+    .field-row.full { grid-template-columns: 1fr; }
+    .field-row.triple { grid-template-columns: 1fr 1fr 1fr; }
+    .field-group { display: flex; flex-direction: column; gap: 6px; }
+    .field-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--muted);
+    }
+    .field-group input[type="text"],
+    .field-group input[type="password"],
+    .field-group input[type="number"],
+    .field-group select {
+      background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+      color: var(--text); font-size: 13px; padding: 7px 10px; outline: none;
+      font-family: inherit; width: 100%;
+    }
+    .field-group input:focus, .field-group select:focus { border-color: var(--purple); }
+    .toggle-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; border-bottom: 1px solid var(--border); margin-bottom: 16px;
+    }
+    .toggle-label { font-size: 13px; color: var(--text); }
+    .toggle-sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .toggle { position: relative; width: 40px; height: 22px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider {
+      position: absolute; inset: 0; background: var(--border);
+      border-radius: 22px; cursor: pointer; transition: background 0.2s;
+    }
+    .toggle-slider::before {
+      content: ''; position: absolute;
+      width: 16px; height: 16px; left: 3px; bottom: 3px;
+      background: #fff; border-radius: 50%; transition: transform 0.2s;
+    }
+    .toggle input:checked + .toggle-slider { background: var(--green); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(18px); }
+    .save-row { display: flex; align-items: center; gap: 12px; margin-top: 20px; }
+    .save-status { font-size: 12px; }
+    .save-status.ok  { color: var(--green); }
+    .save-status.err { color: var(--red); }
+    .ai-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+    .ai-card {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 16px;
+    }
+    .ai-card-title { font-size: 13px; font-weight: 700; color: var(--bright); margin-bottom: 14px; }
+    .ai-card .field-group { margin-bottom: 12px; }
+    .ai-card .field-group:last-child { margin-bottom: 0; }
+    .token-expired-banner {
+      background: rgba(242,63,67,0.15); border: 1px solid var(--red);
+      border-radius: 6px; padding: 14px 18px; margin-bottom: 24px;
+      color: var(--red); font-size: 13px;
+    }
+
     @media (max-width: 900px) {
       .two-col { grid-template-columns: 1fr; }
       .main { padding: 20px 20px 60px; }
       .sidebar { display: none; }
+      .field-row, .field-row.triple { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -230,6 +300,13 @@
     <a class="nav-item" href="#section-report">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
       Generate Report
+    </a>
+  </div>
+  <div class="nav-section" id="nav-settings" style="display:none">
+    <div class="nav-label">Admin</div>
+    <a class="nav-item" href="#section-settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a6.97 6.97 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22l-1.92 3.32a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+      Settings
     </a>
   </div>
 </div>
@@ -439,6 +516,175 @@
       <pre id="report-output" class="report-preview"></pre>
     </div>
     <p class="note">Not available via Discord API: Visitors, Retention Rate, Audience by country. Departure history only tracked from bot deployment forward.</p>
+  </div>
+
+  <!-- ═══ Settings ═══ -->
+  <div class="section" id="section-settings" style="display:none">
+    <div class="section-header">
+      <div class="section-title">Server Settings</div>
+      <div class="section-sub">Configure your bot directly from the dashboard. Changes take effect immediately.</div>
+    </div>
+
+    <div id="settings-token-expired" class="token-expired-banner" style="display:none">
+      ⚠ Your dashboard link has expired. Run <strong>/setup dashboard</strong> in Discord to get a new one.
+    </div>
+
+    <!-- Server Summaries -->
+    <div class="settings-card">
+      <div class="settings-card-title">Server Summaries</div>
+      <div class="settings-card-sub">Automated AI-generated summaries posted to a channel on a schedule.</div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Enable automated summaries</div>
+          <div class="toggle-sub">Post a summary to the selected channel on the configured schedule.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="cfg-summary-enabled"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <div class="field-label">Summary Channel</div>
+          <select id="cfg-summary-channel">
+            <option value="">— Select a channel —</option>
+          </select>
+        </div>
+        <div class="field-group">
+          <div class="field-label">Timezone</div>
+          <input type="text" id="cfg-timezone" placeholder="e.g. America/New_York" />
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <div class="field-label">Cron Schedule</div>
+          <input type="text" id="cfg-summary-cron" placeholder="e.g. 0 10 * * 1  (Mon 10am)" />
+        </div>
+      </div>
+      <div class="save-row">
+        <button class="btn-primary" id="btn-save-summary">Save Summary Settings</button>
+        <span class="save-status" id="status-summary"></span>
+      </div>
+    </div>
+
+    <!-- Coffee Pairing -->
+    <div class="settings-card">
+      <div class="settings-card-title">Coffee Pairing</div>
+      <div class="settings-card-sub">Automatically pair members for 1:1 conversations on a schedule.</div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Enable coffee pairing</div>
+          <div class="toggle-sub">DM matched pairs on the configured schedule.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="cfg-coffee-enabled"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Biweekly (every other week)</div>
+          <div class="toggle-sub">Run every 2 weeks instead of every week.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="cfg-coffee-biweekly"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="field-row triple">
+        <div class="field-group">
+          <div class="field-label">Role Name</div>
+          <input type="text" id="cfg-coffee-role" placeholder="e.g. coffee chat" />
+        </div>
+        <div class="field-group">
+          <div class="field-label">Cron Schedule</div>
+          <input type="text" id="cfg-coffee-cron" placeholder="e.g. 0 10 * * 5  (Fri 10am)" />
+        </div>
+        <div class="field-group">
+          <div class="field-label">Cooldown (days)</div>
+          <input type="number" id="cfg-coffee-cooldown" min="1" placeholder="30" />
+        </div>
+      </div>
+      <div class="save-row">
+        <button class="btn-primary" id="btn-save-coffee">Save Coffee Settings</button>
+        <span class="save-status" id="status-coffee"></span>
+      </div>
+    </div>
+
+    <!-- AI Providers -->
+    <div class="settings-card">
+      <div class="settings-card-title">AI Providers</div>
+      <div class="settings-card-sub">Each service can use a different provider and API key. Leave the key blank to keep the existing value.</div>
+      <div class="ai-grid">
+        <!-- Summarization -->
+        <div class="ai-card">
+          <div class="ai-card-title">Summarization</div>
+          <div class="field-group">
+            <div class="field-label">Provider</div>
+            <select id="cfg-summ-provider">
+              <option value="groq">Groq</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="ollama">Ollama (local)</option>
+              <option value="custom">Custom (OpenAI-compatible)</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <div class="field-label">API Key</div>
+            <input type="password" id="cfg-summ-key" placeholder="Leave blank to keep existing" autocomplete="new-password" />
+          </div>
+          <div class="field-group">
+            <div class="field-label">Model</div>
+            <input type="text" id="cfg-summ-model" placeholder="e.g. llama-3.1-8b-instant" />
+          </div>
+          <div class="field-group">
+            <div class="field-label">Base URL (Ollama / Custom only)</div>
+            <input type="text" id="cfg-summ-url" placeholder="e.g. http://localhost:11434/v1" />
+          </div>
+        </div>
+        <!-- Translation -->
+        <div class="ai-card">
+          <div class="ai-card-title">Translation</div>
+          <div class="field-group">
+            <div class="field-label">Provider</div>
+            <select id="cfg-trans-provider">
+              <option value="groq">Groq</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="ollama">Ollama (local)</option>
+              <option value="custom">Custom (OpenAI-compatible)</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <div class="field-label">API Key</div>
+            <input type="password" id="cfg-trans-key" placeholder="Leave blank to keep existing" autocomplete="new-password" />
+          </div>
+          <div class="field-group">
+            <div class="field-label">Model</div>
+            <input type="text" id="cfg-trans-model" placeholder="e.g. llama-3.1-8b-instant" />
+          </div>
+          <div class="field-group">
+            <div class="field-label">Base URL (Ollama / Custom only)</div>
+            <input type="text" id="cfg-trans-url" placeholder="e.g. http://localhost:11434/v1" />
+          </div>
+        </div>
+        <!-- Transcription -->
+        <div class="ai-card">
+          <div class="ai-card-title">Transcription (Voice-to-Text)</div>
+          <div class="field-group">
+            <div class="field-label">Provider</div>
+            <select id="cfg-stt-provider">
+              <option value="groq">Groq</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <div class="field-label">API Key</div>
+            <input type="password" id="cfg-stt-key" placeholder="Leave blank to keep existing" autocomplete="new-password" />
+          </div>
+          <div class="field-group">
+            <div class="field-label">Model</div>
+            <input type="text" id="cfg-stt-model" placeholder="e.g. whisper-large-v3-turbo" />
+          </div>
+        </div>
+      </div>
+      <div class="save-row">
+        <button class="btn-primary" id="btn-save-ai">Save AI Settings</button>
+        <span class="save-status" id="status-ai"></span>
+      </div>
+    </div>
+
   </div>
 
 </div><!-- /main -->
@@ -838,16 +1084,19 @@
   document.getElementById('date-end').max=toInputVal(today0());
   syncInputs();
 
+  const _guildId = new URLSearchParams(location.search).get('guildId');
+  const _qs = _guildId ? `?guildId=${encodeURIComponent(_guildId)}` : '';
+
   async function loadStats() {
     try {
-      const res=await fetch('/api/stats'); if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res=await fetch('/api/stats'+_qs); if(!res.ok) throw new Error(`HTTP ${res.status}`);
       renderAll(await res.json());
       document.getElementById('last-updated').textContent='Updated '+new Date().toLocaleTimeString();
     } catch(err){ console.error('Stats fetch error:',err); }
   }
   async function loadGuildInfo() {
     try {
-      const res=await fetch('/api/guild'); if(!res.ok) return;
+      const res=await fetch('/api/guild'+_qs); if(!res.ok) return;
       const g=await res.json(); if(!g.name) return;
       document.getElementById('server-name').textContent=g.name;
       document.title=`${g.name} — Server Insights`;
@@ -857,7 +1106,7 @@
   }
   async function loadMembers() {
     try {
-      const res=await fetch('/api/members'); if(!res.ok) return;
+      const res=await fetch('/api/members'+_qs); if(!res.ok) return;
       rawMembers=await res.json(); renderLive(rawMembers);
     } catch(err){ console.error('Members fetch error:',err); }
   }
@@ -1003,6 +1252,142 @@
       a.href = url; a.download = fname; a.click();
       URL.revokeObjectURL(url);
     });
+  })();
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+  (function initSettings() {
+    const _token = new URLSearchParams(location.search).get('token');
+    if (!_token) return; // No token = read-only view, hide settings
+
+    document.getElementById('nav-settings').style.display = '';
+    document.getElementById('section-settings').style.display = '';
+
+    async function loadConfig() {
+      try {
+        const res = await fetch('/api/config' + _qs);
+        if (!res.ok) return;
+        const cfg = await res.json();
+        populateConfig(cfg);
+      } catch(err) { console.error('Config fetch error:', err); }
+    }
+
+    async function loadChannels() {
+      try {
+        const res = await fetch('/api/channels' + _qs);
+        if (!res.ok) return;
+        const channels = await res.json();
+        const sel = document.getElementById('cfg-summary-channel');
+        channels.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id; opt.textContent = '#' + c.name;
+          sel.appendChild(opt);
+        });
+      } catch(err) { console.error('Channels fetch error:', err); }
+    }
+
+    function populateConfig(cfg) {
+      if (!cfg) return;
+      setCheck('cfg-summary-enabled', cfg.summary_enabled);
+      setVal('cfg-summary-channel',   cfg.summary_channel_id || '');
+      setVal('cfg-timezone',          cfg.timezone || '');
+      setVal('cfg-summary-cron',      cfg.summary_cron || '');
+
+      setCheck('cfg-coffee-enabled',  cfg.coffee_enabled);
+      setCheck('cfg-coffee-biweekly', cfg.coffee_biweekly);
+      setVal('cfg-coffee-role',       cfg.coffee_role_name || '');
+      setVal('cfg-coffee-cron',       cfg.coffee_cron || '');
+      setVal('cfg-coffee-cooldown',   cfg.coffee_cooldown_days || '');
+
+      // Providers
+      setVal('cfg-summ-provider',  cfg.summ_provider  || 'groq');
+      setVal('cfg-trans-provider', cfg.trans_provider || 'groq');
+      setVal('cfg-stt-provider',   cfg.stt_provider   || 'groq');
+      // Models
+      setVal('cfg-summ-model',  cfg.summ_model  || '');
+      setVal('cfg-trans-model', cfg.trans_model || '');
+      setVal('cfg-stt-model',   cfg.stt_model   || '');
+      // Base URLs
+      setVal('cfg-summ-url',  cfg.summ_base_url  || '');
+      setVal('cfg-trans-url', cfg.trans_base_url || '');
+      // API keys: cfg value is boolean (true = already set)
+      document.getElementById('cfg-summ-key').placeholder  = cfg.summ_api_key  ? '••••• already set — leave blank to keep' : 'Enter API key';
+      document.getElementById('cfg-trans-key').placeholder = cfg.trans_api_key ? '••••• already set — leave blank to keep' : 'Enter API key';
+      document.getElementById('cfg-stt-key').placeholder   = cfg.stt_api_key   ? '••••• already set — leave blank to keep' : 'Enter API key';
+    }
+
+    function setVal(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.value = val ?? '';
+    }
+    function setCheck(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.checked = !!val;
+    }
+
+    async function saveConfig(fields, statusId) {
+      const statusEl = document.getElementById(statusId);
+      statusEl.textContent = 'Saving…'; statusEl.className = 'save-status';
+      try {
+        const res = await fetch('/api/config' + _qs, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: _token, ...fields }),
+        });
+        const data = await res.json();
+        if (res.ok) {
+          statusEl.textContent = '✓ Saved'; statusEl.className = 'save-status ok';
+        } else if (res.status === 401) {
+          document.getElementById('settings-token-expired').style.display = '';
+          statusEl.textContent = 'Link expired'; statusEl.className = 'save-status err';
+        } else {
+          statusEl.textContent = data.error || 'Error saving'; statusEl.className = 'save-status err';
+        }
+      } catch(err) {
+        statusEl.textContent = 'Network error'; statusEl.className = 'save-status err';
+      }
+      setTimeout(() => { statusEl.textContent = ''; }, 4000);
+    }
+
+    function getVal(id)   { return document.getElementById(id)?.value?.trim() || ''; }
+    function getCheck(id) { return document.getElementById(id)?.checked ? 1 : 0; }
+
+    document.getElementById('btn-save-summary').addEventListener('click', () => {
+      saveConfig({
+        summary_enabled:    getCheck('cfg-summary-enabled'),
+        summary_channel_id: getVal('cfg-summary-channel'),
+        timezone:           getVal('cfg-timezone'),
+        summary_cron:       getVal('cfg-summary-cron'),
+      }, 'status-summary');
+    });
+
+    document.getElementById('btn-save-coffee').addEventListener('click', () => {
+      saveConfig({
+        coffee_enabled:       getCheck('cfg-coffee-enabled'),
+        coffee_biweekly:      getCheck('cfg-coffee-biweekly'),
+        coffee_role_name:     getVal('cfg-coffee-role'),
+        coffee_cron:          getVal('cfg-coffee-cron'),
+        coffee_cooldown_days: Number(getVal('cfg-coffee-cooldown')) || 30,
+      }, 'status-coffee');
+    });
+
+    document.getElementById('btn-save-ai').addEventListener('click', () => {
+      saveConfig({
+        summ_provider:  getVal('cfg-summ-provider'),
+        summ_api_key:   getVal('cfg-summ-key'),
+        summ_model:     getVal('cfg-summ-model'),
+        summ_base_url:  getVal('cfg-summ-url'),
+        trans_provider: getVal('cfg-trans-provider'),
+        trans_api_key:  getVal('cfg-trans-key'),
+        trans_model:    getVal('cfg-trans-model'),
+        trans_base_url: getVal('cfg-trans-url'),
+        stt_provider:   getVal('cfg-stt-provider'),
+        stt_api_key:    getVal('cfg-stt-key'),
+        stt_model:      getVal('cfg-stt-model'),
+      }, 'status-ai');
+    });
+
+    loadChannels();
+    loadConfig();
   })();
 </script>
 </body>

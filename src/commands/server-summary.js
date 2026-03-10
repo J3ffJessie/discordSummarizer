@@ -17,7 +17,12 @@ module.exports = {
         guildId: interaction.guildId,
       });
       const chunks = summary.match(/[\s\S]{1,1900}/g) || ['No summary available.'];
-      const targetChannelId = process.env.TARGET_CHANNEL_ID || '1392954859803644014';
+      const guildConfig = await services.guildConfigService?.getConfig(interaction.guildId).catch(() => null);
+      const targetChannelId = guildConfig?.summary_channel_id || process.env.TARGET_CHANNEL_ID;
+      if (!targetChannelId) {
+        await interaction.followUp({ content: '❌ No summary channel configured. Use `/setup` to set one.', ephemeral: true });
+        return;
+      }
       let channel = interaction.guild.channels.cache.get(targetChannelId);
       if (!channel) channel = await interaction.guild.channels.fetch(targetChannelId).catch(() => null);
       if (!channel) {

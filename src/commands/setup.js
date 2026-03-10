@@ -157,6 +157,11 @@ module.exports = {
             .setDescription('Base URL — required for Ollama (http://localhost:11434/v1) or custom endpoints')
             .setRequired(false)
         )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('dashboard')
+        .setDescription('Get a private link to the web configuration dashboard (expires in 24 hours)')
     ),
 
   async execute(interaction, services) {
@@ -441,6 +446,36 @@ module.exports = {
         .setTimestamp();
 
       return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (subcommand === 'dashboard') {
+      const token = guildConfigService.generateDashboardToken(guildId);
+      const baseUrl = (process.env.PUBLIC_URL || process.env.CAPTION_URL || '').replace(/\/$/, '');
+
+      if (!baseUrl) {
+        return interaction.reply({
+          content: '❌ `PUBLIC_URL` environment variable is not set. Ask the bot owner to configure it.',
+          ephemeral: true,
+        });
+      }
+
+      const url = `${baseUrl}/public/dashboard.html?guildId=${guildId}&token=${token}`;
+
+      const embed = new EmbedBuilder()
+        .setTitle('Server Dashboard')
+        .setDescription(
+          `[Open your server dashboard](${url})\n\n` +
+          '**This link expires in 24 hours.** Do not share it — anyone with this link can change your server settings.\n\n' +
+          'From the dashboard you can configure:\n' +
+          '• Server summary channel and schedule\n' +
+          '• Coffee pairing settings\n' +
+          '• AI providers and API keys'
+        )
+        .setColor(0x5865f2)
+        .setFooter({ text: 'Run /setup dashboard again to generate a new link.' })
+        .setTimestamp();
+
+      return interaction.reply({ embeds: [embed], ephemeral: true });
     }
   },
 };

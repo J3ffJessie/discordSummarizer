@@ -1,5 +1,6 @@
 const Database = require('better-sqlite3');
 const path = require('path');
+const crypto = require('crypto');
 const { ensureDataDir } = require('../utils/helpers');
 
 const DB_PATH = path.join(ensureDataDir(), 'guild_config.db');
@@ -35,6 +36,8 @@ const AI_COLUMNS = [
   'stt_api_key    TEXT',
   'stt_model      TEXT',
   'stt_base_url   TEXT',
+  'dashboard_token     TEXT',
+  'dashboard_token_exp TEXT',
 ];
 
 class GuildConfigService {
@@ -102,6 +105,21 @@ class GuildConfigService {
 
   getAllWithCoffeeEnabled() {
     return this.db.prepare('SELECT * FROM guild_config WHERE coffee_enabled = 1').all();
+  }
+
+  generateDashboardToken(guildId) {
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+    this.upsertConfig(guildId, { dashboard_token: token, dashboard_token_exp: expires });
+    return token;
+  }
+
+  validateDashboardToken(guildId, token) {
+    if (!token) return false;
+    const config = this.getConfig(guildId);
+    if (!config?.dashboard_token || config.dashboard_token !== token) return false;
+    if (new Date(config.dashboard_token_exp) < new Date()) return false;
+    return true;
   }
 }
 

@@ -7,7 +7,7 @@
  * Config resolution order for each service (summ / trans / stt):
  *   1. Guild SQLite config fields (e.g. summ_provider, summ_api_key, ...)
  *   2. Env var overrides (SUMM_PROVIDER, SUMM_API_KEY, ...)
- *   3. Fallback: Groq with GROQ_API_KEY
+ *   3. Error — guild must configure their own API key via /setup ai
  */
 
 const DEFAULT_CHAT_MODELS = {
@@ -139,8 +139,7 @@ function resolveConfig(serviceType, guildConfig) {
     || 'groq';
 
   const apiKey = gc[`${serviceType}_api_key`]
-    || process.env[`${env}_API_KEY`]
-    || process.env.GROQ_API_KEY;
+    || process.env[`${env}_API_KEY`];
 
   const model = gc[`${serviceType}_model`]
     || process.env[`${env}_MODEL`]
@@ -186,7 +185,7 @@ function createChatProvider(serviceType, guildConfig) {
       if (!baseUrl) throw new Error('Custom provider requires a base URL. Set it via `/setup ai`.');
       return new OpenAICompatibleAdapter(apiKey, model, baseUrl);
     default:
-      return new GroqChatAdapter(process.env.GROQ_API_KEY, DEFAULT_CHAT_MODELS.groq);
+      throw new Error(`Unknown provider "${provider}". Use groq, openai, anthropic, ollama, or custom.`);
   }
 }
 
@@ -202,8 +201,7 @@ function createTranscriptionProvider(guildConfig) {
     || 'groq';
 
   const apiKey = gc.stt_api_key
-    || process.env.STT_API_KEY
-    || process.env.GROQ_API_KEY;
+    || process.env.STT_API_KEY;
 
   const model = gc.stt_model
     || process.env.STT_MODEL
@@ -223,7 +221,7 @@ function createTranscriptionProvider(guildConfig) {
     case 'openai':
       return new OpenAITranscriptionAdapter(apiKey, model);
     default:
-      return new GroqTranscriptionAdapter(process.env.GROQ_API_KEY, DEFAULT_STT_MODELS.groq);
+      throw new Error(`Unknown transcription provider "${provider}". Use groq or openai.`);
   }
 }
 

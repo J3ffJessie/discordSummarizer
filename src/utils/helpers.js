@@ -6,7 +6,7 @@ function delay(ms) {
 }
 
 function ensureDataDir() {
-  const dir = path.join(__dirname, '..', 'data');
+  const dir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   return dir;
 }
