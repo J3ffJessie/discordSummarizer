@@ -8,9 +8,10 @@ function buildClient({ messageStats = null } = {}) {
   return client;
 }
 
-function makeState({ channelId = null, userId = 'user1', isBot = false } = {}) {
+function makeState({ channelId = null, userId = 'user1', isBot = false, guildId = 'g1' } = {}) {
   return {
     channelId,
+    guild: { id: guildId },
     member: {
       user: { id: userId, bot: isBot },
     },
@@ -58,7 +59,8 @@ describe('voiceStateUpdate event', () => {
     );
 
     expect(mockStats.recordVoiceMinutes).toHaveBeenCalledTimes(1);
-    const minutes = mockStats.recordVoiceMinutes.mock.calls[0][0];
+    expect(mockStats.recordVoiceMinutes.mock.calls[0][0]).toBe('g1');
+    const minutes = mockStats.recordVoiceMinutes.mock.calls[0][1];
     expect(minutes).toBeGreaterThanOrEqual(4.9);
     expect(minutes).toBeLessThanOrEqual(5.1);
 
@@ -85,7 +87,7 @@ describe('voiceStateUpdate event', () => {
     );
 
     expect(mockStats.recordVoiceMinutes).toHaveBeenCalledTimes(1);
-    const minutes = mockStats.recordVoiceMinutes.mock.calls[0][0];
+    const minutes = mockStats.recordVoiceMinutes.mock.calls[0][1];
     expect(minutes).toBeCloseTo(3, 0);
 
     jest.useRealTimers();
@@ -118,8 +120,8 @@ describe('voiceStateUpdate event', () => {
     );
 
     expect(mockStats.recordVoiceMinutes).toHaveBeenCalledTimes(2);
-    const firstMinutes = mockStats.recordVoiceMinutes.mock.calls[0][0];
-    const secondMinutes = mockStats.recordVoiceMinutes.mock.calls[1][0];
+    const firstMinutes = mockStats.recordVoiceMinutes.mock.calls[0][1];
+    const secondMinutes = mockStats.recordVoiceMinutes.mock.calls[1][1];
     expect(firstMinutes).toBeCloseTo(2, 0);
     expect(secondMinutes).toBeCloseTo(4, 0);
 

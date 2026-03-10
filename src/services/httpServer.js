@@ -4,43 +4,42 @@ const path = require('path');
 
 function createHttpServer({ getStats, getGuild, getMembers } = {}) {
   return http.createServer((req, res) => {
+    const [pathname, search] = req.url.split('?');
+    const params = new URLSearchParams(search || '');
+    const guildId = params.get('guildId') || undefined;
 
     // Dashboard redirect
-    if (req.url === '/dashboard') {
+    if (pathname === '/dashboard') {
       res.writeHead(301, { Location: '/public/dashboard.html' });
       res.end();
       return;
     }
 
     // Stats API
-    if (req.url === '/api/stats' && getStats) {
+    if (pathname === '/api/stats' && getStats) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(getStats()));
+      res.end(JSON.stringify(getStats(guildId)));
       return;
     }
 
     // Guild info API
-    if (req.url === '/api/guild' && getGuild) {
-      const guild = getGuild();
+    if (pathname === '/api/guild' && getGuild) {
+      const guild = getGuild(guildId);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(guild || {}));
       return;
     }
 
     // Members / server composition API
-    if (req.url === '/api/members' && getMembers) {
-      const members = getMembers();
+    if (pathname === '/api/members' && getMembers) {
+      const members = getMembers(guildId);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(members || {}));
       return;
     }
 
-    if (req.url.startsWith('/public/')) {
-
-      // Remove query parameters
-      const cleanUrl = req.url.split('?')[0];
-
-      const filePath = path.join(process.cwd(), cleanUrl);
+    if (pathname.startsWith('/public/')) {
+      const filePath = path.join(process.cwd(), pathname);
 
       if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
 

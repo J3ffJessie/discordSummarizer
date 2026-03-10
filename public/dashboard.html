@@ -838,16 +838,19 @@
   document.getElementById('date-end').max=toInputVal(today0());
   syncInputs();
 
+  const _guildId = new URLSearchParams(location.search).get('guildId') || '';
+  const _qs = _guildId ? `?guildId=${encodeURIComponent(_guildId)}` : '';
+
   async function loadStats() {
     try {
-      const res=await fetch('/api/stats'); if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res=await fetch(`/api/stats${_qs}`); if(!res.ok) throw new Error(`HTTP ${res.status}`);
       renderAll(await res.json());
       document.getElementById('last-updated').textContent='Updated '+new Date().toLocaleTimeString();
     } catch(err){ console.error('Stats fetch error:',err); }
   }
   async function loadGuildInfo() {
     try {
-      const res=await fetch('/api/guild'); if(!res.ok) return;
+      const res=await fetch(`/api/guild${_qs}`); if(!res.ok) return;
       const g=await res.json(); if(!g.name) return;
       document.getElementById('server-name').textContent=g.name;
       document.title=`${g.name} — Server Insights`;
@@ -857,7 +860,7 @@
   }
   async function loadMembers() {
     try {
-      const res=await fetch('/api/members'); if(!res.ok) return;
+      const res=await fetch(`/api/members${_qs}`); if(!res.ok) return;
       rawMembers=await res.json(); renderLive(rawMembers);
     } catch(err){ console.error('Members fetch error:',err); }
   }

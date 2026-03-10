@@ -1,5 +1,6 @@
 const { SlashCommandBuilder } = require('discord.js');
 const gather = require('../services/gather');
+const guildConfigService = require('../services/guildConfigService');
 
 module.exports = {
   data: new SlashCommandBuilder().setName('server').setDescription('Gather and summarize server conversations (admin only)').toJSON(),
@@ -14,7 +15,8 @@ module.exports = {
     try {
       const summary = await gather.gatherServerConversationsAndSummarize(interaction.guild, true);
       const chunks = summary.match(/[\s\S]{1,1900}/g) || ['No summary available.'];
-      const targetChannelId = process.env.TARGET_CHANNEL_ID || '1392954859803644014';
+      const guildConfig = guildConfigService.getConfig(interaction.guildId);
+      const targetChannelId = guildConfig?.summary_channel_id || process.env.TARGET_CHANNEL_ID;
       let channel = interaction.guild.channels.cache.get(targetChannelId);
       if (!channel) channel = await interaction.guild.channels.fetch(targetChannelId).catch(() => null);
       if (!channel) {

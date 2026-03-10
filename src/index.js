@@ -90,14 +90,14 @@ const guildConfigService = new GuildConfigService();
 const messageStatsService = new MessageStatsService();
 
 const server = createHttpServer({
-  getStats: () => messageStatsService.getStats(),
-  getGuild: () => {
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+  getStats: (guildId) => messageStatsService.getStats(guildId),
+  getGuild: (guildId) => {
+    const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
     if (!guild) return null;
     return { name: guild.name, iconURL: guild.iconURL({ size: 64 }) };
   },
-  getMembers: () => {
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+  getMembers: (guildId) => {
+    const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
     if (!guild) return null;
     const cachedMembers = guild.members.cache;
     const botCount = cachedMembers.filter(m => m.user.bot).size;

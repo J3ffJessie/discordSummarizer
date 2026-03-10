@@ -6,6 +6,7 @@ module.exports = (client) => {
     const userId = member?.user?.id;
     if (!userId || member?.user?.bot) return;
 
+    const guildId = newState.guild?.id || oldState.guild?.id;
     const wasIn = !!oldState.channelId;
     const isIn  = !!newState.channelId;
 
@@ -18,14 +19,14 @@ module.exports = (client) => {
       if (joined) {
         joinTimes.delete(userId);
         const minutes = (Date.now() - joined) / 60000;
-        client.services?.messageStats?.recordVoiceMinutes(minutes);
+        client.services?.messageStats?.recordVoiceMinutes(guildId, minutes);
       }
     } else if (wasIn && isIn && oldState.channelId !== newState.channelId) {
       // Switched channels — count time in old channel, start new timer
       const joined = joinTimes.get(userId);
       if (joined) {
         const minutes = (Date.now() - joined) / 60000;
-        client.services?.messageStats?.recordVoiceMinutes(minutes);
+        client.services?.messageStats?.recordVoiceMinutes(guildId, minutes);
       }
       joinTimes.set(userId, Date.now());
     }
