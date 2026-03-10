@@ -2,8 +2,38 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-function createHttpServer() {
+function createHttpServer({ getStats, getGuild, getMembers } = {}) {
   return http.createServer((req, res) => {
+
+    // Dashboard redirect
+    if (req.url === '/dashboard') {
+      res.writeHead(301, { Location: '/public/dashboard.html' });
+      res.end();
+      return;
+    }
+
+    // Stats API
+    if (req.url === '/api/stats' && getStats) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(getStats()));
+      return;
+    }
+
+    // Guild info API
+    if (req.url === '/api/guild' && getGuild) {
+      const guild = getGuild();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(guild || {}));
+      return;
+    }
+
+    // Members / server composition API
+    if (req.url === '/api/members' && getMembers) {
+      const members = getMembers();
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(members || {}));
+      return;
+    }
 
     if (req.url.startsWith('/public/')) {
 

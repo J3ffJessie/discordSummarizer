@@ -224,7 +224,7 @@ async function notifyPairs(pairs, guild, source = 'scheduled') {
   for (const pair of pairs) {
     const usernames = pair.map((m) => `${m._capturedUsername}#${m._capturedDiscriminator}`);
     for (const m of pair) {
-      const others = pair.filter((p) => p.id !== m.id).map((p) => `${p._capturedUsername} (${p.id})`).join(' and ');
+      const others = pair.filter((p) => p.id !== m.id).map((p) => `<@${p.id}>`).join(' and ');
       const senderName = m._capturedUsername;
       const content = `☕ Hi ${senderName}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
       try {

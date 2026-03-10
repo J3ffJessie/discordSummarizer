@@ -25,7 +25,7 @@ module.exports = {
       }
       await interaction.reply({ content: `⏰ Reminder set! I'll remind you in ${timeStr}. (ID: ${reminder.id})`, ephemeral: true });
     } catch (err) {
-      console.error('remindme error:', err?.message || err);
+      console.error('remindme error:', err);
       await interaction.reply({ content: '❌ Failed to schedule reminder.', ephemeral: true });
     }
   },

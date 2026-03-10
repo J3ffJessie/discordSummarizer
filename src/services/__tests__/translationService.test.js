@@ -64,14 +64,14 @@ describe('TranslationService', () => {
           messages: expect.arrayContaining([
             expect.objectContaining({
               role: 'user',
-              content: 'Bonjour, comment ça va?',
+              content: expect.stringContaining('Bonjour, comment ça va?'),
             }),
           ]),
         })
       );
     });
 
-    it('should translate text even if it appears to be English (system prompt instructs to translate ALL input)', async () => {
+    it('should translate text even if it appears to be English (system prompt instructs mechanical translation)', async () => {
       mockCreate.mockResolvedValue({
         choices: [{ message: { content: 'Hello' } }],
       });
@@ -84,7 +84,7 @@ describe('TranslationService', () => {
           messages: expect.arrayContaining([
             expect.objectContaining({
               role: 'system',
-              content: expect.stringContaining('Translate ALL input text to English'),
+              content: expect.stringContaining('mechanical translation engine'),
             }),
           ]),
         })

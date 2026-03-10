@@ -12,7 +12,7 @@ async function gatherServerConversationsAndSummarize(guild, useServerSummarize =
           .map((msg) => `[${channel.name}] ${msg.member?.displayName || msg.author.username}: ${msg.content}`);
         allMessages.push(...formatted);
       } catch (err) {
-        console.warn(`Could not fetch messages for #${channel.name}:`, err?.message || err);
+        console.warn(`Could not fetch messages for #${channel.name}:`, err);
       }
     }
   }
