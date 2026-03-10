@@ -26,7 +26,7 @@ module.exports = {
       }
       await interaction.followUp({ content: '✅ Server summary sent to the summary channel!', ephemeral: true });
     } catch (err) {
-      console.error('server summary error:', err?.message || err);
+      console.error('server summary error:', err);
       await interaction.followUp({ content: '❌ Error summarizing server conversations.', ephemeral: true });
     }
   },

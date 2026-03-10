@@ -101,6 +101,16 @@ class MessageStatsService {
     this._scheduleSave();
   }
 
+  recordVoiceMinutes(minutes) {
+    if (!minutes || minutes <= 0) return;
+    const dateKey = this._todayKey();
+    if (!this._data.daily[dateKey]) {
+      this._data.daily[dateKey] = { total: 0, channels: {}, users: {} };
+    }
+    this._data.daily[dateKey].voiceMinutes = (this._data.daily[dateKey].voiceMinutes || 0) + minutes;
+    this._scheduleSave();
+  }
+
   async backfillHistory(client) {
     const now = Date.now();
 

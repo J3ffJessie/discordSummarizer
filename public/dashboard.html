@@ -154,6 +154,30 @@
     .note        { font-size: 11px; color: var(--muted); margin-top: 12px; font-style: italic; }
     .refresh-note{ font-size: 11px; color: #4e5058; text-align: right; margin-top: 12px; }
 
+    /* ── Report section ── */
+    .btn-primary {
+      background: var(--purple); color: #fff; border: none;
+      padding: 8px 18px; border-radius: 4px; font-size: 13px;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: opacity 0.15s; white-space: nowrap;
+    }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-secondary {
+      background: var(--border); color: var(--text); border: none;
+      padding: 7px 14px; border-radius: 4px; font-size: 12px;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: background 0.15s;
+    }
+    .btn-secondary:hover { background: #4e5058; }
+    .report-controls { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+    .report-actions  { display: flex; gap: 8px; margin-bottom: 12px; }
+    .report-preview  {
+      background: #111214; border: 1px solid var(--border); border-radius: 6px;
+      padding: 20px; font-family: 'Consolas','Courier New',monospace; font-size: 12px;
+      color: var(--text); line-height: 1.6; white-space: pre-wrap;
+      max-height: 600px; overflow-y: auto; overflow-x: auto;
+    }
+
     @media (max-width: 900px) {
       .two-col { grid-template-columns: 1fr; }
       .main { padding: 20px 20px 60px; }
@@ -199,6 +223,13 @@
     <a class="nav-item" href="#section-composition">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
       Composition
+    </a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Export</div>
+    <a class="nav-item" href="#section-report">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
+      Generate Report
     </a>
   </div>
 </div>
@@ -322,6 +353,11 @@
         <div class="metric-value" id="m-avgday">—</div>
         <div class="metric-change neutral" id="m-avgday-change">Loading…</div>
       </div>
+      <div class="metric-card">
+        <div class="metric-label">Voice Minutes</div>
+        <div class="metric-value" id="m-voicemins">—</div>
+        <div class="metric-change neutral" id="m-voicemins-change">Loading…</div>
+      </div>
     </div>
     <div class="chart-section">
       <div class="chart-title">Messages over time</div>
@@ -376,6 +412,33 @@
       <div id="role-table-wrap">Loading…</div>
       <p class="note">Based on currently cached members. Counts populate after the bot's initial member sync on startup.</p>
     </div>
+  </div>
+
+  <!-- ═══ Generate Report ═══ -->
+  <div class="section" id="section-report">
+    <div class="section-header">
+      <div class="section-title">Generate Report</div>
+      <div class="section-sub">Export a biweekly analytics summary as Markdown — paste directly into a ClickUp Doc or save as .md.</div>
+    </div>
+    <div class="report-controls">
+      <div class="control-group">
+        <div class="control-label">Report Date Range</div>
+        <div class="date-range-picker">
+          <input type="date" id="report-start" />
+          <span class="date-sep">–</span>
+          <input type="date" id="report-end" />
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-generate">Generate Report</button>
+    </div>
+    <div id="report-output-wrap" style="display:none">
+      <div class="report-actions">
+        <button class="btn-secondary" id="btn-copy">Copy to Clipboard</button>
+        <button class="btn-secondary" id="btn-download">Download .md</button>
+      </div>
+      <pre id="report-output" class="report-preview"></pre>
+    </div>
+    <p class="note">Not available via Discord API: Visitors, Retention Rate, Audience by country. Departure history only tracked from bot deployment forward.</p>
   </div>
 
 </div><!-- /main -->
@@ -469,15 +532,16 @@
 
   // ── Aggregate range ───────────────────────────────────────────────────────
   function aggregateRange(daily, start, end) {
-    let messages=0, newMembers=0, leaves=0;
+    let messages=0, newMembers=0, leaves=0, voiceMinutes=0;
     const accountAges={new:0,established:0,veteran:0};
     const users=new Set(), channels=new Set();
     for (const [dk,day] of Object.entries(daily)) {
       const d=new Date(dk+'T00:00:00');
       if (d<start||d>=end) continue;
-      messages   += day.total||0;
-      newMembers += day.newMembers||0;
-      leaves     += day.leaves||0;
+      messages     += day.total||0;
+      newMembers   += day.newMembers||0;
+      leaves       += day.leaves||0;
+      voiceMinutes += day.voiceMinutes||0;
       accountAges.new         += day.accountAges?.new||0;
       accountAges.established += day.accountAges?.established||0;
       accountAges.veteran     += day.accountAges?.veteran||0;
@@ -485,7 +549,7 @@
       for (const [uid,cnt] of Object.entries(day.users||{})) { if(cnt>=3) users.add(uid); }
     }
     const days=Math.max(1,Math.round((end-start)/86400000));
-    return { messages, newMembers, leaves, netGrowth:newMembers-leaves, accountAges,
+    return { messages, newMembers, leaves, netGrowth:newMembers-leaves, voiceMinutes, accountAges,
              communicators:users.size, channels:channels.size, avgDay:Math.round(messages/days) };
   }
 
@@ -615,6 +679,8 @@
     setBadge('m-communicators-change', changeBadge(cur.communicators, prev.communicators, lbl));
     setBadge('m-channels-change',      changeBadge(cur.channels,      prev.channels,      lbl));
     setBadge('m-avgday-change',        changeBadge(cur.avgDay,        prev.avgDay,        lbl));
+    document.getElementById('m-voicemins').textContent = Math.round(cur.voiceMinutes).toLocaleString();
+    setBadge('m-voicemins-change', changeBadge(Math.round(cur.voiceMinutes), Math.round(prev.voiceMinutes), lbl));
 
     // Build shared buckets
     const buckets =buildBuckets(daily,interval,start,end);
@@ -801,6 +867,143 @@
   loadMembers();
   setInterval(loadStats,   60_000);
   setInterval(loadMembers, 300_000);
+
+  // ── Report generation ──────────────────────────────────────────────────────
+  (function initReport() {
+    // Default date range: last 14 days
+    const t = today0();
+    const rEnd   = addDays(t, 1);
+    const rStart = addDays(t, -13);
+    document.getElementById('report-start').value = toInputVal(rStart);
+    document.getElementById('report-end').value   = toInputVal(addDays(rEnd, -1));
+    document.getElementById('report-start').max = toInputVal(today0());
+    document.getElementById('report-end').max   = toInputVal(today0());
+
+    function fmtDateUS(d) {
+      return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+    }
+    function fmtNum(n) { return Number(n || 0).toLocaleString(); }
+
+    function generateMarkdown() {
+      if (!rawStats) return '⚠ Stats data not loaded yet. Please wait and try again.';
+      const rsv = document.getElementById('report-start').value;
+      const rev = document.getElementById('report-end').value;
+      if (!rsv || !rev) return '⚠ Please select a date range.';
+      const rStart = fromInputVal(rsv);
+      const rEnd   = addDays(fromInputVal(rev), 1);
+      if (rEnd <= rStart) return '⚠ End date must be after start date.';
+
+      const daily = rawStats.daily || {};
+      const cur   = aggregateRange(daily, rStart, rEnd);
+      const chans = channelTotals(daily, rStart, rEnd);
+      const dow   = aggregateDow(daily, rStart, rEnd);
+      const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const mostActiveDow = dayNames[dow.indexOf(Math.max(...dow))];
+      const spanDays = Math.max(1, Math.round((rEnd - rStart) / 86400000));
+      const activeDays = Object.keys(daily).filter(dk => {
+        const d = new Date(dk + 'T00:00:00');
+        return d >= rStart && d < rEnd && (daily[dk].total || 0) > 0;
+      }).length;
+
+      const now = new Date();
+      const genStr = `${fmtDateUS(now)} at ${now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+
+      let md = `# Discord Analytics Report\n\n`;
+      md += `**Date Range:** ${fmtDateUS(rStart)} \u2013 ${fmtDateUS(addDays(rEnd,-1))}  \n`;
+      md += `**Generated:** ${genStr}\n\n`;
+      md += `---\n\n`;
+
+      md += `## Growth & Activation\n\n`;
+      md += `| Metric | Value |\n|--------|-------|\n`;
+      md += `| New Members | ${fmtNum(cur.newMembers)} |\n`;
+      md += `| Messages Sent | ${fmtNum(cur.messages)} |\n`;
+      md += `| Communicators | ${fmtNum(cur.communicators)} |\n`;
+      md += `| Voice Minutes | ${fmtNum(Math.round(cur.voiceMinutes))} |\n`;
+      md += `| Member Departures | ${fmtNum(cur.leaves)} |\n`;
+      md += `| Net Member Growth | ${cur.netGrowth >= 0 ? '+' : ''}${fmtNum(cur.netGrowth)} |\n`;
+      md += `| Avg Messages / Day | ${fmtNum(cur.avgDay)} |\n`;
+      md += `\n---\n\n`;
+
+      md += `## Engagement\n\n`;
+      md += `### Top Channels\n\n`;
+      if (chans.length > 0) {
+        md += `| # | Channel | Messages | Share |\n|---|---------|----------:|------:|\n`;
+        chans.slice(0, 10).forEach((ch, i) => {
+          const pct = cur.messages > 0 ? Math.round((ch.count / cur.messages) * 100) : 0;
+          md += `| ${i+1} | #${ch.name} | ${fmtNum(ch.count)} | ${pct}% |\n`;
+        });
+      } else {
+        md += '_No channel data for this period._\n';
+      }
+      md += `\n---\n\n`;
+
+      md += `## Activity Patterns\n\n`;
+      md += `**Most Active Day:** ${mostActiveDow}  \n`;
+      md += `**Period:** ${spanDays} days  \n`;
+      md += `**Active Days:** ${activeDays}\n\n`;
+      md += `---\n\n`;
+
+      const ages = cur.accountAges;
+      const totalAges = ages.new + ages.established + ages.veteran;
+      if (totalAges > 0) {
+        md += `## New Member Account Ages\n\n`;
+        md += `| Account Type | Count | % |\n|-------------|------:|--:|\n`;
+        md += `| New (<30 days) | ${fmtNum(ages.new)} | ${totalAges>0?Math.round((ages.new/totalAges)*100):0}% |\n`;
+        md += `| Established (30d\u20131yr) | ${fmtNum(ages.established)} | ${totalAges>0?Math.round((ages.established/totalAges)*100):0}% |\n`;
+        md += `| Veteran (>1 year) | ${fmtNum(ages.veteran)} | ${totalAges>0?Math.round((ages.veteran/totalAges)*100):0}% |\n`;
+        md += `\n---\n\n`;
+      }
+
+      if (rawMembers) {
+        md += `## Server Composition (Live)\n\n`;
+        md += `| Metric | Value |\n|--------|-------|\n`;
+        md += `| Total Members | ${fmtNum(rawMembers.totalMembers)} |\n`;
+        md += `| Human Members | ${fmtNum(rawMembers.humanCount)} |\n`;
+        md += `| Bots | ${fmtNum(rawMembers.botCount)} |\n`;
+        md += `| Boost Tier | ${['None','Tier 1','Tier 2','Tier 3'][rawMembers.boostTier]||'None'} |\n`;
+        md += `| Active Boosters | ${fmtNum(rawMembers.boostCount)} |\n`;
+        md += `| Text Channels | ${fmtNum(rawMembers.textChannelCount)} |\n`;
+        md += `| Voice Channels | ${fmtNum(rawMembers.voiceChannelCount)} |\n`;
+        md += `| Roles | ${fmtNum(rawMembers.roleCount)} |\n`;
+        if (rawMembers.topRoles?.length > 0) {
+          md += `\n### Top Roles\n\n| Role | Members |\n|------|--------:|\n`;
+          rawMembers.topRoles.slice(0, 10).forEach(r => {
+            md += `| ${r.name} | ${fmtNum(r.count)} |\n`;
+          });
+        }
+        md += `\n---\n\n`;
+      }
+      return md;
+    }
+
+    document.getElementById('btn-generate').addEventListener('click', () => {
+      const md = generateMarkdown();
+      document.getElementById('report-output').textContent = md;
+      document.getElementById('report-output-wrap').style.display = '';
+      document.getElementById('report-output-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    document.getElementById('btn-copy').addEventListener('click', () => {
+      const text = document.getElementById('report-output').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('btn-copy');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy to Clipboard'; }, 2000);
+      });
+    });
+
+    document.getElementById('btn-download').addEventListener('click', () => {
+      const text = document.getElementById('report-output').textContent;
+      const rsv  = document.getElementById('report-start').value || 'report';
+      const rev  = document.getElementById('report-end').value   || '';
+      const fname = `discord-report-${rsv}${rev ? '--' + rev : ''}.md`;
+      const blob  = new Blob([text], { type: 'text/markdown' });
+      const url   = URL.createObjectURL(blob);
+      const a     = document.createElement('a');
+      a.href = url; a.download = fname; a.click();
+      URL.revokeObjectURL(url);
+    });
+  })();
 </script>
 </body>
 </html>
