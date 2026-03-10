@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Server Insights</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #1e1f22;
+      --surface:    #2b2d31;
+      --border:     #3a3c40;
+      --text:       #dbdee1;
+      --muted:      #949ba4;
+      --bright:     #f2f3f5;
+      --purple:     #5865f2;
+      --green:      #23a55a;
+      --yellow:     #f0b132;
+      --red:        #f23f43;
+      --purple-dim: rgba(88,101,242,0.15);
+      --green-dim:  rgba(35,165,90,0.15);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'gg sans','Noto Sans','Helvetica Neue',Helvetica,Arial,sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--bg);
+      display: flex; flex-direction: column;
+      position: sticky; top: 0; height: 100vh; overflow-y: auto;
+      padding: 20px 0;
+    }
+    .sidebar-header { padding: 0 16px 16px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+    .sidebar-server { display: flex; align-items: center; gap: 10px; }
+    .server-icon {
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--purple);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 14px; color: #fff;
+      flex-shrink: 0; overflow: hidden;
+    }
+    .server-icon img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+    .server-name { font-weight: 600; font-size: 15px; color: var(--bright); }
+    .server-sub  { font-size: 11px; color: var(--muted); margin-top: 1px; }
+    .nav-section { padding: 4px 8px; }
+    .nav-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--muted); padding: 8px 10px 4px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 7px 10px; border-radius: 4px;
+      color: var(--muted); font-size: 14px; font-weight: 500;
+      text-decoration: none; transition: background 0.1s, color 0.1s;
+    }
+    .nav-item:hover { background: #35373c; color: var(--text); }
+    .nav-item svg { flex-shrink: 0; opacity: 0.7; }
+
+    /* ── Main ── */
+    .main { flex: 1; overflow-y: auto; padding: 32px 40px 80px; }
+
+    /* ── Controls ── */
+    .controls {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 32px; flex-wrap: wrap;
+      background: var(--surface); padding: 14px 16px; border-radius: 8px;
+    }
+    .control-group { display: flex; flex-direction: column; gap: 4px; }
+    .control-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--muted);
+    }
+    select, input[type="date"] {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; color: var(--text); font-size: 13px;
+      padding: 6px 10px; outline: none; color-scheme: dark;
+      font-family: inherit; cursor: pointer;
+    }
+    select:focus, input[type="date"]:focus { border-color: var(--purple); }
+    .date-range-picker { display: flex; align-items: center; gap: 6px; }
+    .date-sep { color: var(--muted); }
+    #last-updated { margin-left: auto; font-size: 11px; color: #4e5058; }
+
+    /* ── Sections ── */
+    .section { margin-bottom: 44px; }
+    .section-header { margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+    .section-title { font-size: 18px; font-weight: 700; color: var(--bright); }
+    .section-sub   { font-size: 12px; color: var(--muted); margin-top: 3px; }
+
+    /* ── Metric cards ── */
+    .metrics-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+      gap: 1px; background: var(--bg);
+      border: 1px solid var(--bg); border-radius: 8px;
+      overflow: hidden; margin-bottom: 20px;
+    }
+    .metric-card { background: var(--surface); padding: 20px; }
+    .metric-label {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px;
+    }
+    .metric-value { font-size: 28px; font-weight: 700; color: var(--bright); line-height: 1; margin-bottom: 6px; }
+    .metric-sub   { font-size: 11px; color: var(--muted); }
+    .metric-change { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+    .metric-change.up      { color: var(--green); }
+    .metric-change.down    { color: var(--red); }
+    .metric-change.neutral { color: var(--muted); }
+
+    /* ── Chart sections ── */
+    .chart-section { background: var(--surface); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    .chart-title { font-size: 14px; font-weight: 700; color: var(--bright); margin-bottom: 4px; }
+    .chart-sub   { font-size: 12px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
+    .chart-wrap       { position: relative; height: 260px; }
+    .chart-wrap.short { height: 200px; }
+    .chart-wrap.donut { height: 220px; }
+    .chart-legend { display: flex; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+    .legend-item  { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
+    .legend-dot   { width: 10px; height: 10px; border-radius: 50%; }
+    .legend-line  { width: 20px; height: 2px; border-radius: 1px; }
+
+    /* ── Two-column ── */
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .two-col .chart-section { margin-bottom: 0; }
+
+    /* ── Tables ── */
+    .table-section { background: var(--surface); border-radius: 8px; padding: 20px; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left; padding: 8px 12px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.04em; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr:hover td { background: #35373c; }
+    tbody td { padding: 10px 12px; border-bottom: 1px solid #2e3035; color: var(--text); }
+    tbody tr:last-child td { border-bottom: none; }
+    .bar-cell { display: flex; align-items: center; gap: 8px; }
+    .bar-bg   { flex: 1; height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+    .count-value { font-weight: 600; min-width: 50px; text-align: right; color: var(--bright); }
+    .role-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+
+    .note        { font-size: 11px; color: var(--muted); margin-top: 12px; font-style: italic; }
+    .refresh-note{ font-size: 11px; color: #4e5058; text-align: right; margin-top: 12px; }
+
+    /* ── Report section ── */
+    .btn-primary {
+      background: var(--purple); color: #fff; border: none;
+      padding: 8px 18px; border-radius: 4px; font-size: 13px;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: opacity 0.15s; white-space: nowrap;
+    }
+    .btn-primary:hover { opacity: 0.85; }
+    .btn-secondary {
+      background: var(--border); color: var(--text); border: none;
+      padding: 7px 14px; border-radius: 4px; font-size: 12px;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: background 0.15s;
+    }
+    .btn-secondary:hover { background: #4e5058; }
+    .report-controls { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
+    .report-actions  { display: flex; gap: 8px; margin-bottom: 12px; }
+    .report-preview  {
+      background: #111214; border: 1px solid var(--border); border-radius: 6px;
+      padding: 20px; font-family: 'Consolas','Courier New',monospace; font-size: 12px;
+      color: var(--text); line-height: 1.6; white-space: pre-wrap;
+      max-height: 600px; overflow-y: auto; overflow-x: auto;
+    }
+
+    @media (max-width: 900px) {
+      .two-col { grid-template-columns: 1fr; }
+      .main { padding: 20px 20px 60px; }
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<div class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-server">
+      <div class="server-icon" id="server-icon">S</div>
+      <div>
+        <div class="server-name" id="server-name">Server</div>
+        <div class="server-sub">Server Insights</div>
+      </div>
+    </div>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Analytics</div>
+    <a class="nav-item" href="#section-overview">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+      Overview
+    </a>
+    <a class="nav-item" href="#section-growth">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+      Member Growth
+    </a>
+    <a class="nav-item" href="#section-engagement">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+      Engagement
+    </a>
+    <a class="nav-item" href="#section-activity">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67V7z"/></svg>
+      Activity Patterns
+    </a>
+    <a class="nav-item" href="#section-channels">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+      Channels
+    </a>
+    <a class="nav-item" href="#section-composition">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+      Composition
+    </a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-label">Export</div>
+    <a class="nav-item" href="#section-report">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15h8v2H8v-2zm0-4h8v2H8v-2z"/></svg>
+      Generate Report
+    </a>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main">
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="control-group">
+      <div class="control-label">Interval</div>
+      <select id="interval-select">
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+        <option value="daily">Daily</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <div class="control-label">Date Range</div>
+      <div class="date-range-picker">
+        <input type="date" id="date-start" />
+        <span class="date-sep">–</span>
+        <input type="date" id="date-end" />
+      </div>
+    </div>
+    <div id="last-updated"></div>
+  </div>
+
+  <!-- ═══ Server Overview ═══ -->
+  <div class="section" id="section-overview">
+    <div class="section-header">
+      <div class="section-title">Server Overview</div>
+      <div class="section-sub">Live server statistics — refreshes every 5 minutes</div>
+    </div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Total Members</div>
+        <div class="metric-value" id="live-members">—</div>
+        <div class="metric-sub" id="live-bots">Loading…</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Server Boost</div>
+        <div class="metric-value" id="live-boost">—</div>
+        <div class="metric-sub" id="live-boost-count">—</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Text Channels</div>
+        <div class="metric-value" id="live-text">—</div>
+        <div class="metric-sub" id="live-voice">— voice channels</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Roles</div>
+        <div class="metric-value" id="live-roles">—</div>
+        <div class="metric-sub">Configured across server</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Member Growth ═══ -->
+  <div class="section" id="section-growth">
+    <div class="section-header">
+      <div class="section-title">Member Growth</div>
+      <div class="section-sub">New members, departures, and account types in the selected date range.</div>
+    </div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">New Members</div>
+        <div class="metric-value" id="m-newmembers">—</div>
+        <div class="metric-change neutral" id="m-newmembers-change">Loading…</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Members Left *</div>
+        <div class="metric-value" id="m-leaves">—</div>
+        <div class="metric-change neutral" id="m-leaves-change">Loading…</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Net Growth</div>
+        <div class="metric-value" id="m-netgrowth">—</div>
+        <div class="metric-change neutral" id="m-netgrowth-change">Loading…</div>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="chart-section">
+        <div class="chart-title">Members joined per interval</div>
+        <div class="chart-sub">New members who joined in the selected date range.</div>
+        <div class="chart-wrap"><canvas id="chart-members"></canvas></div>
+      </div>
+      <div class="chart-section">
+        <div class="chart-title">Account age at time of joining</div>
+        <div class="chart-sub">How old members' Discord accounts were when they joined your server.</div>
+        <div class="chart-wrap donut"><canvas id="chart-account-age"></canvas></div>
+      </div>
+    </div>
+    <p class="note">* Departures are tracked from when the bot was deployed — historical departure data is not available from Discord's API.</p>
+  </div>
+
+  <!-- ═══ Engagement ═══ -->
+  <div class="section" id="section-engagement">
+    <div class="section-header">
+      <div class="section-title">Engagement</div>
+      <div class="section-sub">Message activity and user participation in the selected date range.</div>
+    </div>
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Messages Sent</div>
+        <div class="metric-value" id="m-messages">—</div>
+        <div class="metric-change neutral" id="m-messages-change">Loading…</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Communicators</div>
+        <div class="metric-value" id="m-communicators">—</div>
+        <div class="metric-change neutral" id="m-communicators-change">Loading…</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Active Channels</div>
+        <div class="metric-value" id="m-channels">—</div>
+        <div class="metric-change neutral" id="m-channels-change">Loading…</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Avg Messages / Day</div>
+        <div class="metric-value" id="m-avgday">—</div>
+        <div class="metric-change neutral" id="m-avgday-change">Loading…</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Voice Minutes</div>
+        <div class="metric-value" id="m-voicemins">—</div>
+        <div class="metric-change neutral" id="m-voicemins-change">Loading…</div>
+      </div>
+    </div>
+    <div class="chart-section">
+      <div class="chart-title">Messages over time</div>
+      <div class="chart-sub">Total messages sent per interval across all channels.</div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#5865f2"></div>Messages sent</div>
+        <div class="legend-item"><div class="legend-line" style="background:#f0b132"></div>Communicators (3+ messages)</div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart-messages"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ═══ Activity Patterns ═══ -->
+  <div class="section" id="section-activity">
+    <div class="section-header">
+      <div class="section-title">Activity Patterns</div>
+      <div class="section-sub">When your community is most active in the selected date range.</div>
+    </div>
+    <div class="two-col">
+      <div class="chart-section">
+        <div class="chart-title">Activity by day of week</div>
+        <div class="chart-sub">Aggregated message counts by weekday.</div>
+        <div class="chart-wrap short"><canvas id="chart-dow"></canvas></div>
+      </div>
+      <div class="chart-section">
+        <div class="chart-title">Hourly distribution (UTC)</div>
+        <div class="chart-sub">Estimated message distribution throughout the day.</div>
+        <div class="chart-wrap short"><canvas id="chart-hourly"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Channel Analytics ═══ -->
+  <div class="section" id="section-channels">
+    <div class="section-header">
+      <div class="section-title">Channel Analytics</div>
+      <div class="section-sub">Most active channels in the selected date range.</div>
+    </div>
+    <div class="table-section">
+      <div id="channel-table-wrap">Loading…</div>
+      <div class="refresh-note" id="refresh-note">Auto-refreshes every 60s</div>
+    </div>
+  </div>
+
+  <!-- ═══ Server Composition ═══ -->
+  <div class="section" id="section-composition">
+    <div class="section-header">
+      <div class="section-title">Server Composition</div>
+      <div class="section-sub">Role distribution across your members — live data, refreshes every 5 minutes.</div>
+    </div>
+    <div class="table-section">
+      <div id="role-table-wrap">Loading…</div>
+      <p class="note">Based on currently cached members. Counts populate after the bot's initial member sync on startup.</p>
+    </div>
+  </div>
+
+  <!-- ═══ Generate Report ═══ -->
+  <div class="section" id="section-report">
+    <div class="section-header">
+      <div class="section-title">Generate Report</div>
+      <div class="section-sub">Export a biweekly analytics summary as Markdown — paste directly into a ClickUp Doc or save as .md.</div>
+    </div>
+    <div class="report-controls">
+      <div class="control-group">
+        <div class="control-label">Report Date Range</div>
+        <div class="date-range-picker">
+          <input type="date" id="report-start" />
+          <span class="date-sep">–</span>
+          <input type="date" id="report-end" />
+        </div>
+      </div>
+      <button class="btn-primary" id="btn-generate">Generate Report</button>
+    </div>
+    <div id="report-output-wrap" style="display:none">
+      <div class="report-actions">
+        <button class="btn-secondary" id="btn-copy">Copy to Clipboard</button>
+        <button class="btn-secondary" id="btn-download">Download .md</button>
+      </div>
+      <pre id="report-output" class="report-preview"></pre>
+    </div>
+    <p class="note">Not available via Discord API: Visitors, Retention Rate, Audience by country. Departure history only tracked from bot deployment forward.</p>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+  Chart.defaults.color = '#949ba4';
+  Chart.defaults.borderColor = '#3a3c40';
+  Chart.defaults.font = { family:"'gg sans','Noto Sans',Arial,sans-serif", size:11 };
+
+  const C_PURPLE     = '#5865f2';
+  const C_YELLOW     = '#f0b132';
+  const C_GREEN      = '#23a55a';
+  const C_RED        = '#f23f43';
+  const C_PURPLE_DIM = 'rgba(88,101,242,0.15)';
+  const C_GREEN_DIM  = 'rgba(35,165,90,0.15)';
+  const C_GRID       = '#3a3c40';
+
+  let charts     = {};
+  let rawStats   = null;
+  let rawMembers = null;
+  let interval   = 'weekly';
+  let startDate  = null, endDate = null;
+
+  // ── Date helpers ──────────────────────────────────────────────────────────
+  function today0() { const d=new Date(); d.setHours(0,0,0,0); return d; }
+  function getMondayOf(date) {
+    const d=new Date(date), day=d.getDay();
+    d.setDate(d.getDate()+(day===0?-6:1-day)); d.setHours(0,0,0,0); return d;
+  }
+  function addDays(date,n) { const d=new Date(date); d.setDate(d.getDate()+n); return d; }
+  function toInputVal(date) { return date.toISOString().slice(0,10); }
+  function fromInputVal(str) { const [y,m,d]=str.split('-').map(Number); return new Date(y,m-1,d); }
+  function fmtShort(date) { return date.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+  function fmtMonthYear(date) { return date.toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
+
+  function defaultRange(iv) {
+    const t = today0();
+    if (iv==='daily')  return { start:addDays(t,-29), end:addDays(t,1) };
+    if (iv==='weekly') return { start:addDays(getMondayOf(t),-77), end:addDays(getMondayOf(t),7) };
+    if (iv==='monthly') return {
+      start: new Date(t.getFullYear(),t.getMonth()-5,1),
+      end:   new Date(t.getFullYear(),t.getMonth()+1,1),
+    };
+    return { start:addDays(t,-29), end:addDays(t,1) };
+  }
+  function syncInputs() {
+    document.getElementById('date-start').value = toInputVal(startDate);
+    document.getElementById('date-end').value   = toInputVal(addDays(endDate,-1));
+  }
+
+  // ── Bucket builder ────────────────────────────────────────────────────────
+  function buildBuckets(daily, iv, start, end) {
+    const buckets = [];
+    if (iv==='daily') {
+      let d=new Date(start);
+      while (d<end) {
+        buckets.push({label:fmtShort(d),start:new Date(d),end:addDays(d,1),messages:0,users:new Set(),newMembers:0,leaves:0});
+        d=addDays(d,1);
+      }
+    } else if (iv==='weekly') {
+      let s=getMondayOf(start);
+      while (addDays(s,7)<=start) s=addDays(s,7);
+      while (s<end) {
+        const e=addDays(s,7);
+        buckets.push({label:fmtShort(s),start:new Date(s),end:e,messages:0,users:new Set(),newMembers:0,leaves:0});
+        s=e;
+      }
+    } else {
+      let s=new Date(start.getFullYear(),start.getMonth(),1);
+      while (s<end) {
+        const e=new Date(s.getFullYear(),s.getMonth()+1,1);
+        buckets.push({label:fmtMonthYear(s),start:new Date(s),end:e,messages:0,users:new Set(),newMembers:0,leaves:0});
+        s=e;
+      }
+    }
+    for (const [dk,day] of Object.entries(daily)) {
+      const d=new Date(dk+'T00:00:00');
+      if (d<start||d>=end) continue;
+      for (const b of buckets) {
+        if (d>=b.start&&d<b.end) {
+          b.messages   += day.total||0;
+          b.newMembers += day.newMembers||0;
+          b.leaves     += day.leaves||0;
+          for (const [uid,cnt] of Object.entries(day.users||{})) { if(cnt>=3) b.users.add(uid); }
+          break;
+        }
+      }
+    }
+    return buckets;
+  }
+
+  // ── Aggregate range ───────────────────────────────────────────────────────
+  function aggregateRange(daily, start, end) {
+    let messages=0, newMembers=0, leaves=0, voiceMinutes=0;
+    const accountAges={new:0,established:0,veteran:0};
+    const users=new Set(), channels=new Set();
+    for (const [dk,day] of Object.entries(daily)) {
+      const d=new Date(dk+'T00:00:00');
+      if (d<start||d>=end) continue;
+      messages     += day.total||0;
+      newMembers   += day.newMembers||0;
+      leaves       += day.leaves||0;
+      voiceMinutes += day.voiceMinutes||0;
+      accountAges.new         += day.accountAges?.new||0;
+      accountAges.established += day.accountAges?.established||0;
+      accountAges.veteran     += day.accountAges?.veteran||0;
+      for (const cid of Object.keys(day.channels||{})) channels.add(cid);
+      for (const [uid,cnt] of Object.entries(day.users||{})) { if(cnt>=3) users.add(uid); }
+    }
+    const days=Math.max(1,Math.round((end-start)/86400000));
+    return { messages, newMembers, leaves, netGrowth:newMembers-leaves, voiceMinutes, accountAges,
+             communicators:users.size, channels:channels.size, avgDay:Math.round(messages/days) };
+  }
+
+  function aggregateDow(daily, start, end) {
+    const dow=[0,0,0,0,0,0,0];
+    for (const [dk,day] of Object.entries(daily)) {
+      const d=new Date(dk+'T00:00:00');
+      if (d<start||d>=end) continue;
+      const js=d.getDay(); dow[js===0?6:js-1]+=day.total||0;
+    }
+    return dow;
+  }
+
+  function channelTotals(daily, start, end) {
+    const map={};
+    for (const [dk,day] of Object.entries(daily)) {
+      const d=new Date(dk+'T00:00:00');
+      if (d<start||d>=end) continue;
+      for (const [cid,ch] of Object.entries(day.channels||{})) {
+        if (!map[cid]) map[cid]={name:ch.name,count:0};
+        map[cid].name=ch.name; map[cid].count+=ch.count||0;
+      }
+    }
+    return Object.values(map).sort((a,b)=>b.count-a.count);
+  }
+
+  function estimateHourly(daily, start, end) {
+    const w=[0.5,0.3,0.2,0.2,0.2,0.3,0.5,1.0,2.0,3.0,4.0,4.5,4.0,3.5,3.5,4.0,4.5,4.5,5.0,5.0,4.5,3.5,2.5,1.5];
+    const wSum=w.reduce((a,b)=>a+b,0);
+    const total=Object.entries(daily).reduce((s,[dk,d])=>{
+      const dt=new Date(dk+'T00:00:00'); return (dt>=start&&dt<end)?s+(d.total||0):s;
+    },0);
+    return w.map(v=>Math.round((v/wSum)*total));
+  }
+
+  // ── Change badge ──────────────────────────────────────────────────────────
+  function changeBadge(cur, prev, label, invertColor=false) {
+    const el=document.createElement('div'); el.className='metric-change';
+    if (prev===0&&cur===0) { el.classList.add('neutral'); el.textContent=`0% (0) vs ${label}`; return el; }
+    const diff=cur-prev;
+    const pct=prev===0?100:Math.abs(Math.round((diff/prev)*100));
+    const isUp=diff>0;
+    if (diff!==0) {
+      el.classList.add((isUp!==invertColor)?'up':'down');
+      el.innerHTML=`<span>${isUp?'▲':'▼'}</span> ${pct}% (${isUp?'+':''}${diff.toLocaleString()}) vs ${label}`;
+    } else { el.classList.add('neutral'); el.textContent=`0% (0) vs ${label}`; }
+    return el;
+  }
+  function setBadge(id, badge) {
+    const el=document.getElementById(id); if(!el) return;
+    el.className=badge.className; el.innerHTML=badge.innerHTML;
+  }
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+  function tt() {
+    return {backgroundColor:'#111214',borderColor:'#3a3c40',borderWidth:1,titleColor:'#f2f3f5',bodyColor:'#b5bac1'};
+  }
+
+  // ── Render live data ──────────────────────────────────────────────────────
+  function renderLive(d) {
+    if (!d) return;
+    document.getElementById('live-members').textContent    = (d.totalMembers||0).toLocaleString();
+    document.getElementById('live-bots').textContent       = `${(d.humanCount||0).toLocaleString()} humans · ${d.botCount||0} bots`;
+    document.getElementById('live-boost').textContent      = ['No boost','Tier 1','Tier 2','Tier 3'][d.boostTier]||'No boost';
+    document.getElementById('live-boost-count').textContent= `${d.boostCount||0} active booster${d.boostCount!==1?'s':''}`;
+    document.getElementById('live-text').textContent       = (d.textChannelCount||0).toLocaleString();
+    document.getElementById('live-voice').textContent      = `${d.voiceChannelCount||0} voice channels`;
+    document.getElementById('live-roles').textContent      = (d.roleCount||0).toLocaleString();
+
+    const roles = d.topRoles||[];
+    if (roles.length>0) {
+      const maxC=roles[0].count||1, total=d.totalMembers||1;
+      document.getElementById('role-table-wrap').innerHTML=`
+        <table>
+          <thead><tr>
+            <th style="width:32px">#</th><th>Role</th>
+            <th style="text-align:right;width:90px">Members</th>
+            <th style="width:45%">% of Server</th>
+          </tr></thead>
+          <tbody>${roles.map((r,i)=>`
+            <tr>
+              <td style="color:#4e5058">${i+1}</td>
+              <td><span class="role-dot" style="background:${esc(r.color||'#99aab5')}"></span>${esc(r.name)}</td>
+              <td class="count-value">${(r.count||0).toLocaleString()}</td>
+              <td>
+                <div class="bar-cell">
+                  <div class="bar-bg"><div class="bar-fill" style="width:${Math.round((r.count/maxC)*100)}%;background:${esc(r.color||C_PURPLE)}"></div></div>
+                  <span style="color:#4e5058;font-size:11px;min-width:36px">${Math.round((r.count/total)*100)}%</span>
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+    } else {
+      document.getElementById('role-table-wrap').textContent='Role data will appear after the bot completes its initial member sync.';
+    }
+  }
+
+  // ── Render date-filtered sections ─────────────────────────────────────────
+  function renderAll(data) {
+    rawStats=data;
+    const daily=data.daily||{}, start=startDate, end=endDate;
+    const spanDays=Math.round((end-start)/86400000);
+    const prevStart=addDays(start,-spanDays);
+    const lbl=spanDays<=1?'previous day':spanDays<=8?'previous week':spanDays<=32?'previous month':`previous ${spanDays} days`;
+
+    const cur =aggregateRange(daily,start,end);
+    const prev=aggregateRange(daily,prevStart,start);
+
+    // Growth cards
+    document.getElementById('m-newmembers').textContent=cur.newMembers.toLocaleString();
+    document.getElementById('m-leaves').textContent    =cur.leaves.toLocaleString();
+    const ngEl=document.getElementById('m-netgrowth');
+    ngEl.textContent=(cur.netGrowth>=0?'+':'')+cur.netGrowth.toLocaleString();
+    ngEl.style.color=cur.netGrowth>=0?C_GREEN:C_RED;
+    setBadge('m-newmembers-change',changeBadge(cur.newMembers,prev.newMembers,lbl));
+    setBadge('m-leaves-change',    changeBadge(cur.leaves,    prev.leaves,    lbl,true));
+    setBadge('m-netgrowth-change', changeBadge(cur.netGrowth, prev.netGrowth, lbl));
+
+    // Engagement cards
+    document.getElementById('m-messages').textContent      =cur.messages.toLocaleString();
+    document.getElementById('m-communicators').textContent =cur.communicators.toLocaleString();
+    document.getElementById('m-channels').textContent      =cur.channels.toLocaleString();
+    document.getElementById('m-avgday').textContent        =cur.avgDay.toLocaleString();
+    setBadge('m-messages-change',      changeBadge(cur.messages,      prev.messages,      lbl));
+    setBadge('m-communicators-change', changeBadge(cur.communicators, prev.communicators, lbl));
+    setBadge('m-channels-change',      changeBadge(cur.channels,      prev.channels,      lbl));
+    setBadge('m-avgday-change',        changeBadge(cur.avgDay,        prev.avgDay,        lbl));
+    document.getElementById('m-voicemins').textContent = Math.round(cur.voiceMinutes).toLocaleString();
+    setBadge('m-voicemins-change', changeBadge(Math.round(cur.voiceMinutes), Math.round(prev.voiceMinutes), lbl));
+
+    // Build shared buckets
+    const buckets =buildBuckets(daily,interval,start,end);
+    const labels  =buckets.map(b=>b.label);
+    const msgData =buckets.map(b=>b.messages);
+    const commData=buckets.map(b=>b.users.size);
+    const joinData=buckets.map(b=>b.newMembers);
+
+    // Member joins bar
+    if (charts.members) {
+      charts.members.data.labels=labels; charts.members.data.datasets[0].data=joinData; charts.members.update();
+    } else {
+      charts.members=new Chart(document.getElementById('chart-members'),{
+        type:'bar',
+        data:{labels,datasets:[{label:'New Members',data:joinData,backgroundColor:C_GREEN_DIM,borderColor:C_GREEN,borderWidth:1.5,borderRadius:3}]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:tt()},
+          scales:{x:{grid:{color:C_GRID}},y:{grid:{color:C_GRID},beginAtZero:true,ticks:{precision:0}}}}
+      });
+    }
+
+    // Account age doughnut
+    const ages=cur.accountAges;
+    if (charts.accountAge) {
+      charts.accountAge.data.datasets[0].data=[ages.new,ages.established,ages.veteran]; charts.accountAge.update();
+    } else {
+      charts.accountAge=new Chart(document.getElementById('chart-account-age'),{
+        type:'doughnut',
+        data:{
+          labels:['New account (<30 days)','Established (30d – 1yr)','Veteran (>1 year)'],
+          datasets:[{data:[ages.new,ages.established,ages.veteran],
+            backgroundColor:[C_RED,C_YELLOW,C_GREEN],borderColor:'#2b2d31',borderWidth:2}]
+        },
+        options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+          plugins:{
+            legend:{position:'right',labels:{color:'#949ba4',font:{size:11},boxWidth:12,padding:10}},
+            tooltip:{...tt(),callbacks:{label:ctx=>{
+              const tot=ages.new+ages.established+ages.veteran;
+              const pct=tot>0?Math.round((ctx.raw/tot)*100):0;
+              return ` ${ctx.raw.toLocaleString()} (${pct}%)`;
+            }}}
+          }}
+      });
+    }
+
+    // Messages line chart
+    if (charts.messages) {
+      charts.messages.data.labels=labels;
+      charts.messages.data.datasets[0].data=msgData;
+      charts.messages.data.datasets[1].data=commData;
+      charts.messages.update();
+    } else {
+      charts.messages=new Chart(document.getElementById('chart-messages'),{
+        type:'line',
+        data:{labels,datasets:[
+          {label:'Messages',data:msgData,borderColor:C_PURPLE,backgroundColor:C_PURPLE_DIM,
+           borderWidth:2,pointBackgroundColor:C_PURPLE,pointRadius:4,pointHoverRadius:6,
+           fill:true,tension:0.3,yAxisID:'y'},
+          {label:'Communicators',data:commData,borderColor:C_YELLOW,backgroundColor:'transparent',
+           borderWidth:2,borderDash:[4,3],pointBackgroundColor:C_YELLOW,pointRadius:4,
+           pointHoverRadius:6,fill:false,tension:0.3,yAxisID:'y2'}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+          plugins:{legend:{display:false},tooltip:tt()},
+          scales:{
+            x:{grid:{color:C_GRID}},
+            y:{grid:{color:C_GRID},beginAtZero:true,ticks:{precision:0},title:{display:true,text:'Messages',color:'#949ba4'}},
+            y2:{position:'right',grid:{drawOnChartArea:false},beginAtZero:true,ticks:{precision:0},title:{display:true,text:'Communicators',color:'#949ba4'}}
+          }}
+      });
+    }
+
+    // Day of week
+    const dow=aggregateDow(daily,start,end);
+    if (charts.dow) { charts.dow.data.datasets[0].data=dow; charts.dow.update(); }
+    else {
+      charts.dow=new Chart(document.getElementById('chart-dow'),{
+        type:'bar',
+        data:{labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
+          datasets:[{data:dow,backgroundColor:'rgba(88,101,242,0.3)',borderColor:C_PURPLE,borderWidth:1.5,borderRadius:3}]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:tt()},
+          scales:{x:{grid:{color:C_GRID}},y:{grid:{color:C_GRID},beginAtZero:true,ticks:{precision:0}}}}
+      });
+    }
+
+    // Hourly
+    const hourly=estimateHourly(daily,start,end);
+    if (charts.hourly) { charts.hourly.data.datasets[0].data=hourly; charts.hourly.update(); }
+    else {
+      charts.hourly=new Chart(document.getElementById('chart-hourly'),{
+        type:'bar',
+        data:{labels:Array.from({length:24},(_,i)=>i%6===0?`${i}:00`:''),
+          datasets:[{data:hourly,backgroundColor:'rgba(88,101,242,0.3)',borderColor:C_PURPLE,borderWidth:1.5,borderRadius:2}]},
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{legend:{display:false},tooltip:{...tt(),callbacks:{
+            title:ctx=>`${ctx[0].dataIndex}:00 UTC`,
+            label:ctx=>` ~${ctx.raw.toLocaleString()} msgs (est.)`
+          }}},
+          scales:{x:{grid:{color:C_GRID}},y:{grid:{color:C_GRID},beginAtZero:true,ticks:{precision:0}}}}
+      });
+    }
+
+    // Channel table
+    const chans=channelTotals(daily,start,end);
+    const maxC=chans[0]?.count||1;
+    document.getElementById('channel-table-wrap').innerHTML=chans.length===0
+      ? '<p style="color:#949ba4;padding:12px 0">No message data for the selected range.</p>'
+      : `<table>
+          <thead><tr>
+            <th style="width:32px">#</th><th>Channel</th>
+            <th style="text-align:right;width:100px">Messages</th>
+            <th style="width:45%">Share</th>
+          </tr></thead>
+          <tbody>${chans.slice(0,15).map((ch,i)=>`
+            <tr>
+              <td style="color:#4e5058">${i+1}</td>
+              <td>#${esc(ch.name)}</td>
+              <td class="count-value">${ch.count.toLocaleString()}</td>
+              <td>
+                <div class="bar-cell">
+                  <div class="bar-bg"><div class="bar-fill" style="width:${Math.round((ch.count/maxC)*100)}%;background:#5865f2"></div></div>
+                  <span style="color:#4e5058;font-size:11px;min-width:36px">${Math.round((ch.count/(cur.messages||1))*100)}%</span>
+                </div>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>`;
+
+    if (data.lastBackfill) {
+      const age=Date.now()-new Date(data.lastBackfill).getTime();
+      if (age<5*60*1000) document.getElementById('refresh-note').textContent='Historical data is still loading — auto-refreshes every 60s';
+    }
+  }
+
+  // ── Controls ──────────────────────────────────────────────────────────────
+  document.getElementById('interval-select').addEventListener('change', e=>{
+    interval=e.target.value;
+    const r=defaultRange(interval); startDate=r.start; endDate=r.end;
+    syncInputs(); if(rawStats) renderAll(rawStats);
+  });
+  document.getElementById('date-start').addEventListener('change', e=>{
+    if(!e.target.value) return;
+    const ns=fromInputVal(e.target.value); if(ns>=endDate) return;
+    startDate=ns; if(rawStats) renderAll(rawStats);
+  });
+  document.getElementById('date-end').addEventListener('change', e=>{
+    if(!e.target.value) return;
+    const ne=addDays(fromInputVal(e.target.value),1); if(ne<=startDate) return;
+    endDate=ne; if(rawStats) renderAll(rawStats);
+  });
+
+  // ── Init & fetch ──────────────────────────────────────────────────────────
+  const ir=defaultRange(interval); startDate=ir.start; endDate=ir.end;
+  document.getElementById('date-end').max=toInputVal(today0());
+  syncInputs();
+
+  async function loadStats() {
+    try {
+      const res=await fetch('/api/stats'); if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      renderAll(await res.json());
+      document.getElementById('last-updated').textContent='Updated '+new Date().toLocaleTimeString();
+    } catch(err){ console.error('Stats fetch error:',err); }
+  }
+  async function loadGuildInfo() {
+    try {
+      const res=await fetch('/api/guild'); if(!res.ok) return;
+      const g=await res.json(); if(!g.name) return;
+      document.getElementById('server-name').textContent=g.name;
+      document.title=`${g.name} — Server Insights`;
+      const el=document.getElementById('server-icon');
+      el.innerHTML=g.iconURL?`<img src="${g.iconURL}" alt="${esc(g.name)}" />`:g.name.charAt(0).toUpperCase();
+    } catch{}
+  }
+  async function loadMembers() {
+    try {
+      const res=await fetch('/api/members'); if(!res.ok) return;
+      rawMembers=await res.json(); renderLive(rawMembers);
+    } catch(err){ console.error('Members fetch error:',err); }
+  }
+
+  loadGuildInfo();
+  loadStats();
+  loadMembers();
+  setInterval(loadStats,   60_000);
+  setInterval(loadMembers, 300_000);
+
+  // ── Report generation ──────────────────────────────────────────────────────
+  (function initReport() {
+    // Default date range: last 14 days
+    const t = today0();
+    const rEnd   = addDays(t, 1);
+    const rStart = addDays(t, -13);
+    document.getElementById('report-start').value = toInputVal(rStart);
+    document.getElementById('report-end').value   = toInputVal(addDays(rEnd, -1));
+    document.getElementById('report-start').max = toInputVal(today0());
+    document.getElementById('report-end').max   = toInputVal(today0());
+
+    function fmtDateUS(d) {
+      return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' });
+    }
+    function fmtNum(n) { return Number(n || 0).toLocaleString(); }
+
+    function generateMarkdown() {
+      if (!rawStats) return '⚠ Stats data not loaded yet. Please wait and try again.';
+      const rsv = document.getElementById('report-start').value;
+      const rev = document.getElementById('report-end').value;
+      if (!rsv || !rev) return '⚠ Please select a date range.';
+      const rStart = fromInputVal(rsv);
+      const rEnd   = addDays(fromInputVal(rev), 1);
+      if (rEnd <= rStart) return '⚠ End date must be after start date.';
+
+      const daily = rawStats.daily || {};
+      const cur   = aggregateRange(daily, rStart, rEnd);
+      const chans = channelTotals(daily, rStart, rEnd);
+      const dow   = aggregateDow(daily, rStart, rEnd);
+      const dayNames = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const mostActiveDow = dayNames[dow.indexOf(Math.max(...dow))];
+      const spanDays = Math.max(1, Math.round((rEnd - rStart) / 86400000));
+      const activeDays = Object.keys(daily).filter(dk => {
+        const d = new Date(dk + 'T00:00:00');
+        return d >= rStart && d < rEnd && (daily[dk].total || 0) > 0;
+      }).length;
+
+      const now = new Date();
+      const genStr = `${fmtDateUS(now)} at ${now.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+
+      let md = `# Discord Analytics Report\n\n`;
+      md += `**Date Range:** ${fmtDateUS(rStart)} \u2013 ${fmtDateUS(addDays(rEnd,-1))}  \n`;
+      md += `**Generated:** ${genStr}\n\n`;
+      md += `---\n\n`;
+
+      md += `## Growth & Activation\n\n`;
+      md += `| Metric | Value |\n|--------|-------|\n`;
+      md += `| New Members | ${fmtNum(cur.newMembers)} |\n`;
+      md += `| Messages Sent | ${fmtNum(cur.messages)} |\n`;
+      md += `| Communicators | ${fmtNum(cur.communicators)} |\n`;
+      md += `| Voice Minutes | ${fmtNum(Math.round(cur.voiceMinutes))} |\n`;
+      md += `| Member Departures | ${fmtNum(cur.leaves)} |\n`;
+      md += `| Net Member Growth | ${cur.netGrowth >= 0 ? '+' : ''}${fmtNum(cur.netGrowth)} |\n`;
+      md += `| Avg Messages / Day | ${fmtNum(cur.avgDay)} |\n`;
+      md += `\n---\n\n`;
+
+      md += `## Engagement\n\n`;
+      md += `### Top Channels\n\n`;
+      if (chans.length > 0) {
+        md += `| # | Channel | Messages | Share |\n|---|---------|----------:|------:|\n`;
+        chans.slice(0, 10).forEach((ch, i) => {
+          const pct = cur.messages > 0 ? Math.round((ch.count / cur.messages) * 100) : 0;
+          md += `| ${i+1} | #${ch.name} | ${fmtNum(ch.count)} | ${pct}% |\n`;
+        });
+      } else {
+        md += '_No channel data for this period._\n';
+      }
+      md += `\n---\n\n`;
+
+      md += `## Activity Patterns\n\n`;
+      md += `**Most Active Day:** ${mostActiveDow}  \n`;
+      md += `**Period:** ${spanDays} days  \n`;
+      md += `**Active Days:** ${activeDays}\n\n`;
+      md += `---\n\n`;
+
+      const ages = cur.accountAges;
+      const totalAges = ages.new + ages.established + ages.veteran;
+      if (totalAges > 0) {
+        md += `## New Member Account Ages\n\n`;
+        md += `| Account Type | Count | % |\n|-------------|------:|--:|\n`;
+        md += `| New (<30 days) | ${fmtNum(ages.new)} | ${totalAges>0?Math.round((ages.new/totalAges)*100):0}% |\n`;
+        md += `| Established (30d\u20131yr) | ${fmtNum(ages.established)} | ${totalAges>0?Math.round((ages.established/totalAges)*100):0}% |\n`;
+        md += `| Veteran (>1 year) | ${fmtNum(ages.veteran)} | ${totalAges>0?Math.round((ages.veteran/totalAges)*100):0}% |\n`;
+        md += `\n---\n\n`;
+      }
+
+      if (rawMembers) {
+        md += `## Server Composition (Live)\n\n`;
+        md += `| Metric | Value |\n|--------|-------|\n`;
+        md += `| Total Members | ${fmtNum(rawMembers.totalMembers)} |\n`;
+        md += `| Human Members | ${fmtNum(rawMembers.humanCount)} |\n`;
+        md += `| Bots | ${fmtNum(rawMembers.botCount)} |\n`;
+        md += `| Boost Tier | ${['None','Tier 1','Tier 2','Tier 3'][rawMembers.boostTier]||'None'} |\n`;
+        md += `| Active Boosters | ${fmtNum(rawMembers.boostCount)} |\n`;
+        md += `| Text Channels | ${fmtNum(rawMembers.textChannelCount)} |\n`;
+        md += `| Voice Channels | ${fmtNum(rawMembers.voiceChannelCount)} |\n`;
+        md += `| Roles | ${fmtNum(rawMembers.roleCount)} |\n`;
+        if (rawMembers.topRoles?.length > 0) {
+          md += `\n### Top Roles\n\n| Role | Members |\n|------|--------:|\n`;
+          rawMembers.topRoles.slice(0, 10).forEach(r => {
+            md += `| ${r.name} | ${fmtNum(r.count)} |\n`;
+          });
+        }
+        md += `\n---\n\n`;
+      }
+      return md;
+    }
+
+    document.getElementById('btn-generate').addEventListener('click', () => {
+      const md = generateMarkdown();
+      document.getElementById('report-output').textContent = md;
+      document.getElementById('report-output-wrap').style.display = '';
+      document.getElementById('report-output-wrap').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    document.getElementById('btn-copy').addEventListener('click', () => {
+      const text = document.getElementById('report-output').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('btn-copy');
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy to Clipboard'; }, 2000);
+      });
+    });
+
+    document.getElementById('btn-download').addEventListener('click', () => {
+      const text = document.getElementById('report-output').textContent;
+      const rsv  = document.getElementById('report-start').value || 'report';
+      const rev  = document.getElementById('report-end').value   || '';
+      const fname = `discord-report-${rsv}${rev ? '--' + rev : ''}.md`;
+      const blob  = new Blob([text], { type: 'text/markdown' });
+      const url   = URL.createObjectURL(blob);
+      const a     = document.createElement('a');
+      a.href = url; a.download = fname; a.click();
+      URL.revokeObjectURL(url);
+    });
+  })();
+</script>
+</body>
+</html>

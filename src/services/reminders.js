@@ -22,7 +22,7 @@ function loadRemindersFromFile() {
     const parsed = JSON.parse(data);
     return Array.isArray(parsed) ? parsed : [];
   } catch (err) {
-    console.warn('Failed to load reminders from file:', err?.message || err);
+    console.warn('Failed to load reminders from file:', err);
     return [];
   }
 }
@@ -31,7 +31,7 @@ function saveRemindersToFile(list) {
   try {
     fs.writeFileSync(REMINDER_FILE, JSON.stringify(list, null, 2));
   } catch (err) {
-    console.error('Failed to save reminders to file:', err?.message || err);
+    console.error('Failed to save reminders to file:', err);
   }
 }
 
@@ -182,7 +182,7 @@ async function sendReminder(reminder) {
         const user = await _client.users.fetch(reminder.userId);
         await user.send(`🔔 Reminder: ${reminder.msg}`);
       } catch (dmErr) {
-        console.warn('Failed to DM user for reminder:', dmErr?.message || dmErr);
+        console.warn('Failed to DM user for reminder:', dmErr);
       }
     }
     // remove from persisted
