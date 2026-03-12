@@ -12,10 +12,14 @@ module.exports = (client) => {
     } catch (err) {
       console.error(err);
 
-      if (interaction.replied || interaction.deferred) {
-        await interaction.editReply({ content: '❌ Error processing command.' });
-      } else {
-        await interaction.reply({ content: '❌ Error processing command.', ephemeral: true });
+      try {
+        if (interaction.replied || interaction.deferred) {
+          await interaction.editReply({ content: '❌ Error processing command.' });
+        } else {
+          await interaction.reply({ content: '❌ Error processing command.', ephemeral: true });
+        }
+      } catch (replyErr) {
+        console.error('Failed to send error reply to interaction:', replyErr.message);
       }
     }
   });
