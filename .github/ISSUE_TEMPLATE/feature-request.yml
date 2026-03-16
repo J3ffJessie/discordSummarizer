@@ -1,0 +1,55 @@
+name: Feature Request
+description: Suggest a new feature or improvement for Torc Bot
+title: "[Feature]: "
+labels: ["feature request"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to suggest a feature! Fill out the form below and we'll review it for the roadmap.
+
+  - type: input
+    id: summary
+    attributes:
+      label: Feature Summary
+      description: A short, clear title for your idea.
+      placeholder: e.g. Daily trivia game in a text channel
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the feature in detail. What should it do?
+      placeholder: When a user runs /trivia, the bot posts a daily question...
+    validations:
+      required: true
+
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use Case
+      description: Who benefits from this and why would it be useful?
+      placeholder: Server members who want daily engagement activities...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Have you tried working around this another way? (optional)
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: How important is this to you?
+      options:
+        - Nice to have
+        - Important
+        - Critical
+    validations:
+      required: true
