@@ -201,6 +201,13 @@
       font-size: 11px; font-weight: 700; text-transform: uppercase;
       letter-spacing: 0.04em; color: var(--muted);
     }
+    .field-hint {
+      font-size: 11px; color: var(--muted); line-height: 1.5; margin-top: 2px;
+    }
+    .field-hint code {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 3px; padding: 1px 4px; font-size: 11px; color: var(--text);
+    }
     .field-group input[type="text"],
     .field-group input[type="password"],
     .field-group input[type="number"],
@@ -549,13 +556,77 @@
         </div>
         <div class="field-group">
           <div class="field-label">Timezone</div>
-          <input type="text" id="cfg-timezone" placeholder="e.g. America/New_York" />
+          <select id="cfg-timezone">
+            <option value="">— Select a timezone —</option>
+            <optgroup label="US & Canada">
+              <option value="America/New_York">Eastern (New York)</option>
+              <option value="America/Chicago">Central (Chicago)</option>
+              <option value="America/Denver">Mountain (Denver)</option>
+              <option value="America/Phoenix">Mountain – no DST (Phoenix)</option>
+              <option value="America/Los_Angeles">Pacific (Los Angeles)</option>
+              <option value="America/Anchorage">Alaska (Anchorage)</option>
+              <option value="Pacific/Honolulu">Hawaii (Honolulu)</option>
+              <option value="America/Toronto">Eastern – Canada (Toronto)</option>
+              <option value="America/Vancouver">Pacific – Canada (Vancouver)</option>
+            </optgroup>
+            <optgroup label="Europe">
+              <option value="Europe/London">London (GMT/BST)</option>
+              <option value="Europe/Dublin">Dublin</option>
+              <option value="Europe/Paris">Paris (CET/CEST)</option>
+              <option value="Europe/Berlin">Berlin</option>
+              <option value="Europe/Amsterdam">Amsterdam</option>
+              <option value="Europe/Madrid">Madrid</option>
+              <option value="Europe/Rome">Rome</option>
+              <option value="Europe/Stockholm">Stockholm</option>
+              <option value="Europe/Helsinki">Helsinki (EET)</option>
+              <option value="Europe/Athens">Athens</option>
+              <option value="Europe/Warsaw">Warsaw</option>
+              <option value="Europe/Istanbul">Istanbul</option>
+              <option value="Europe/Moscow">Moscow</option>
+            </optgroup>
+            <optgroup label="Asia / Pacific">
+              <option value="Asia/Dubai">Dubai (GST)</option>
+              <option value="Asia/Karachi">Karachi (PKT)</option>
+              <option value="Asia/Kolkata">Mumbai / Delhi (IST)</option>
+              <option value="Asia/Dhaka">Dhaka (BST)</option>
+              <option value="Asia/Bangkok">Bangkok (ICT)</option>
+              <option value="Asia/Singapore">Singapore</option>
+              <option value="Asia/Shanghai">Beijing / Shanghai (CST)</option>
+              <option value="Asia/Tokyo">Tokyo (JST)</option>
+              <option value="Asia/Seoul">Seoul (KST)</option>
+              <option value="Australia/Perth">Perth (AWST)</option>
+              <option value="Australia/Adelaide">Adelaide (ACST)</option>
+              <option value="Australia/Sydney">Sydney (AEST)</option>
+              <option value="Pacific/Auckland">Auckland (NZST)</option>
+            </optgroup>
+            <optgroup label="Latin America">
+              <option value="America/Mexico_City">Mexico City</option>
+              <option value="America/Bogota">Bogotá</option>
+              <option value="America/Lima">Lima</option>
+              <option value="America/Santiago">Santiago</option>
+              <option value="America/Sao_Paulo">São Paulo</option>
+              <option value="America/Argentina/Buenos_Aires">Buenos Aires</option>
+            </optgroup>
+            <optgroup label="Africa">
+              <option value="Africa/Casablanca">Casablanca</option>
+              <option value="Africa/Lagos">Lagos (WAT)</option>
+              <option value="Africa/Nairobi">Nairobi (EAT)</option>
+              <option value="Africa/Johannesburg">Johannesburg (SAST)</option>
+            </optgroup>
+            <optgroup label="UTC">
+              <option value="UTC">UTC</option>
+            </optgroup>
+          </select>
         </div>
       </div>
       <div class="field-row">
         <div class="field-group">
           <div class="field-label">Cron Schedule</div>
           <input type="text" id="cfg-summary-cron" placeholder="e.g. 0 10 * * 1  (Mon 10am)" />
+          <div class="field-hint">
+            Format: <code>minute hour day month weekday</code> &nbsp;·&nbsp; <code>*</code> = any &nbsp;·&nbsp; <code>,</code> = list &nbsp;·&nbsp; <code>-</code> = range &nbsp;·&nbsp; <code>/</code> = step<br>
+            Examples: <code>0 9 * * 1-5</code> weekdays at 9 am &nbsp;·&nbsp; <code>0 18 * * 5</code> Fridays at 6 pm &nbsp;·&nbsp; <code>0 10 * * 1</code> Mondays at 10 am
+          </div>
         </div>
       </div>
       <div class="save-row">
