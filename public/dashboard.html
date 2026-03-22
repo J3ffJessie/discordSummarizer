@@ -656,14 +656,17 @@
       <div class="field-row triple">
         <div class="field-group">
           <div class="field-label">Role Name</div>
+          <div class="toggle-sub">Role for your server to use for pairing.</div>
           <input type="text" id="cfg-coffee-role" placeholder="e.g. coffee chat" />
         </div>
         <div class="field-group">
           <div class="field-label">Cron Schedule</div>
+          <div class="toggle-sub">See above example for formatting.</div>
           <input type="text" id="cfg-coffee-cron" placeholder="e.g. 0 10 * * 5  (Fri 10am)" />
         </div>
         <div class="field-group">
           <div class="field-label">Cooldown (days)</div>
+          <div class="toggle-sub">Prevents pairing of same members together for this number of days.</div>
           <input type="number" id="cfg-coffee-cooldown" min="1" placeholder="30" />
         </div>
       </div>
@@ -738,6 +741,8 @@
             <select id="cfg-stt-provider">
               <option value="groq">Groq</option>
               <option value="openai">OpenAI</option>
+              <option value="ollama">Ollama (local)</option>
+              <option value="custom">Custom (OpenAI-compatible)</option>
             </select>
           </div>
           <div class="field-group">
@@ -747,6 +752,10 @@
           <div class="field-group">
             <div class="field-label">Model</div>
             <input type="text" id="cfg-stt-model" placeholder="e.g. whisper-large-v3-turbo" />
+          </div>
+          <div class="field-group">
+            <div class="field-label">Base URL (Ollama / Custom only)</div>
+            <input type="text" id="cfg-stt-url" placeholder="e.g. http://localhost:11434/v1" />
           </div>
         </div>
       </div>
@@ -1380,6 +1389,7 @@
       // Base URLs
       setVal('cfg-summ-url',  cfg.summ_base_url  || '');
       setVal('cfg-trans-url', cfg.trans_base_url || '');
+      setVal('cfg-stt-url',   cfg.stt_base_url   || '');
       // API keys: cfg value is boolean (true = already set)
       document.getElementById('cfg-summ-key').placeholder  = cfg.summ_api_key  ? '••••• already set — leave blank to keep' : 'Enter API key';
       document.getElementById('cfg-trans-key').placeholder = cfg.trans_api_key ? '••••• already set — leave blank to keep' : 'Enter API key';
@@ -1454,6 +1464,7 @@
         stt_provider:   getVal('cfg-stt-provider'),
         stt_api_key:    getVal('cfg-stt-key'),
         stt_model:      getVal('cfg-stt-model'),
+        stt_base_url:   getVal('cfg-stt-url'),
       }, 'status-ai');
     });
 
