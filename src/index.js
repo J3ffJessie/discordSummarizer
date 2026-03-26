@@ -207,6 +207,10 @@ schedulerService.start();
    LOGIN
 =========================== */
 
+client.on(Events.Error, (err) => {
+  console.error('Discord client error:', err.message);
+});
+
 client.once(Events.ClientReady, () => {
   messageStatsService.backfillHistory(client).catch(err => {
     console.error('[messageStats] Backfill error:', err.message);
