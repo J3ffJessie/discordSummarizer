@@ -40,10 +40,9 @@ class VoiceService {
 
     connection.on("stateChange", (oldState, newState) => {
       console.log(`[voice] state: ${oldState.status} -> ${newState.status}`);
-    });
-
-    connection.on("debug", (msg) => {
-      console.log(`[voice debug] ${msg}`);
+      if (newState.status === VoiceConnectionStatus.Disconnected) {
+        console.log(`[voice] disconnected — closeCode: ${newState.closeCode ?? 'n/a'}, reason: ${newState.reason ?? 'n/a'}`);
+      }
     });
 
     // Don't block start() — attach the speaking listener once the connection
