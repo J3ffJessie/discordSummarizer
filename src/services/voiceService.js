@@ -1,4 +1,4 @@
-const { joinVoiceChannel, EndBehaviorType } = require("@discordjs/voice");
+const { joinVoiceChannel, EndBehaviorType, VoiceConnectionStatus, entersState } = require("@discordjs/voice");
 const OpusScript = require("opusscript");
 const fs = require("fs");
 const path = require("path");
@@ -38,16 +38,30 @@ class VoiceService {
 
     this.connections.set(guildId, connection);
 
-    const receiver = connection.receiver;
-
-    receiver.speaking.on("start", (userId) => {
-      // Brief delay avoids the corrupted first Opus frame Discord sends
-      // when a user's encoder initializes.
-      setTimeout(() => {
-        if (!this.connections.has(guildId)) return;
-        this.captureAudio(receiver, userId, guildId).catch(() => {});
-      }, 100);
+    connection.on("stateChange", (oldState, newState) => {
+      console.log(`[voice] state: ${oldState.status} -> ${newState.status}`);
     });
+
+    // Don't block start() — attach the speaking listener once the connection
+    // is ready so the URL is posted to Discord without delay.
+    entersState(connection, VoiceConnectionStatus.Ready, 30_000)
+      .then(() => {
+        console.log(`[voice] connection ready for guild ${guildId}`);
+        const receiver = connection.receiver;
+        receiver.speaking.on("start", (userId) => {
+          // Brief delay avoids the corrupted first Opus frame Discord sends
+          // when a user's encoder initializes.
+          setTimeout(() => {
+            if (!this.connections.has(guildId)) return;
+            this.captureAudio(receiver, userId, guildId).catch(() => {});
+          }, 100);
+        });
+      })
+      .catch((err) => {
+        console.error(`[voice] connection never became ready: ${err.message}`);
+        connection.destroy();
+        this.connections.delete(guildId);
+      });
   }
 
   async stop(guildId) {

@@ -1,6 +1,7 @@
 const {
   SlashCommandBuilder,
-  EmbedBuilder
+  EmbedBuilder,
+  MessageFlags
 } = require("discord.js");
 
 module.exports = {
@@ -25,7 +26,7 @@ module.exports = {
     if (!interaction.guild) {
       return interaction.reply({
         content: "This command can only be used inside a server.",
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
 
@@ -35,7 +36,7 @@ module.exports = {
       if (!member.voice.channel) {
         return interaction.reply({
           content: "You must be in a voice channel to start translation.",
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
 
@@ -44,26 +45,39 @@ module.exports = {
       if (existingSession) {
         return interaction.reply({
           content: "Translation is already running in this server.",
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
 
       // Acknowledge immediately — joinVoiceChannel can take longer than
       // Discord's 3-second interaction window, causing error 10062.
-      await interaction.deferReply();
+      try {
+        await interaction.deferReply();
+      } catch (err) {
+        console.error("deferReply failed (interaction expired):", err?.message);
+        return;
+      }
 
       // Create session — stop voice capture when session auto-expires after 1 hour
       const session = sessionService.createSession(interaction.guildId, () => {
         if (voiceService) voiceService.stop(interaction.guildId);
       });
 
-      // Start voice capture (handled in your voiceService)
-      if (voiceService) {
-        await voiceService.start(
-          interaction.guild,
-          member.voice.channel,
-          interaction.guildId
-        );
+      // Start voice capture
+      try {
+        if (voiceService) {
+          await voiceService.start(
+            interaction.guild,
+            member.voice.channel,
+            interaction.guildId
+          );
+        }
+      } catch (err) {
+        console.error("Failed to start voice capture:", err?.message);
+        sessionService.deleteSession(interaction.guildId);
+        return interaction.editReply({
+          content: "Failed to join your voice channel. Please try again.",
+        });
       }
 
       const baseUrl =
@@ -91,11 +105,16 @@ module.exports = {
       if (!existingSession) {
         return interaction.reply({
           content: "There is no active translation session.",
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
 
-      await interaction.deferReply();
+      try {
+        await interaction.deferReply();
+      } catch (err) {
+        console.error("deferReply failed (interaction expired):", err?.message);
+        return;
+      }
 
       // Stop voice capture
       if (voiceService) {
