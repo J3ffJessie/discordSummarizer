@@ -1,0 +1,59 @@
+name: Dependency Update
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'   # Every Monday at 9am UTC
+  workflow_dispatch:        # Allow manual trigger
+
+jobs:
+  update-deps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Update dependencies
+        run: npx npm-check-updates -u   # Updates package.json
+
+      - name: Install updated deps
+        run: npm install
+
+      - name: Run tests
+        id: tests
+        run: npm test
+
+      - name: Notify on test failure
+        if: failure() && steps.tests.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Dependency Update: Tests Failing',
+              body: `## Automated dependency update failed tests\n\nThe scheduled dependency update workflow ran on ${new Date().toUTCString()} but tests did not pass.\n\n**Action required:** Review the [failed workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}) to see which tests failed before manually updating dependencies.\n\nNo pull request has been created.`,
+              labels: ['dependencies', 'bug'],
+              assignees: ['${{ github.repository_owner }}']
+            })
+
+      - name: Create Pull Request
+        if: success()
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "chore: update dependencies"
+          title: "chore: scheduled dependency updates"
+          body: |
+            ## Automated Dependency Updates
+
+            All tests passed. Dependencies have been updated via `npm-check-updates`.
+
+            **Checklist before merging:**
+            - [ ] Review the diff for any breaking version bumps
+            - [ ] Check changelogs for major version updates
+            - [ ] Confirm bot behavior in a test environment if major deps changed
+          branch: "deps/scheduled-update"
+          labels: "dependencies"
