@@ -22,6 +22,8 @@ const { createHttpServer } = require('./services/httpServer');
 const { StreamingService } = require('./services/streamingService');
 const { SessionService } = require('./services/sessionService');
 const { VoiceService } = require('./services/voiceService');
+const { generateDependencyReport } = require('@discordjs/voice');
+console.log(generateDependencyReport());
 const { TranscriptionService } = require('./services/transcriptionService');
 const { TranslationService } = require('./services/translationService');
 const { SchedulerService } = require('./services/schedulerService');

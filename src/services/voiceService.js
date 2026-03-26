@@ -42,6 +42,10 @@ class VoiceService {
       console.log(`[voice] state: ${oldState.status} -> ${newState.status}`);
     });
 
+    connection.on("debug", (msg) => {
+      console.log(`[voice debug] ${msg}`);
+    });
+
     // Don't block start() — attach the speaking listener once the connection
     // is ready so the URL is posted to Discord without delay.
     entersState(connection, VoiceConnectionStatus.Ready, 30_000)
