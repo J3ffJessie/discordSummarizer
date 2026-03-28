@@ -165,7 +165,7 @@ module.exports = {
     ),
 
   async execute(interaction, services) {
-    if (!interaction.guild) {
+    if (!interaction.guildId) {
       return interaction.reply({
         content: 'This command can only be used inside a server.',
         ephemeral: true,
