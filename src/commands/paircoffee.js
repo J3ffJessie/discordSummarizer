@@ -1,14 +1,9 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const coffeeService = require('../services/coffee');
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('paircoffee').setDescription('Manual coffee pairing (admin only)').toJSON(),
+  data: new SlashCommandBuilder().setName('paircoffee').setDescription('Manual coffee pairing (admin only)').setDefaultMemberPermissions(PermissionFlagsBits.Administrator).toJSON(),
   async execute(interaction) {
-    const ALLOWED = (process.env.ALLOWED_USER_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (ALLOWED.length && !ALLOWED.includes(interaction.user.id)) {
-      await interaction.reply({ content: "❌ You do not have permission to use this command.", ephemeral: true });
-      return;
-    }
     await interaction.reply({ content: '☕ Running coffee pairing... This may take a moment.', ephemeral: true });
     try {
       const res = await coffeeService.runCoffeePairing(interaction.guild, process.env.COFFEE_ROLE_NAME);

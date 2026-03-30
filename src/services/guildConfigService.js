@@ -38,6 +38,7 @@ const AI_COLUMNS = [
   'stt_base_url   TEXT',
   'dashboard_token     TEXT',
   'dashboard_token_exp TEXT',
+  'installer_user_id   TEXT',
 ];
 
 class GuildConfigService {
@@ -105,6 +106,11 @@ class GuildConfigService {
 
   getAllWithCoffeeEnabled() {
     return this.db.prepare('SELECT * FROM guild_config WHERE coffee_enabled = 1').all();
+  }
+
+  getAllInstallerUserIds() {
+    return this.db.prepare('SELECT DISTINCT installer_user_id FROM guild_config WHERE installer_user_id IS NOT NULL').all()
+      .map(r => r.installer_user_id);
   }
 
   generateDashboardToken(guildId) {

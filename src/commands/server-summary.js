@@ -1,14 +1,9 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const gather = require('../services/gather');
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('server').setDescription('Gather and summarize server conversations (admin only)').toJSON(),
+  data: new SlashCommandBuilder().setName('server').setDescription('Gather and summarize server conversations (admin only)').setDefaultMemberPermissions(PermissionFlagsBits.Administrator).toJSON(),
   async execute(interaction, services) {
-    const ALLOWED = (process.env.ALLOWED_USER_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (ALLOWED.length && !ALLOWED.includes(interaction.user.id)) {
-      await interaction.reply({ content: "❌ You do not have permission to use this command.", ephemeral: true });
-      return;
-    }
 
     await interaction.reply({ content: '⏳ Gathering and summarizing conversations across all channels. Please wait...', ephemeral: true });
     try {

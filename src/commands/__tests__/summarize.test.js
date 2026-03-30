@@ -1,6 +1,3 @@
-jest.mock('../../services/groq', () => ({
-  summarizeMessages: jest.fn(),
-}));
 jest.mock('discord.js', () => ({
   SlashCommandBuilder: jest.fn().mockImplementation(() => ({
     setName: jest.fn().mockReturnThis(),
@@ -9,7 +6,6 @@ jest.mock('discord.js', () => ({
   })),
 }));
 
-const groqService = require('../../services/groq');
 const command = require('../summarize');
 
 function makeMessages(count = 5) {
@@ -22,7 +18,6 @@ function makeMessages(count = 5) {
       member: null,
     });
   }
-  // Add sort/map/join chain
   const sorted = {
     sort: jest.fn().mockReturnValue({
       map: jest.fn().mockReturnValue(
@@ -33,9 +28,19 @@ function makeMessages(count = 5) {
   return { ...sorted, sort: sorted.sort };
 }
 
+function makeServices() {
+  return {
+    summarizationService: {
+      summarizeMessages: jest.fn(),
+    },
+  };
+}
+
 function makeInteraction({ canDM = true } = {}) {
   const messages = makeMessages();
   return {
+    guild: { id: 'guild1' },
+    guildId: 'guild1',
     channel: {
       messages: {
         fetch: jest.fn().mockResolvedValue(messages),
@@ -58,14 +63,15 @@ describe('/summarize command', () => {
   });
 
   it('should defer the reply, fetch messages, and DM the summary', async () => {
-    groqService.summarizeMessages.mockResolvedValue('• Point 1\n• Point 2');
+    const services = makeServices();
+    services.summarizationService.summarizeMessages.mockResolvedValue('• Point 1\n• Point 2');
     const interaction = makeInteraction();
 
-    await command.execute(interaction);
+    await command.execute(interaction, services);
 
     expect(interaction.deferReply).toHaveBeenCalledWith({ ephemeral: true });
     expect(interaction.channel.messages.fetch).toHaveBeenCalledWith({ limit: 100 });
-    expect(groqService.summarizeMessages).toHaveBeenCalledTimes(1);
+    expect(services.summarizationService.summarizeMessages).toHaveBeenCalledTimes(1);
     expect(interaction.user.send).toHaveBeenCalled();
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('DMs') })
@@ -73,21 +79,22 @@ describe('/summarize command', () => {
   });
 
   it('should split long summaries into chunks of 1900 chars', async () => {
+    const services = makeServices();
     const longSummary = 'A'.repeat(4000);
-    groqService.summarizeMessages.mockResolvedValue(longSummary);
+    services.summarizationService.summarizeMessages.mockResolvedValue(longSummary);
     const interaction = makeInteraction();
 
-    await command.execute(interaction);
+    await command.execute(interaction, services);
 
-    // Should have sent 3 chunks (4000 / 1900 = ~3)
     expect(interaction.user.send).toHaveBeenCalledTimes(Math.ceil(4000 / 1900));
   });
 
-  it('should edit reply with error message when groq throws', async () => {
-    groqService.summarizeMessages.mockRejectedValue(new Error('API error'));
+  it('should edit reply with error message when summarization throws', async () => {
+    const services = makeServices();
+    services.summarizationService.summarizeMessages.mockRejectedValue(new Error('API error'));
     const interaction = makeInteraction();
 
-    await command.execute(interaction);
+    await command.execute(interaction, services);
 
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Failed') })

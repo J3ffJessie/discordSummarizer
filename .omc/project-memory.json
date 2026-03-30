@@ -1,0 +1,137 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1774873270808,
+  "projectRoot": "C:\\Users\\JeffJ\\Projects\\discord-summarizer",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=20.0.0",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "jest",
+        "version": "30.2.0",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": "Node.js 20.0.0"
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "npm test",
+    "lintCommand": null,
+    "devCommand": "npm run dev",
+    "scripts": {
+      "start": "node ./src/index.js",
+      "dev": "nodemon ./src/index.js",
+      "register-commands": "node register-commands.js",
+      "test": "jest --verbose --colors",
+      "test:watch": "jest --watch --verbose --colors",
+      "test:report": "jest --verbose --colors",
+      "test:dashboard": "jest --verbose --colors --runInBand --detectOpenHandles --testLocationInResults"
+    }
+  },
+  "conventions": {
+    "namingStyle": "camelCase",
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "public",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 2,
+      "lastAccessed": 1774873270674,
+      "keyFiles": [
+        "multi-server-testing.md",
+        "stream-notes-multi-server-ai-providers.md"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 3,
+      "lastAccessed": 1774873270683,
+      "keyFiles": [
+        "captions.html",
+        "dashboard.html",
+        "torc-logo.png"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 1,
+      "lastAccessed": 1774873270722,
+      "keyFiles": [
+        "index.js"
+      ]
+    },
+    "tools": {
+      "path": "tools",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1774873270724,
+      "keyFiles": [
+        "find_escaped_backtick.js",
+        "require_commands_test.js",
+        "scan_backticks.js"
+      ]
+    },
+    "src\\data": {
+      "path": "src\\data",
+      "purpose": "Data files",
+      "fileCount": 2,
+      "lastAccessed": 1774873270727,
+      "keyFiles": [
+        "guild_config.db",
+        "message_stats.json"
+      ]
+    },
+    "src\\services": {
+      "path": "src\\services",
+      "purpose": "Business logic services",
+      "fileCount": 14,
+      "lastAccessed": 1774873270728,
+      "keyFiles": [
+        "coffee.js",
+        "events.js",
+        "gather.js"
+      ]
+    },
+    "src\\utils": {
+      "path": "src\\utils",
+      "purpose": "Utility functions",
+      "fileCount": 2,
+      "lastAccessed": 1774873270728,
+      "keyFiles": [
+        "helpers.js",
+        "logger.js"
+      ]
+    }
+  },
+  "hotPaths": [],
+  "userDirectives": []
+}

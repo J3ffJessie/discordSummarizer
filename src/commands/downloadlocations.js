@@ -1,15 +1,10 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
 module.exports = {
-  data: new SlashCommandBuilder().setName('downloadlocations').setDescription('Download the sorted locations log (admin only)').toJSON(),
+  data: new SlashCommandBuilder().setName('downloadlocations').setDescription('Download the sorted locations log (admin only)').setDefaultMemberPermissions(PermissionFlagsBits.Administrator).toJSON(),
   async execute(interaction) {
-    const ALLOWED = (process.env.ALLOWED_USER_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (ALLOWED.length && !ALLOWED.includes(interaction.user.id)) {
-      await interaction.reply({ content: "❌ You do not have permission to use this command.", ephemeral: true });
-      return;
-    }
     const logFile = path.join(__dirname, '..', '..', 'locations.log');
     if (!fs.existsSync(logFile)) {
       await interaction.reply({ content: 'No log file found.', ephemeral: true });

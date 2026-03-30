@@ -5,12 +5,16 @@ jest.mock('discord.js', () => ({
   SlashCommandBuilder: jest.fn().mockImplementation(() => ({
     setName: jest.fn().mockReturnThis(),
     setDescription: jest.fn().mockReturnThis(),
+    setDefaultMemberPermissions: jest.fn().mockReturnThis(),
     toJSON: jest.fn().mockReturnValue({}),
   })),
+  PermissionFlagsBits: { Administrator: 8n },
 }));
 
 const gather = require('../../services/gather');
 const command = require('../server-summary');
+
+const TARGET_CHANNEL_ID = 'channel123';
 
 function makeChannel() {
   return {
@@ -32,11 +36,21 @@ function makeGuild({ channelFound = true } = {}) {
   };
 }
 
+function makeServices() {
+  return {
+    summarizationService: { summarizeMessages: jest.fn(), serverSummarize: jest.fn() },
+    guildConfigService: {
+      getConfig: jest.fn().mockResolvedValue({ summary_channel_id: TARGET_CHANNEL_ID }),
+    },
+  };
+}
+
 function makeInteraction({ userId = 'admin1', guildFound = true } = {}) {
   const guild = makeGuild({ channelFound: guildFound });
   return {
     user: { id: userId },
     guild,
+    guildId: 'guild1',
     reply: jest.fn().mockResolvedValue(undefined),
     followUp: jest.fn().mockResolvedValue(undefined),
   };
@@ -47,42 +61,28 @@ describe('/server command (server-summary)', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    process.env = { ...originalEnv };
+    process.env = { ...originalEnv, TARGET_CHANNEL_ID };
   });
 
   afterAll(() => {
     process.env = originalEnv;
   });
 
-  it('should deny non-allowed users when ALLOWED_USER_IDS is set', async () => {
-    process.env.ALLOWED_USER_IDS = 'admin1';
-    const interaction = makeInteraction({ userId: 'notadmin' });
-
-    await command.execute(interaction);
-
-    expect(interaction.reply).toHaveBeenCalledWith(
-      expect.objectContaining({ content: expect.stringContaining('permission'), ephemeral: true })
-    );
-    expect(gather.gatherServerConversationsAndSummarize).not.toHaveBeenCalled();
-  });
-
-  it('should allow any user when ALLOWED_USER_IDS is empty', async () => {
-    process.env.ALLOWED_USER_IDS = '';
+  it('should call gather when executed', async () => {
     gather.gatherServerConversationsAndSummarize.mockResolvedValue('Summary text');
     const interaction = makeInteraction();
 
-    await command.execute(interaction);
+    await command.execute(interaction, makeServices());
 
     expect(gather.gatherServerConversationsAndSummarize).toHaveBeenCalled();
   });
 
   it('should send the summary to the target channel in chunks', async () => {
-    process.env.ALLOWED_USER_IDS = '';
     const summary = 'Line 1\nLine 2';
     gather.gatherServerConversationsAndSummarize.mockResolvedValue(summary);
     const interaction = makeInteraction();
 
-    await command.execute(interaction);
+    await command.execute(interaction, makeServices());
 
     const channel = interaction.guild._channel;
     expect(channel.send).toHaveBeenCalled();
@@ -92,14 +92,12 @@ describe('/server command (server-summary)', () => {
   });
 
   it('should follow up with error when channel is not found', async () => {
-    process.env.ALLOWED_USER_IDS = '';
     gather.gatherServerConversationsAndSummarize.mockResolvedValue('Summary');
     const interaction = makeInteraction({ guildFound: false });
-    // Also mock the fetch to fail
     interaction.guild.channels.cache.get.mockReturnValue(undefined);
     interaction.guild.channels.fetch = jest.fn().mockResolvedValue(null);
 
-    await command.execute(interaction);
+    await command.execute(interaction, makeServices());
 
     expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Could not find') })
@@ -107,11 +105,10 @@ describe('/server command (server-summary)', () => {
   });
 
   it('should follow up with error when gather throws', async () => {
-    process.env.ALLOWED_USER_IDS = '';
     gather.gatherServerConversationsAndSummarize.mockRejectedValue(new Error('gather error'));
     const interaction = makeInteraction();
 
-    await command.execute(interaction);
+    await command.execute(interaction, makeServices());
 
     expect(interaction.followUp).toHaveBeenCalledWith(
       expect.objectContaining({ content: expect.stringContaining('Error') })

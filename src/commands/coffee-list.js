@@ -1,17 +1,13 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const coffeeService = require('../services/coffee');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('coffee-list')
     .setDescription('Debug: Check how many members have the coffee-chat role (admin only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .toJSON(),
   async execute(interaction) {
-    const ALLOWED = (process.env.ALLOWED_USER_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (ALLOWED.length && !ALLOWED.includes(interaction.user.id)) {
-      await interaction.reply({ content: "❌ You don't have permission to run this command.", ephemeral: true });
-      return;
-    }
     await interaction.deferReply({ ephemeral: true });
     try {
       const members = await coffeeService.getMembersWithCoffeeRole(interaction.guild);

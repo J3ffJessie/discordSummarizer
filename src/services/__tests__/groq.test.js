@@ -1,129 +1,101 @@
-// Use a single shared instance so groq.js and the test share the same create fn
-jest.mock('groq-sdk', () => {
-  const createFn = jest.fn();
-  const instance = {
-    chat: { completions: { create: createFn } },
-  };
-  const MockGroq = jest.fn(() => instance);
-  MockGroq._instance = instance;
-  return MockGroq;
-});
+const mockChat = jest.fn();
+
+jest.mock('../../providers', () => ({
+  createChatProvider: jest.fn(() => ({ chat: mockChat })),
+}));
 jest.mock('dotenv', () => ({ config: jest.fn() }));
 
-const Groq = require('groq-sdk');
-const groqService = require('../groq');
+const { SummarizationService } = require('../groq');
 
-describe('groq service', () => {
-  let mockCreate;
+describe('SummarizationService (groq)', () => {
+  let service;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockCreate = Groq._instance.chat.completions.create;
+    service = new SummarizationService(null);
   });
 
   // ─── summarizeMessages ──────────────────────────────────────────────────────
 
   describe('summarizeMessages', () => {
-    it('should call Groq with correct model and return content', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [{ message: { content: '• Point 1\n• Point 2' } }],
-      });
+    it('should call provider.chat with correct options and return content', async () => {
+      mockChat.mockResolvedValue('• Point 1\n• Point 2');
 
-      const result = await groqService.summarizeMessages('User1: Hello\nUser2: Hi');
+      const result = await service.summarizeMessages('User1: Hello\nUser2: Hi');
 
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: 'llama-3.1-8b-instant',
-          temperature: 0.7,
-          max_tokens: 1024,
-        })
+      expect(mockChat).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.stringContaining('User1: Hello'),
+        expect.objectContaining({ temperature: 0.7, max_tokens: 1024 })
       );
       expect(result).toBe('• Point 1\n• Point 2');
     });
 
-    it('should include the messages in the user prompt', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [{ message: { content: 'summary' } }],
-      });
+    it('should include the messages in the user content', async () => {
+      mockChat.mockResolvedValue('summary');
 
       const input = 'Alice: hello\nBob: world';
-      await groqService.summarizeMessages(input);
+      await service.summarizeMessages(input);
 
-      const callArgs = mockCreate.mock.calls[0][0];
-      const userMsg = callArgs.messages.find((m) => m.role === 'user');
-      expect(userMsg.content).toContain(input);
+      const [, userContent] = mockChat.mock.calls[0];
+      expect(userContent).toContain(input);
     });
 
     it('should include a system prompt', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [{ message: { content: 'summary' } }],
-      });
+      mockChat.mockResolvedValue('summary');
 
-      await groqService.summarizeMessages('test');
+      await service.summarizeMessages('test');
 
-      const callArgs = mockCreate.mock.calls[0][0];
-      const systemMsg = callArgs.messages.find((m) => m.role === 'system');
-      expect(systemMsg).toBeDefined();
-      expect(systemMsg.content.length).toBeGreaterThan(0);
+      const [systemPrompt] = mockChat.mock.calls[0];
+      expect(systemPrompt.length).toBeGreaterThan(0);
     });
 
-    it('should throw when Groq API fails', async () => {
-      mockCreate.mockRejectedValue(new Error('API error'));
+    it('should throw when provider chat fails', async () => {
+      mockChat.mockRejectedValue(new Error('API error'));
 
-      await expect(groqService.summarizeMessages('test')).rejects.toThrow('API error');
+      await expect(service.summarizeMessages('test')).rejects.toThrow('API error');
     });
   });
 
   // ─── serverSummarize ────────────────────────────────────────────────────────
 
   describe('serverSummarize', () => {
-    it('should call Groq with correct model and return content', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [{ message: { content: '📋 **Summary**\nTalk happened.' } }],
-      });
+    it('should call provider.chat with correct options and return content', async () => {
+      mockChat.mockResolvedValue('📋 **Summary**\nTalk happened.');
 
-      const result = await groqService.serverSummarize('[general] Alice: hello');
+      const result = await service.serverSummarize('[general] Alice: hello');
 
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: 'llama-3.1-8b-instant',
-          temperature: 0.3,
-          max_tokens: 1024,
-        })
+      expect(mockChat).toHaveBeenCalledWith(
+        expect.stringContaining('summarizer'),
+        expect.any(String),
+        expect.objectContaining({ temperature: 0.3, max_tokens: 1024 })
       );
       expect(result).toContain('Summary');
     });
 
-    it('should include the messages in the user prompt', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [{ message: { content: 'summary' } }],
-      });
+    it('should include the messages in the user content', async () => {
+      mockChat.mockResolvedValue('summary');
 
       const input = '[general] Bob: hi there';
-      await groqService.serverSummarize(input);
+      await service.serverSummarize(input);
 
-      const callArgs = mockCreate.mock.calls[0][0];
-      const userMsg = callArgs.messages.find((m) => m.role === 'user');
-      expect(userMsg.content).toContain(input);
+      const [, userContent] = mockChat.mock.calls[0];
+      expect(userContent).toContain(input);
     });
 
     it('should use a system prompt with summarizer instructions', async () => {
-      mockCreate.mockResolvedValue({
-        choices: [{ message: { content: 'summary' } }],
-      });
+      mockChat.mockResolvedValue('summary');
 
-      await groqService.serverSummarize('test');
+      await service.serverSummarize('test');
 
-      const callArgs = mockCreate.mock.calls[0][0];
-      const systemMsg = callArgs.messages.find((m) => m.role === 'system');
-      expect(systemMsg).toBeDefined();
-      expect(systemMsg.content).toContain('summarizer');
+      const [systemPrompt] = mockChat.mock.calls[0];
+      expect(systemPrompt).toContain('summarizer');
     });
 
-    it('should throw when Groq API fails', async () => {
-      mockCreate.mockRejectedValue(new Error('rate limit'));
+    it('should throw when provider chat fails', async () => {
+      mockChat.mockRejectedValue(new Error('rate limit'));
 
-      await expect(groqService.serverSummarize('test')).rejects.toThrow('rate limit');
+      await expect(service.serverSummarize('test')).rejects.toThrow('rate limit');
     });
   });
 });
