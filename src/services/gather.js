@@ -18,7 +18,7 @@ async function gatherServerConversationsAndSummarize(guild, useServerSummarize =
   }
 
   let combined = allMessages.join('\n');
-  if (combined.length > 16000) combined = combined.slice(-16000);
+  if (combined.length > 10000) combined = combined.slice(-10000);
 
   if (useServerSummarize) {
     return await summarizationService.serverSummarize(combined, guildId);
