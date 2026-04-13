@@ -10,7 +10,6 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('setup')
     .setDescription('Configure bot settings for this server (admin only)')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(sub =>
       sub
         .setName('view')
@@ -160,6 +159,28 @@ module.exports = {
     )
     .addSubcommand(sub =>
       sub
+        .setName('admin-add')
+        .setDescription('Grant a user bot-admin privileges for this server (Discord admin only)')
+        .addUserOption(opt =>
+          opt
+            .setName('user')
+            .setDescription('The user to grant bot-admin access')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('admin-remove')
+        .setDescription('Revoke bot-admin privileges from a user (Discord admin only)')
+        .addUserOption(opt =>
+          opt
+            .setName('user')
+            .setDescription('The user to revoke bot-admin access from')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
         .setName('dashboard')
         .setDescription('Get a private link to the web configuration dashboard (expires in 24 hours)')
     ),
@@ -175,6 +196,55 @@ module.exports = {
     const { guildConfigService, schedulerService } = services;
     const subcommand = interaction.options.getSubcommand();
     const guildId = interaction.guildId;
+
+    const isDiscordAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+    const isStoredAdmin  = guildConfigService.isAdmin(guildId, interaction.user.id);
+
+    if (!isDiscordAdmin && !isStoredAdmin) {
+      return interaction.reply({
+        content: '❌ You need Administrator permission or must be configured as a bot admin to use this command.',
+        ephemeral: true,
+      });
+    }
+
+    if (subcommand === 'admin-add' || subcommand === 'admin-remove') {
+      if (!isDiscordAdmin) {
+        return interaction.reply({
+          content: '❌ Only server administrators can manage bot admins.',
+          ephemeral: true,
+        });
+      }
+
+      const target = interaction.options.getUser('user');
+
+      if (target.id === interaction.user.id) {
+        return interaction.reply({ content: '❌ You cannot modify your own admin status.', ephemeral: true });
+      }
+
+      await interaction.deferReply({ ephemeral: true });
+
+      if (subcommand === 'admin-add') {
+        const ids = guildConfigService.addAdmin(guildId, target.id);
+        const embed = new EmbedBuilder()
+          .setTitle('Bot Admin Added')
+          .setDescription(`<@${target.id}> can now use bot admin commands on this server.`)
+          .addFields({ name: 'Current Bot Admins', value: ids.map(id => `<@${id}>`).join('\n') || 'None', inline: false })
+          .setColor(0x2ecc71)
+          .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
+      }
+
+      if (subcommand === 'admin-remove') {
+        const ids = guildConfigService.removeAdmin(guildId, target.id);
+        const embed = new EmbedBuilder()
+          .setTitle('Bot Admin Removed')
+          .setDescription(`<@${target.id}> no longer has bot admin access on this server.`)
+          .addFields({ name: 'Current Bot Admins', value: ids.map(id => `<@${id}>`).join('\n') || 'None', inline: false })
+          .setColor(0xe74c3c)
+          .setTimestamp();
+        return interaction.editReply({ embeds: [embed] });
+      }
+    }
 
     if (subcommand === 'view') {
       const config = guildConfigService.getConfig(guildId);
@@ -201,6 +271,11 @@ module.exports = {
       const transKey = config?.trans_api_key ? '✅ Set' : (process.env.TRANS_API_KEY || process.env.GROQ_API_KEY ? '✅ Env var' : '❌ Not set — use `/setup ai` to configure');
       const sttKey = config?.stt_api_key ? '✅ Set' : (process.env.STT_API_KEY || process.env.GROQ_API_KEY ? '✅ Env var' : '❌ Not set');
 
+      const adminIds = guildConfigService.getAdminIds(guildId);
+      const adminValue = adminIds.length > 0
+        ? adminIds.map(id => `<@${id}>`).join('\n')
+        : 'None — use `/setup admin-add` to grant access';
+
       const embed = new EmbedBuilder()
         .setTitle('Server Configuration')
         .setColor(0x5865f2)
@@ -218,6 +293,8 @@ module.exports = {
           { name: 'AI — Summarization', value: `Provider: \`${summProvider}\`\nModel: \`${summModel}\`\nKey: ${summKey}`, inline: false },
           { name: 'AI — Translation', value: `Provider: \`${transProvider}\`\nModel: \`${transModel}\`\nKey: ${transKey}`, inline: false },
           { name: 'AI — Transcription', value: `Provider: \`${sttProvider}\`\nModel: \`${sttModel}\`\nKey: ${sttKey}`, inline: false },
+          { name: '\u200b', value: '\u200b', inline: false },
+          { name: 'Bot Admins', value: adminValue, inline: false },
         )
         .setFooter({ text: 'Use /setup <subcommand> to configure individual settings.' })
         .setTimestamp();

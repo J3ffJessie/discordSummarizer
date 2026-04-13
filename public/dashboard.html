@@ -254,6 +254,22 @@
       color: var(--red); font-size: 13px;
     }
 
+    /* ── Admin tags ── */
+    .tag-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; min-height: 32px; }
+    .tag {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; padding: 4px 10px; font-size: 12px; color: var(--text);
+    }
+    .tag-remove {
+      background: none; border: none; color: var(--muted); cursor: pointer;
+      font-size: 14px; line-height: 1; padding: 0; display: flex; align-items: center;
+      transition: color 0.1s;
+    }
+    .tag-remove:hover { color: var(--red); }
+    .tag-add-row { display: flex; gap: 8px; align-items: center; }
+    .tag-add-row input { flex: 1; }
+
     @media (max-width: 900px) {
       .two-col { grid-template-columns: 1fr; }
       .main { padding: 20px 20px 60px; }
@@ -762,6 +778,25 @@
       <div class="save-row">
         <button class="btn-primary" id="btn-save-ai">Save AI Settings</button>
         <span class="save-status" id="status-ai"></span>
+      </div>
+    </div>
+
+    <!-- Bot Admins -->
+    <div class="settings-card">
+      <div class="settings-card-title">Bot Admins</div>
+      <div class="settings-card-sub">Users listed here can run bot admin commands even without Discord Administrator permission. Only Discord server administrators can modify this list.</div>
+      <div class="field-label" style="margin-bottom:8px">Current Bot Admins</div>
+      <div class="tag-list" id="admin-tag-list">
+        <span style="color:var(--muted);font-size:12px">None configured</span>
+      </div>
+      <div class="tag-add-row">
+        <input type="text" id="cfg-admin-add" placeholder="Paste a Discord user ID (e.g. 123456789012345678)" />
+        <button class="btn-secondary" id="btn-admin-add">Add</button>
+      </div>
+      <div class="field-hint" style="margin-top:6px">To find a user ID: enable Developer Mode in Discord, right-click a user, and select <strong>Copy User ID</strong>.</div>
+      <div class="save-row">
+        <button class="btn-primary" id="btn-save-admins">Save Admin List</button>
+        <span class="save-status" id="status-admins"></span>
       </div>
     </div>
 
@@ -1339,6 +1374,8 @@
     const _token = new URLSearchParams(location.search).get('token');
     if (!_token) return; // No token = read-only view, hide settings
 
+    let adminIds = [];
+
     document.getElementById('nav-settings').style.display = '';
     document.getElementById('section-settings').style.display = '';
 
@@ -1394,6 +1431,29 @@
       document.getElementById('cfg-summ-key').placeholder  = cfg.summ_api_key  ? '••••• already set — leave blank to keep' : 'Enter API key';
       document.getElementById('cfg-trans-key').placeholder = cfg.trans_api_key ? '••••• already set — leave blank to keep' : 'Enter API key';
       document.getElementById('cfg-stt-key').placeholder   = cfg.stt_api_key   ? '••••• already set — leave blank to keep' : 'Enter API key';
+
+      // Admin IDs
+      try { adminIds = cfg.admin_user_ids ? JSON.parse(cfg.admin_user_ids) : []; } catch { adminIds = []; }
+      renderAdminTags();
+    }
+
+    function renderAdminTags() {
+      const list = document.getElementById('admin-tag-list');
+      if (adminIds.length === 0) {
+        list.innerHTML = '<span style="color:var(--muted);font-size:12px">None configured</span>';
+        return;
+      }
+      list.innerHTML = adminIds.map(id => `
+        <div class="tag">
+          <span>${esc(id)}</span>
+          <button class="tag-remove" data-id="${esc(id)}" title="Remove">&times;</button>
+        </div>`).join('');
+      list.querySelectorAll('.tag-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+          adminIds = adminIds.filter(id => id !== btn.dataset.id);
+          renderAdminTags();
+        });
+      });
     }
 
     function setVal(id, val) {
@@ -1466,6 +1526,25 @@
         stt_model:      getVal('cfg-stt-model'),
         stt_base_url:   getVal('cfg-stt-url'),
       }, 'status-ai');
+    });
+
+    document.getElementById('btn-admin-add').addEventListener('click', () => {
+      const input = document.getElementById('cfg-admin-add');
+      const id = input.value.trim().replace(/\D/g, '');
+      if (!id) return;
+      if (!adminIds.includes(id)) {
+        adminIds.push(id);
+        renderAdminTags();
+      }
+      input.value = '';
+    });
+
+    document.getElementById('cfg-admin-add').addEventListener('keydown', e => {
+      if (e.key === 'Enter') document.getElementById('btn-admin-add').click();
+    });
+
+    document.getElementById('btn-save-admins').addEventListener('click', () => {
+      saveConfig({ admin_user_ids: JSON.stringify(adminIds) }, 'status-admins');
     });
 
     loadChannels();

@@ -39,6 +39,7 @@ const AI_COLUMNS = [
   'dashboard_token     TEXT',
   'dashboard_token_exp TEXT',
   'installer_user_id   TEXT',
+  'admin_user_ids TEXT',
 ];
 
 class GuildConfigService {
@@ -111,6 +112,31 @@ class GuildConfigService {
   getAllInstallerUserIds() {
     return this.db.prepare('SELECT DISTINCT installer_user_id FROM guild_config WHERE installer_user_id IS NOT NULL').all()
       .map(r => r.installer_user_id);
+  }
+
+  getAdminIds(guildId) {
+    const config = this.getConfig(guildId);
+    if (!config?.admin_user_ids) return [];
+    try { return JSON.parse(config.admin_user_ids); } catch { return []; }
+  }
+
+  isAdmin(guildId, userId) {
+    return this.getAdminIds(guildId).includes(userId);
+  }
+
+  addAdmin(guildId, userId) {
+    const ids = this.getAdminIds(guildId);
+    if (!ids.includes(userId)) {
+      ids.push(userId);
+      this.upsertConfig(guildId, { admin_user_ids: JSON.stringify(ids) });
+    }
+    return ids;
+  }
+
+  removeAdmin(guildId, userId) {
+    const ids = this.getAdminIds(guildId).filter(id => id !== userId);
+    this.upsertConfig(guildId, { admin_user_ids: JSON.stringify(ids) });
+    return ids;
   }
 
   generateDashboardToken(guildId) {

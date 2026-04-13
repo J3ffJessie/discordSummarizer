@@ -9,6 +9,7 @@ const ALLOWED_CONFIG_FIELDS = new Set([
   'summ_provider', 'summ_api_key', 'summ_model', 'summ_base_url',
   'trans_provider', 'trans_api_key', 'trans_model', 'trans_base_url',
   'stt_provider',  'stt_api_key',  'stt_model',  'stt_base_url',
+  'admin_user_ids',
 ]);
 
 function readBody(req) {
