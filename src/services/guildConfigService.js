@@ -40,6 +40,7 @@ const AI_COLUMNS = [
   'dashboard_token_exp TEXT',
   'installer_user_id   TEXT',
   'admin_user_ids TEXT',
+  'coffee_channel_id TEXT',
 ];
 
 class GuildConfigService {

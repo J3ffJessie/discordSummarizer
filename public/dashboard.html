@@ -662,6 +662,15 @@
         </div>
         <label class="toggle"><input type="checkbox" id="cfg-coffee-enabled"><span class="toggle-slider"></span></label>
       </div>
+      <div class="field-row">
+        <div class="field-group">
+          <div class="field-label">Announcement Channel</div>
+          <select id="cfg-coffee-channel">
+            <option value="">— Select a channel —</option>
+          </select>
+          <div class="field-hint">Pairings will be posted here. If not set, members are notified by DM.</div>
+        </div>
+      </div>
       <div class="toggle-row">
         <div>
           <div class="toggle-label">Biweekly (every other week)</div>
@@ -1393,11 +1402,16 @@
         const res = await fetch('/api/channels' + _qs);
         if (!res.ok) return;
         const channels = await res.json();
-        const sel = document.getElementById('cfg-summary-channel');
+        const selSummary = document.getElementById('cfg-summary-channel');
+        const selCoffee  = document.getElementById('cfg-coffee-channel');
         channels.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.id; opt.textContent = '#' + c.name;
-          sel.appendChild(opt);
+          const opt1 = document.createElement('option');
+          opt1.value = c.id; opt1.textContent = '#' + c.name;
+          selSummary.appendChild(opt1);
+
+          const opt2 = document.createElement('option');
+          opt2.value = c.id; opt2.textContent = '#' + c.name;
+          selCoffee.appendChild(opt2);
         });
       } catch(err) { console.error('Channels fetch error:', err); }
     }
@@ -1411,6 +1425,7 @@
 
       setCheck('cfg-coffee-enabled',  cfg.coffee_enabled);
       setCheck('cfg-coffee-biweekly', cfg.coffee_biweekly);
+      setVal('cfg-coffee-channel',    cfg.coffee_channel_id || '');
       setVal('cfg-coffee-role',       cfg.coffee_role_name || '');
       setVal('cfg-coffee-cron',       cfg.coffee_cron || '');
       setVal('cfg-coffee-cooldown',   cfg.coffee_cooldown_days || '');
@@ -1504,6 +1519,7 @@
     document.getElementById('btn-save-coffee').addEventListener('click', () => {
       saveConfig({
         coffee_enabled:       getCheck('cfg-coffee-enabled'),
+        coffee_channel_id:    getVal('cfg-coffee-channel') || null,
         coffee_biweekly:      getCheck('cfg-coffee-biweekly'),
         coffee_role_name:     getVal('cfg-coffee-role'),
         coffee_cron:          getVal('cfg-coffee-cron'),

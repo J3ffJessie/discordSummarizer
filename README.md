@@ -9,7 +9,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 - **Live voice translation** — Captures voice channel audio, transcribes with Whisper, translates via your chosen AI provider, and streams captions to a web page in near real-time
 - **Server summarization** — Summarizes recent messages across all text channels using your configured AI provider
 - **Automated weekly summaries** — Scheduled AI-generated server summaries posted to a configured channel
-- **Coffee chat pairing** — Randomly pairs members with a designated role and DMs them to set up meetings
+- **Coffee chat pairing** — Randomly pairs members with a designated role and announces pairings in a configured channel (falls back to DMs if no channel is set)
 - **Web dashboard** — Admins configure all settings and AI provider keys through a browser UI (no slash commands required for setup)
 - **Reminders** — Set, list, and cancel personal reminders delivered via DM
 - **Events** — Fetch and display upcoming server events
@@ -21,7 +21,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 1. Invite the bot to your server
 2. Run `/setup dashboard` — the bot replies with a private, time-limited link
 3. Open the link to access your server's configuration dashboard
-4. Set your summary channel, coffee pairing schedule, AI provider, and API keys
+4. Set your summary channel, coffee pairing channel and schedule, AI provider, and API keys
 5. Done — all settings are saved per-server and persist across bot updates
 
 Each server's configuration is completely isolated. API keys entered on the dashboard are stored only for that server and are never visible to other servers or bot owners.
@@ -72,7 +72,7 @@ These are the only variables you need to set. Per-server settings (AI provider, 
 | Variable | Description |
 |----------|-------------|
 | `ADMIN_USER_ID` | Your Discord user ID — the bot will DM you error alerts |
-| `ALLOWED_USER_IDS` | Comma-separated user IDs permitted to run bot-owner commands (`/server-summary`, `/coffee-pair`, etc.) |
+| `ALLOWED_USER_IDS` | Comma-separated user IDs permitted to run bot-owner commands (`/server-summary`, `/paircoffee`, etc.) |
 | `CAPTION_URL` | Public URL for the live captions page — only needed if using the voice translation feature. Can be the same as `PUBLIC_URL`. |
 | `PORT` | HTTP server port — set automatically by Render, defaults to `3000` |
 
@@ -120,12 +120,57 @@ node src/index.js
 ## Slash Commands
 
 ### `/setup dashboard`
-*(Admin only)* Generates a private, time-limited link to the web configuration dashboard. The link expires in 24 hours. From the dashboard you can configure everything — summary channel, schedules, coffee pairing, AI provider and API keys.
+*(Admin only)* Generates a private, time-limited link to the web configuration dashboard. The link expires in 24 hours. From the dashboard you can configure everything — summary channel, coffee pairing channel and schedule, AI provider and API keys.
 
 ---
 
 ### `/setup view`
-*(Admin only)* Shows the current configuration for your server as an embed in Discord.
+*(Admin only)* Shows the current configuration for your server as an embed in Discord — including the coffee announcement channel, role, schedule, cooldown, and all AI provider settings.
+
+---
+
+### `/setup summary`
+*(Admin only)* Set the channel where automated server summaries are posted and enable the feature.
+
+---
+
+### `/setup coffee-channel`
+*(Admin only)* Set the channel where coffee pairings are announced. When set, a single message listing all pairs (with mentions) is posted to this channel instead of DMing each participant individually.
+
+---
+
+### `/setup coffee`
+*(Admin only)* Enable or disable automated coffee pairing.
+
+---
+
+### `/setup coffee-role`
+*(Admin only)* Set the role name used to identify members eligible for coffee pairing (default: `coffee chat`).
+
+---
+
+### `/setup coffee-schedule`
+*(Admin only)* Set the cron schedule for automated coffee pairing (e.g. `0 10 * * 5` for Fridays at 10am).
+
+---
+
+### `/setup coffee-biweekly`
+*(Admin only)* Toggle whether coffee pairing runs every week or every other week.
+
+---
+
+### `/setup coffee-cooldown`
+*(Admin only)* Set how many days must pass before the same pair can be matched again (default: 30).
+
+---
+
+### `/setup timezone`
+*(Admin only)* Set the IANA timezone used for all scheduled tasks (e.g. `America/New_York`).
+
+---
+
+### `/setup admin-add` / `/setup admin-remove`
+*(Discord Administrator only)* Grant or revoke bot-admin privileges for a user. Bot admins can run all admin commands without needing Discord Administrator permission — useful for delegating bot management to moderators or multiple team members.
 
 ---
 
@@ -151,8 +196,8 @@ Summarizes the last 100 messages in the current channel and DMs the result to yo
 
 ---
 
-### `/coffee-pair`
-*(Admin only)* Randomly pairs members who have the coffee chat role and DMs each person their partner's name. Respects the cooldown period so the same pair isn't repeated too soon.
+### `/paircoffee`
+*(Admin only)* Manually triggers a coffee pairing run immediately. Posts pairings to the configured announcement channel (or falls back to DMs if no channel is set). Respects the cooldown period so the same pair isn't repeated too soon.
 
 ---
 
@@ -258,11 +303,11 @@ discord-summarizer/
 ├── src/
 │   ├── index.js                    # Entry point — bootstraps all services and the Discord client
 │   ├── commands/                   # One file per slash command
-│   │   ├── setup.js                # /setup — dashboard link, view config, ai provider config
+│   │   ├── setup.js                # /setup — dashboard link, view config, channel/schedule/AI/admin config
 │   │   ├── translate.js
 │   │   ├── summarize.js
 │   │   ├── server-summary.js
-│   │   ├── coffee-pair.js
+│   │   ├── paircoffee.js
 │   │   ├── coffee-list.js
 │   │   ├── remindme.js
 │   │   ├── listreminders.js
@@ -285,7 +330,7 @@ discord-summarizer/
 │   │   ├── messageStatsService.js  # Per-guild message statistics tracking
 │   │   ├── schedulerService.js     # Cron job management (summary + coffee pairing)
 │   │   ├── httpServer.js           # HTTP server — dashboard API, static files, health check
-│   │   ├── coffee.js               # Coffee pairing logic (matching algorithm, DM sending)
+│   │   ├── coffee.js               # Coffee pairing logic (matching algorithm, channel announcements, DM fallback)
 │   │   └── gather.js               # Message gathering and summarization for server summary
 │   └── utils/
 │       ├── helpers.js              # Shared utilities (delay, ensureDataDir)

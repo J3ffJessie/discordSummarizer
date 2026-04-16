@@ -56,6 +56,18 @@ module.exports = {
     )
     .addSubcommand(sub =>
       sub
+        .setName('coffee-channel')
+        .setDescription('Set the channel where coffee pairings are announced')
+        .addChannelOption(opt =>
+          opt
+            .setName('channel')
+            .setDescription('Channel to post coffee pairings in')
+            .addChannelTypes(ChannelType.GuildText)
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
         .setName('coffee-role')
         .setDescription('Set the role name used for coffee pairing')
         .addStringOption(opt =>
@@ -253,6 +265,7 @@ module.exports = {
         ? `Enabled — <#${config.summary_channel_id}>`
         : 'Disabled';
       const coffeeStatus = config?.coffee_enabled ? 'Enabled' : 'Disabled';
+      const coffeeChannel = config?.coffee_channel_id ? `<#${config.coffee_channel_id}>` : 'Not set — use `/setup coffee-channel`';
 
       const summaryCron = config?.summary_cron || process.env.SERVER_SUMMARY_CRON || '0 10 * * 1';
       const coffeeCron = config?.coffee_cron || process.env.COFFEE_CRON_SCHEDULE || 'Not set';
@@ -285,6 +298,7 @@ module.exports = {
           { name: 'Timezone', value: `\`${timezone}\``, inline: true },
           { name: '\u200b', value: '\u200b', inline: false },
           { name: 'Coffee Pairing', value: coffeeStatus, inline: false },
+          { name: 'Coffee Channel', value: coffeeChannel, inline: false },
           { name: 'Coffee Role', value: coffeeRole, inline: true },
           { name: 'Coffee Schedule', value: `\`${coffeeCron}\``, inline: true },
           { name: 'Biweekly', value: coffeeBiweekly, inline: true },
@@ -379,6 +393,22 @@ module.exports = {
       const embed = new EmbedBuilder()
         .setTitle('Summary Schedule Updated')
         .setDescription(`Server summaries will now run on: \`${expr}\``)
+        .setColor(0x5865f2)
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (subcommand === 'coffee-channel') {
+      const channel = interaction.options.getChannel('channel');
+
+      await interaction.deferReply({ ephemeral: true });
+      guildConfigService.upsertConfig(guildId, { coffee_channel_id: channel.id });
+      if (schedulerService) schedulerService.refreshGuild(guildId);
+
+      const embed = new EmbedBuilder()
+        .setTitle('Coffee Channel Set')
+        .setDescription(`Coffee pairings will be announced in <#${channel.id}>.`)
         .setColor(0x5865f2)
         .setTimestamp();
 
