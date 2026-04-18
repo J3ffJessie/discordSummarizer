@@ -163,8 +163,8 @@
     },
     {
       "path": "src\\commands\\setup.js",
-      "accessCount": 11,
-      "lastAccessed": 1776356195843,
+      "accessCount": 14,
+      "lastAccessed": 1776525939646,
       "type": "file"
     },
     {
@@ -231,6 +231,12 @@
       "path": "src\\events\\voiceStateUpdate.js",
       "accessCount": 1,
       "lastAccessed": 1776524685169,
+      "type": "file"
+    },
+    {
+      "path": "src\\commands\\register.js",
+      "accessCount": 1,
+      "lastAccessed": 1776526398891,
       "type": "file"
     }
   ],

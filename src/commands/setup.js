@@ -211,8 +211,9 @@ module.exports = {
 
     const isDiscordAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
     const isStoredAdmin  = guildConfigService.isAdmin(guildId, interaction.user.id);
+    const isBotOwner     = process.env.ADMIN_USER_ID && interaction.user.id === process.env.ADMIN_USER_ID;
 
-    if (!isDiscordAdmin && !isStoredAdmin) {
+    if (!isDiscordAdmin && !isStoredAdmin && !isBotOwner) {
       return interaction.reply({
         content: '❌ You need Administrator permission or must be configured as a bot admin to use this command.',
         ephemeral: true,
@@ -220,7 +221,7 @@ module.exports = {
     }
 
     if (subcommand === 'admin-add' || subcommand === 'admin-remove') {
-      if (!isDiscordAdmin) {
+      if (!isDiscordAdmin && !isBotOwner) {
         return interaction.reply({
           content: '❌ Only server administrators can manage bot admins.',
           ephemeral: true,
