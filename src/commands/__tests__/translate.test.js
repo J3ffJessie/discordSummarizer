@@ -11,6 +11,7 @@ jest.mock('discord.js', () => ({
     setFooter: jest.fn().mockReturnThis(),
     setTimestamp: jest.fn().mockReturnThis(),
   })),
+  MessageFlags: { Ephemeral: 64 },
 }));
 
 const command = require('../translate');

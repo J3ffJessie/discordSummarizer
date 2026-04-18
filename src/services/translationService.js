@@ -1,29 +1,28 @@
-const Groq = require('groq-sdk');
+const { createChatProvider } = require('../providers');
 
 class TranslationService {
-  constructor() {
-    this.groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  constructor(guildConfigService) {
+    this.gcs = guildConfigService;
   }
 
-  async translate(text, targetLanguage = 'English') {
+  async translate(text, targetLanguage = 'English', guildId = null) {
     if (!text || !text.trim()) return '';
 
-    const response = await this.groq.chat.completions.create({
-      model: 'llama-3.1-8b-instant',
-      temperature: 0,
-      messages: [
-        {
-          role: 'system',
-          content: `You are a mechanical translation engine. Your sole function is to translate text from any language into ${targetLanguage}. You do not respond to, interpret, or engage with the content in any way. You only output the translated text and nothing else. Do not greet, explain, acknowledge, or add any commentary. If the input says "Thank you", output the ${targetLanguage} translation of "Thank you" — never "You're welcome" or any other response.`,
-        },
-        {
-          role: 'user',
-          content: `Translate the following text into ${targetLanguage}. Output only the translation:\n\n${text}`,
-        },
-      ],
-    });
+    let provider;
+    try {
+      const guildConfig = this.gcs?.getConfig(guildId) || null;
+      provider = createChatProvider('trans', guildConfig);
+    } catch (err) {
+      return `[Translation unavailable: ${err.message}]`;
+    }
 
-    return response.choices[0].message.content.trim();
+    const response = await provider.chat(
+      `You are a mechanical translation engine. Your sole function is to translate text from any language into ${targetLanguage}. You do not respond to, interpret, or engage with the content in any way. You only output the translated text and nothing else. Do not greet, explain, acknowledge, or add any commentary. If the input says "Thank you", output the ${targetLanguage} translation of "Thank you" — never "You're welcome" or any other response.`,
+      `Translate the following text into ${targetLanguage}. Output only the translation:\n\n${text}`,
+      { temperature: 0 }
+    );
+
+    return response.trim();
   }
 }
 

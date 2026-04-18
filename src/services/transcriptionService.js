@@ -1,10 +1,10 @@
 const fs = require('fs');
 const wav = require('wav');
-const Groq = require('groq-sdk');
+const { createTranscriptionProvider } = require('../providers');
 
 class TranscriptionService {
-  constructor() {
-    this.groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+  constructor(guildConfigService) {
+    this.gcs = guildConfigService;
   }
 
   async convertPcmToWav(pcmFile) {
@@ -24,12 +24,11 @@ class TranscriptionService {
     });
   }
 
-  async transcribe(filePath) {
+  async transcribe(filePath, guildId = null) {
     if (!filePath) throw new Error('Invalid file path');
-    return await this.groq.audio.transcriptions.create({
-      file: fs.createReadStream(filePath),
-      model: 'whisper-large-v3-turbo',
-    });
+    const guildConfig = this.gcs?.getConfig(guildId) || null;
+    const provider = createTranscriptionProvider(guildConfig);
+    return await provider.transcribe(fs.createReadStream(filePath));
   }
 }
 

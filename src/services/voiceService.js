@@ -164,7 +164,7 @@ class VoiceService {
       await fs.promises.writeFile(tempPcmFile, Buffer.concat(pcmChunks));
 
       wavFile = await this.transcriptionService.convertPcmToWav(tempPcmFile);
-      const transcript = await this.transcriptionService.transcribe(wavFile);
+      const transcript = await this.transcriptionService.transcribe(wavFile, guildId);
 
       if (!transcript?.text) return;
 
@@ -181,7 +181,7 @@ class VoiceService {
       const translations = new Map(
         await Promise.all(
           Array.from(requestedLanguages).map(async (lang) => {
-            const text = await this.translationService.translate(cleaned, lang);
+            const text = await this.translationService.translate(cleaned, lang, guildId);
             return [lang, text];
           })
         )

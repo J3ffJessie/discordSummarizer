@@ -1,0 +1,214 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1776356068816,
+  "projectRoot": "c:\\Users\\JeffJ\\Projects\\discord-summarizer",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": ">=20.0.0",
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "jest",
+        "version": "30.2.0",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": "Node.js 20.0.0"
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": "npm test",
+    "lintCommand": null,
+    "devCommand": "npm run dev",
+    "scripts": {
+      "start": "node ./src/index.js",
+      "dev": "nodemon ./src/index.js",
+      "register-commands": "node register-commands.js",
+      "test": "jest --verbose --colors",
+      "test:watch": "jest --watch --verbose --colors",
+      "test:report": "jest --verbose --colors",
+      "test:dashboard": "jest --verbose --colors --runInBand --detectOpenHandles --testLocationInResults"
+    }
+  },
+  "conventions": {
+    "namingStyle": "camelCase",
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "docs",
+      "public",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "coverage": {
+      "path": "coverage",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1776356068736,
+      "keyFiles": [
+        "clover.xml",
+        "coverage-final.json",
+        "lcov.info"
+      ]
+    },
+    "docs": {
+      "path": "docs",
+      "purpose": "Documentation",
+      "fileCount": 2,
+      "lastAccessed": 1776356068739,
+      "keyFiles": [
+        "multi-server-testing.md",
+        "stream-notes-multi-server-ai-providers.md"
+      ]
+    },
+    "jest-stare": {
+      "path": "jest-stare",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1776356068759,
+      "keyFiles": [
+        "index.html",
+        "jest-results.json"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 3,
+      "lastAccessed": 1776356068763,
+      "keyFiles": [
+        "captions.html",
+        "dashboard.html",
+        "torc-logo.png"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 1,
+      "lastAccessed": 1776356068766,
+      "keyFiles": [
+        "index.js"
+      ]
+    },
+    "tools": {
+      "path": "tools",
+      "purpose": null,
+      "fileCount": 3,
+      "lastAccessed": 1776356068769,
+      "keyFiles": [
+        "find_escaped_backtick.js",
+        "require_commands_test.js",
+        "scan_backticks.js"
+      ]
+    },
+    "src\\data": {
+      "path": "src\\data",
+      "purpose": "Data files",
+      "fileCount": 3,
+      "lastAccessed": 1776356068776,
+      "keyFiles": [
+        "guild_config.db",
+        "last_version.txt",
+        "message_stats.json"
+      ]
+    },
+    "src\\services": {
+      "path": "src\\services",
+      "purpose": "Business logic services",
+      "fileCount": 16,
+      "lastAccessed": 1776356068783,
+      "keyFiles": [
+        "coffee.js",
+        "events.js",
+        "gather.js"
+      ]
+    },
+    "src\\utils": {
+      "path": "src\\utils",
+      "purpose": "Utility functions",
+      "fileCount": 2,
+      "lastAccessed": 1776356068785,
+      "keyFiles": [
+        "helpers.js",
+        "logger.js"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "public\\dashboard.html",
+      "accessCount": 17,
+      "lastAccessed": 1776356789282,
+      "type": "file"
+    },
+    {
+      "path": "src\\commands\\setup.js",
+      "accessCount": 11,
+      "lastAccessed": 1776356195843,
+      "type": "file"
+    },
+    {
+      "path": "README.md",
+      "accessCount": 9,
+      "lastAccessed": 1776357197527,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\guildConfigService.js",
+      "accessCount": 5,
+      "lastAccessed": 1776356146699,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\coffee.js",
+      "accessCount": 3,
+      "lastAccessed": 1776356358402,
+      "type": "file"
+    },
+    {
+      "path": "src\\commands\\paircoffee.js",
+      "accessCount": 3,
+      "lastAccessed": 1776356379001,
+      "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 2,
+      "lastAccessed": 1776083931050,
+      "type": "directory"
+    },
+    {
+      "path": "src\\services\\httpServer.js",
+      "accessCount": 2,
+      "lastAccessed": 1776084260441,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\schedulerService.js",
+      "accessCount": 2,
+      "lastAccessed": 1776356365160,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

@@ -216,27 +216,55 @@ function pairUpWithCooldown(members, history, cooldownMs) {
   return pairs;
 }
 
-async function notifyPairs(pairs, guild, source = 'scheduled') {
+async function notifyPairs(pairs, guild, source = 'scheduled', channelId = null) {
   let history = readCoffeePairs();
   const results = [];
   let totalFailedDMs = 0;
 
-  for (const pair of pairs) {
-    const usernames = pair.map((m) => `${m._capturedUsername}#${m._capturedDiscriminator}`);
-    for (const m of pair) {
-      const others = pair.filter((p) => p.id !== m.id).map((p) => `<@${p.id}>`).join(' and ');
-      const senderName = m._capturedUsername;
-      const content = `☕ Hi ${senderName}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
-      try {
-        await m.send({ content });
-        await new Promise((r) => setTimeout(r, 500));
-      } catch (err) {
-        totalFailedDMs++;
-        console.warn(`Could not DM user ${m.id}:`, err?.message || err);
+  // Resolve announcement channel if configured
+  let announceChannel = null;
+  if (channelId && guild) {
+    try {
+      announceChannel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
+    } catch (err) {
+      console.warn(`notifyPairs: could not fetch channel ${channelId}:`, err?.message || err);
+    }
+  }
+
+  const timeNow = Date.now();
+
+  if (announceChannel) {
+    // Build a single channel message listing all pairings
+    const lines = pairs.map((pair) => {
+      const mentions = pair.map((m) => `<@${m.id}>`).join(' + ');
+      return `• ${mentions}`;
+    });
+    const content = `☕ **Coffee Pairings** (${source})\n\n${lines.join('\n')}\n\nReach out to your partner(s) to set up a time!`;
+    try {
+      await announceChannel.send({ content });
+    } catch (err) {
+      console.warn(`notifyPairs: could not post to channel ${channelId}:`, err?.message || err);
+    }
+  } else {
+    // Fall back to DMs when no channel is configured
+    for (const pair of pairs) {
+      for (const m of pair) {
+        const others = pair.filter((p) => p.id !== m.id).map((p) => p.displayName || p._capturedUsername).join(' and ');
+        const senderName = m._capturedUsername;
+        const content = `☕ Hi ${senderName}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
+        try {
+          await m.send({ content });
+          await new Promise((r) => setTimeout(r, 500));
+        } catch (err) {
+          totalFailedDMs++;
+          console.warn(`Could not DM user ${m.id}:`, err?.message || err);
+        }
       }
     }
+  }
 
-    const timeNow = Date.now();
+  for (const pair of pairs) {
+    const usernames = pair.map((m) => `${m._capturedUsername}#${m._capturedDiscriminator}`);
     pair.forEach((m) => {
       if (!history[m.id]) history[m.id] = { history: [] };
       const entry = history[m.id];
@@ -251,7 +279,7 @@ async function notifyPairs(pairs, guild, source = 'scheduled') {
   return { results, failed: totalFailedDMs };
 }
 
-async function runCoffeePairing(guild, roleIdentifier = process.env.COFFEE_ROLE_NAME || 'coffee chat', source = 'scheduled') {
+async function runCoffeePairing(guild, roleIdentifier = process.env.COFFEE_ROLE_NAME || 'coffee chat', source = 'scheduled', channelId = null) {
   try {
     const members = await getMembersWithCoffeeRole(guild, roleIdentifier);
     console.log(`runCoffeePairing: found ${members.length} members eligible`);
@@ -261,7 +289,7 @@ async function runCoffeePairing(guild, roleIdentifier = process.env.COFFEE_ROLE_
     const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
     const pairs = pairUpWithCooldown(members, history, cooldownMs);
     console.log(`runCoffeePairing: created ${pairs.length} pair groups`);
-    const res = await notifyPairs(pairs, guild, source);
+    const res = await notifyPairs(pairs, guild, source, channelId);
     return res.results;
   } catch (err) {
     console.error('Error running coffee pairing:', err?.message || err);

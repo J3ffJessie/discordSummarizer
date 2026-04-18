@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionFlagsBits } = require('discord.js');
 const { findLocation } = require('../../locations');
 const fs = require('fs');
 const path = require('path');
@@ -7,13 +7,9 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName('location')
     .setDescription('Scan recent messages for locations and log them (admin only)')
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addIntegerOption((opt) => opt.setName('limit').setDescription('How many messages to scan (max 100)').setRequired(false)),
   async execute(interaction) {
-    const ALLOWED = (process.env.ALLOWED_USER_IDS || '').split(',').map((s) => s.trim()).filter(Boolean);
-    if (ALLOWED.length && !ALLOWED.includes(interaction.user.id)) {
-      await interaction.reply({ content: "❌ You do not have permission to use this command.", ephemeral: true });
-      return;
-    }
     const limit = Math.min(Math.max(1, interaction.options.getInteger('limit') || 100), 100);
     await interaction.deferReply({ ephemeral: true });
     const messages = await interaction.channel.messages.fetch({ limit });

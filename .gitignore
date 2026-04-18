@@ -41,6 +41,9 @@ Thumbs.db
 .eslintcache
 .stylelintcache
 
+# Data directory (contains DB with API keys and user data)
+src/data/
+
 # Temporary audio files
 temp_*.pcm
 temp_*.wav

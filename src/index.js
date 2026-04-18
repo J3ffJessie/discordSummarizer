@@ -25,6 +25,8 @@ const { VoiceService } = require('./services/voiceService');
 const { TranscriptionService } = require('./services/transcriptionService');
 const { TranslationService } = require('./services/translationService');
 const { SchedulerService } = require('./services/schedulerService');
+const { GuildConfigService } = require('./services/guildConfigService');
+const { SummarizationService } = require('./services/groq');
 const { MessageStatsService } = require('./services/messageStatsService');
 const logger = require('./utils/logger');
 
@@ -86,16 +88,26 @@ if (fs.existsSync(eventsPath)) {
 const PORT = process.env.PORT || 3000;
 
 const messageStatsService = new MessageStatsService();
+const guildConfigService = new GuildConfigService();
 
 const server = createHttpServer({
-  getStats: () => messageStatsService.getStats(),
-  getGuild: () => {
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+  guildConfigService,
+  getStats: (guildId) => messageStatsService.getStats(guildId),
+  getGuild: (guildId) => {
+    const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
     if (!guild) return null;
     return { name: guild.name, iconURL: guild.iconURL({ size: 64 }) };
   },
-  getMembers: () => {
-    const guild = client.guilds.cache.get(process.env.GUILD_ID);
+  getChannels: (guildId) => {
+    const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
+    if (!guild) return [];
+    return guild.channels.cache
+      .filter(c => c.isTextBased() && !c.isDMBased() && !c.isThread())
+      .map(c => ({ id: c.id, name: c.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+  getMembers: (guildId) => {
+    const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
     if (!guild) return null;
     const cachedMembers = guild.members.cache;
     const botCount = cachedMembers.filter(m => m.user.bot).size;
@@ -135,8 +147,9 @@ const server = createHttpServer({
 const sessionService = new SessionService();
 const streamingService = new StreamingService(server, sessionService);
 
-const transcriptionService = new TranscriptionService();
-const translationService = new TranslationService();
+const transcriptionService = new TranscriptionService(guildConfigService);
+const translationService = new TranslationService(guildConfigService);
+const summarizationService = new SummarizationService(guildConfigService);
 
 const voiceService = new VoiceService(
   client,
@@ -146,10 +159,15 @@ const voiceService = new VoiceService(
   translationService
 );
 
+const schedulerService = new SchedulerService(client, guildConfigService, summarizationService);
+
 client.services = {
+  guildConfigService,
   sessionService,
   streamingService,
   voiceService,
+  schedulerService,
+  summarizationService,
   messageStats: messageStatsService,
 };
 
@@ -183,7 +201,6 @@ process.on('SIGINT', shutdown);
    SCHEDULER
 =========================== */
 
-const schedulerService = new SchedulerService(client);
 schedulerService.start();
 
 /* ===========================
@@ -205,6 +222,9 @@ if (!process.env.DISCORD_TOKEN) {
 } else {
   client.login(process.env.DISCORD_TOKEN).then(() => {
     logger.init(client);
+  }).catch((err) => {
+    console.error('Discord login failed:', err.message);
+    process.exit(1);
   });
 }
 

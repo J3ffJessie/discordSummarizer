@@ -1,17 +1,30 @@
 # Discord Summarizer Bot
 
-A Discord bot with live voice translation, server summarization, coffee chat pairing, reminders, and more. Hosted on Render.
+A Discord bot with live voice translation, server summarization, coffee chat pairing, reminders, and more. Designed for multi-server use — each server admin configures their own settings and AI provider keys through a web dashboard, with no access to any other server's data.
 
 ---
 
 ## Features
 
-- **Live voice translation** — Captures voice channel audio, transcribes with Whisper, translates with LLaMA, and streams captions to a web page in near real-time
-- **Server summarization** — Summarizes recent messages across all text channels using Groq AI
-- **Coffee chat pairing** — Randomly pairs members with a designated role and DMs them to set up meetings
+- **Live voice translation** — Captures voice channel audio, transcribes with Whisper, translates via your chosen AI provider, and streams captions to a web page in near real-time
+- **Server summarization** — Summarizes recent messages across all text channels using your configured AI provider
+- **Automated weekly summaries** — Scheduled AI-generated server summaries posted to a configured channel
+- **Coffee chat pairing** — Randomly pairs members with a designated role and announces pairings in a configured channel (falls back to DMs if no channel is set)
+- **Web dashboard** — Admins configure all settings and AI provider keys through a browser UI (no slash commands required for setup)
 - **Reminders** — Set, list, and cancel personal reminders delivered via DM
 - **Events** — Fetch and display upcoming server events
-- **Location tracking** — Scan messages for location mentions and export a locations report
+
+---
+
+## How it works for server admins
+
+1. Invite the bot to your server
+2. Run `/setup dashboard` — the bot replies with a private, time-limited link
+3. Open the link to access your server's configuration dashboard
+4. Set your summary channel, coffee pairing channel and schedule, AI provider, and API keys
+5. Done — all settings are saved per-server and persist across bot updates
+
+Each server's configuration is completely isolated. API keys entered on the dashboard are stored only for that server and are never visible to other servers or bot owners.
 
 ---
 
@@ -19,7 +32,9 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 
 - Node.js >= 20
 - A Discord application and bot token ([Discord Developer Portal](https://discord.com/developers/applications))
-- A Groq API key ([console.groq.com](https://console.groq.com))
+- Each server admin will need their own AI provider API key — the bot does not include a shared key. Supported providers:
+  - [Groq](https://console.groq.com) — Fast, free tier available (recommended)
+  - OpenAI, Anthropic (Claude), Ollama (local), or any OpenAI-compatible endpoint
 
 ---
 
@@ -41,35 +56,39 @@ cp .env.example .env
 
 ## Environment Variables
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DISCORD_TOKEN` | Yes | Your bot token from the Discord Developer Portal |
-| `CLIENT_ID` | Yes | Your application/bot ID |
-| `GUILD_ID` | Yes | Your Discord server ID |
-| `GROQ_API_KEY` | Yes | Groq API key for Whisper transcription and LLaMA translation |
-| `CAPTION_URL` | Yes (production) | Public URL of the service — used to generate the captions link. Set to your Host URL if available or localhost if running locally (e.g. `https://your-app.onrender.com`) |
-| `TARGET_CHANNEL_ID` | Yes (for summary) | Channel ID where the weekly server summary is posted |
-| `ADMIN_USER_ID` | No | Discord user ID to receive admin notifications via DM |
-| `ALLOWED_USER_IDS` | No | Comma-separated user IDs permitted to run admin commands |
-| `SERVER_SUMMARY_CRON` | No | Cron expression for weekly summary (default: `0 10 * * 1` — Mondays at 10:00) |
-| `COFFEE_CRON_SCHEDULE` | No | Cron expression for coffee pairing (e.g. `0 5 * * 1`) |
-| `COFFEE_BIWEEKLY` | No | Set to `true` to run coffee pairing every other Monday instead of weekly |
-| `COFFEE_ROLE_NAME` | No | Name of the role to include in coffee pairing (default: `coffee chat`) |
-| `COFFEE_PAIRING_COOLDOWN_DAYS` | No | Days before the same two people can be re-paired (default: `30`) |
-| `CRON_TIMEZONE` | No | IANA timezone for all cron jobs (default: `UTC`). Example: `America/New_York` |
-| `PORT` | No | HTTP server port — set automatically by Render |
+These are the only variables you need to set. Per-server settings (AI provider, keys, channels, schedules) are configured by each guild admin through the dashboard — not here.
+
+### Required
+
+| Variable | Description |
+|----------|-------------|
+| `DISCORD_TOKEN` | Your bot token from the Discord Developer Portal |
+| `CLIENT_ID` | Your application/bot ID |
+| `PUBLIC_URL` | Public URL of this service — used to generate dashboard links. Set to `http://localhost:3000` for local dev, or your Render URL in production (e.g. `https://your-app.onrender.com`) |
+| `DATA_DIR` | Path where the database and data files are stored. Set to `/data` on Render (persistent disk mount path). Defaults to `src/data/` if unset. |
+
+### Optional
+
+| Variable | Description |
+|----------|-------------|
+| `ADMIN_USER_ID` | Your Discord user ID — the bot will DM you error alerts |
+| `ALLOWED_USER_IDS` | Comma-separated user IDs permitted to run bot-owner commands (`/server-summary`, `/paircoffee`, etc.) |
+| `CAPTION_URL` | Public URL for the live captions page — only needed if using the voice translation feature. Can be the same as `PUBLIC_URL`. |
+| `PORT` | HTTP server port — set automatically by Render, defaults to `3000` |
+
+> **No AI keys needed at the bot level.** Each server admin provides their own API key through the dashboard. If you want a fallback key for testing, you can set `GROQ_API_KEY` — but this is not required and should not be used in production to avoid unexpected costs.
 
 ---
 
 ## Registering Slash Commands
 
-Run this once after setup, or any time you add or change commands:
+Run this once after setup, and again any time commands change:
 
 ```bash
 npm run register-commands
 ```
 
-This registers all slash commands to the guild specified by `GUILD_ID`. Guild commands are available instantly.
+By default this registers commands globally. For local testing against a single server only, edit [src/commands/register.js](src/commands/register.js) line 27-28 to use `Routes.applicationGuildCommands` with your `GUILD_ID` — guild commands register instantly without the 1-hour global propagation delay.
 
 ---
 
@@ -80,24 +99,90 @@ This registers all slash commands to the guild specified by `GUILD_ID`. Guild co
 npm start
 ```
 
-**Development (with auto-restart):**
+**Development:**
 ```bash
-npm run dev
+node src/index.js
 ```
 
 ---
 
+## Local Testing
+
+1. Fill in `.env` with your `DISCORD_TOKEN`, `CLIENT_ID`, and set `PUBLIC_URL=http://localhost:3000`
+2. In [src/commands/register.js](src/commands/register.js), temporarily switch to guild-only registration (see comment on line 27) and add `GUILD_ID` to your `.env`
+3. Run `npm run register-commands` — commands appear in your test server instantly
+4. Run `node src/index.js`
+5. In your test server, run `/setup dashboard` — open the link and configure settings
+6. When done testing, switch register.js back to global, run `npm run register-commands`, then push to production
+
+---
+
 ## Slash Commands
+
+### `/setup dashboard`
+*(Admin only)* Generates a private, time-limited link to the web configuration dashboard. The link expires in 24 hours. From the dashboard you can configure everything — summary channel, coffee pairing channel and schedule, AI provider and API keys.
+
+---
+
+### `/setup view`
+*(Admin only)* Shows the current configuration for your server as an embed in Discord — including the coffee announcement channel, role, schedule, cooldown, and all AI provider settings.
+
+---
+
+### `/setup summary`
+*(Admin only)* Set the channel where automated server summaries are posted and enable the feature.
+
+---
+
+### `/setup coffee-channel`
+*(Admin only)* Set the channel where coffee pairings are announced. When set, a single message listing all pairs (with mentions) is posted to this channel instead of DMing each participant individually.
+
+---
+
+### `/setup coffee`
+*(Admin only)* Enable or disable automated coffee pairing.
+
+---
+
+### `/setup coffee-role`
+*(Admin only)* Set the role name used to identify members eligible for coffee pairing (default: `coffee chat`).
+
+---
+
+### `/setup coffee-schedule`
+*(Admin only)* Set the cron schedule for automated coffee pairing (e.g. `0 10 * * 5` for Fridays at 10am).
+
+---
+
+### `/setup coffee-biweekly`
+*(Admin only)* Toggle whether coffee pairing runs every week or every other week.
+
+---
+
+### `/setup coffee-cooldown`
+*(Admin only)* Set how many days must pass before the same pair can be matched again (default: 30).
+
+---
+
+### `/setup timezone`
+*(Admin only)* Set the IANA timezone used for all scheduled tasks (e.g. `America/New_York`).
+
+---
+
+### `/setup admin-add` / `/setup admin-remove`
+*(Discord Administrator only)* Grant or revoke bot-admin privileges for a user. Bot admins can run all admin commands without needing Discord Administrator permission — useful for delegating bot management to moderators or multiple team members.
+
+---
 
 ### `/translate`
 Start or stop live voice translation in a voice channel.
 
 | Subcommand | Description |
 |-----------|-------------|
-| `start` | Join your current voice channel and begin live translation. Posts a captions URL to the channel. You must be in a voice channel. |
+| `start` | Join your current voice channel and begin live translation. Posts a captions URL to the channel. |
 | `stop` | Stop translation and end the session. |
 
-Sessions auto-expire after 1 hour. See [TRANSLATION.md](TRANSLATION.md) for a full technical breakdown of how the translation pipeline works.
+Sessions auto-expire after 1 hour.
 
 ---
 
@@ -107,17 +192,17 @@ Summarizes the last 100 messages in the current channel and DMs the result to yo
 ---
 
 ### `/server-summary`
-*(Admin only)* Gathers recent messages from all visible text channels and posts an AI-generated summary to the configured `TARGET_CHANNEL_ID`.
+*(Admin only)* Gathers recent messages from all visible text channels and posts an AI-generated summary to the configured summary channel.
 
 ---
 
-### `/coffee-pair`
-*(Admin only)* Randomly pairs members who have the coffee chat role and DMs each person their partner's name. Respects the cooldown period so the same pair isn't repeated too soon.
+### `/paircoffee`
+*(Admin only)* Manually triggers a coffee pairing run immediately. Posts pairings to the configured announcement channel (or falls back to DMs if no channel is set). Respects the cooldown period so the same pair isn't repeated too soon.
 
 ---
 
 ### `/coffee-list`
-*(Admin only)* Lists all members currently assigned the coffee chat role. Useful for verifying who is eligible for pairing.
+*(Admin only)* Lists all members currently assigned the coffee chat role.
 
 ---
 
@@ -150,33 +235,64 @@ Fetches and DMs you the next 7 days of scheduled server events (up to 10).
 
 ---
 
-### `/location`
-*(Admin only)* Scans recent messages for location mentions and logs them to `locations.log`.
+## AI Provider Configuration
 
-| Option | Type | Required | Description |
-|--------|------|----------|-------------|
-| `limit` | Integer | No | Number of messages to scan (max 100, default 100) |
+Each server configures its own AI provider through the dashboard. Three tasks can each use a different provider and model:
+
+| Task | What it does | Default model |
+|------|-------------|---------------|
+| **Summarization** | `/summarize` and scheduled weekly summaries | `llama-3.1-8b-instant` (Groq) |
+| **Translation** | Live voice caption translation | `llama-3.1-8b-instant` (Groq) |
+| **Transcription** | Voice-to-text (Whisper) | `whisper-large-v3-turbo` (Groq) |
+
+### Supported providers
+
+| Provider | Notes |
+|----------|-------|
+| `groq` | Default. Fast inference, free tier available at [console.groq.com](https://console.groq.com) |
+| `openai` | OpenAI API |
+| `anthropic` | Anthropic Claude API |
+| `ollama` | Runs locally — requires a running Ollama instance and a base URL |
+| `custom` | Any OpenAI-compatible endpoint — provide a base URL |
+
+> **Transcription note:** Only `groq` and `openai` support Whisper-compatible speech-to-text.
+
+Admins can also configure AI settings via slash command if preferred:
+```
+/setup ai service:summarization provider:anthropic key:sk-ant-xxx model:claude-haiku-4-5-20251001
+/setup ai service:translation provider:openai key:sk-xxx model:gpt-4o-mini
+/setup ai service:transcription provider:groq key:gsk_xxx
+```
 
 ---
 
-### `/downloadlocations`
-*(Admin only)* Exports the locations log as a JSON file and DMs it to you.
+## Deployment (Render)
 
----
+1. Push your code to GitHub
+2. Create a new **Web Service** on Render connected to your repo
+3. Set the **Start Command** to `npm start`
+4. Use a **paid plan** with **Always On** enabled — the free tier sleeps and disconnects the bot
+5. **Add a persistent disk:**
+   - Go to your service → **Disks** tab → **Add Disk**
+   - Mount path: `/data`
+   - Size: `1 GB`
+   - This ensures guild configs and data survive redeploys
+6. Set environment variables:
 
-## Scheduled Jobs
+```
+DISCORD_TOKEN=your-bot-token
+CLIENT_ID=your-client-id
+PUBLIC_URL=https://your-app.onrender.com
+DATA_DIR=/data
+ADMIN_USER_ID=your-discord-user-id    # optional
+ALLOWED_USER_IDS=id1,id2              # optional
+CAPTION_URL=https://your-app.onrender.com  # optional, for voice translation
+```
 
-Both jobs use the `CRON_TIMEZONE` environment variable. Set this to your local timezone so they fire at the right time (Render runs UTC by default).
+7. Run `npm run register-commands` once to register slash commands globally
+8. Invite the bot to servers — each admin runs `/setup dashboard` to configure their server
 
-### Weekly Server Summary
-- **Default schedule:** Every Monday at 10:00 UTC (`0 10 * * 1`)
-- **Override:** Set `SERVER_SUMMARY_CRON` to any valid cron expression
-- **What it does:** Gathers messages from all visible text channels and posts an AI summary to `TARGET_CHANNEL_ID`
-
-### Coffee Chat Pairing
-- **Schedule:** Set via `COFFEE_CRON_SCHEDULE` or `COFFEE_CRON` (no default — must be configured)
-- **Biweekly mode:** Set `COFFEE_BIWEEKLY=true` to run every other Monday. The cron expression still runs weekly — the skip logic is handled in code based on ISO week number (runs on even weeks: 2, 4, 6…)
-- **What it does:** Pairs members with the coffee chat role and DMs each person their partner
+The bot uses no native binaries (`opusscript` is WASM, `@noble/ciphers` is pure JS) — builds and runs on Render without any extra configuration.
 
 ---
 
@@ -187,10 +303,11 @@ discord-summarizer/
 ├── src/
 │   ├── index.js                    # Entry point — bootstraps all services and the Discord client
 │   ├── commands/                   # One file per slash command
+│   │   ├── setup.js                # /setup — dashboard link, view config, channel/schedule/AI/admin config
 │   │   ├── translate.js
 │   │   ├── summarize.js
 │   │   ├── server-summary.js
-│   │   ├── coffee-pair.js
+│   │   ├── paircoffee.js
 │   │   ├── coffee-list.js
 │   │   ├── remindme.js
 │   │   ├── listreminders.js
@@ -200,35 +317,29 @@ discord-summarizer/
 │   │   └── downloadlocations.js
 │   ├── events/
 │   │   └── interactionCreate.js    # Routes slash command interactions to the right command file
+│   ├── providers/
+│   │   └── index.js                # AI provider abstraction — adapters for Groq, OpenAI, Anthropic, Ollama
 │   ├── services/
 │   │   ├── voiceService.js         # Voice capture and per-frame Opus decoding
-│   │   ├── transcriptionService.js # PCM→WAV conversion and Whisper API calls
-│   │   ├── translationService.js   # LLaMA translation via Groq
+│   │   ├── transcriptionService.js # PCM→WAV conversion and Whisper API calls (provider-aware)
+│   │   ├── translationService.js   # Text translation (provider-aware)
+│   │   ├── groq.js                 # SummarizationService — provider-aware summarization
 │   │   ├── streamingService.js     # WebSocket server — broadcasts captions to browser clients
 │   │   ├── sessionService.js       # Per-guild session management with token auth
+│   │   ├── guildConfigService.js   # SQLite config store — per-guild settings and AI provider config
+│   │   ├── messageStatsService.js  # Per-guild message statistics tracking
 │   │   ├── schedulerService.js     # Cron job management (summary + coffee pairing)
-│   │   ├── httpServer.js           # HTTP server — serves static files and health check
-│   │   ├── coffee.js               # Coffee pairing logic (matching algorithm, DM sending)
+│   │   ├── httpServer.js           # HTTP server — dashboard API, static files, health check
+│   │   ├── coffee.js               # Coffee pairing logic (matching algorithm, channel announcements, DM fallback)
 │   │   └── gather.js               # Message gathering and summarization for server summary
 │   └── utils/
 │       ├── helpers.js              # Shared utilities (delay, ensureDataDir)
 │       └── logger.js               # Admin DM notifications and error logging
 ├── public/
+│   ├── dashboard.html              # Web configuration dashboard and analytics
 │   ├── captions.html               # Live captions web page (WebSocket client)
-│   └── torc-logo.png               # Bot logo
-├── register-commands.js            # Run this to register slash commands with Discord
+│   └── torc-logo.png
+├── src/commands/register.js        # Run this to register slash commands with Discord
 ├── package.json
-└── .env.example                    # Template for all environment variables
+└── .env.example                    # Template for environment variables
 ```
-
----
-
-## Deployment (Render)
-
-1. Push your code to GitHub
-2. Create a new **Web Service** on Render connected to your repo
-3. Set the **Start Command** to `npm start`
-4. Add all required environment variables in the Render dashboard
-5. Use a **paid plan** with **Always On** enabled — the free tier sleeps after inactivity and will disconnect the bot
-
-The bot uses no native binaries (`opusscript` is WASM, `@noble/ciphers` is pure JS), so it builds and runs on Render's Linux environment without any extra configuration.
