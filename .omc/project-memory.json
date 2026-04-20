@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1776524628069,
+  "lastScanned": 1776689302294,
   "projectRoot": "c:\\Users\\JeffJ\\Projects\\discord-summarizer",
   "techStack": {
     "languages": [
@@ -63,7 +63,7 @@
       "path": "coverage",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1776524627847,
+      "lastAccessed": 1776689302203,
       "keyFiles": [
         "clover.xml",
         "coverage-final.json",
@@ -74,7 +74,7 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 2,
-      "lastAccessed": 1776524627849,
+      "lastAccessed": 1776689302206,
       "keyFiles": [
         "multi-server-testing.md",
         "stream-notes-multi-server-ai-providers.md"
@@ -84,7 +84,7 @@
       "path": "jest-stare",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1776524627866,
+      "lastAccessed": 1776689302237,
       "keyFiles": [
         "index.html",
         "jest-results.json"
@@ -94,7 +94,7 @@
       "path": "public",
       "purpose": "Public files",
       "fileCount": 3,
-      "lastAccessed": 1776524627867,
+      "lastAccessed": 1776689302240,
       "keyFiles": [
         "captions.html",
         "dashboard.html",
@@ -105,7 +105,7 @@
       "path": "src",
       "purpose": "Source code",
       "fileCount": 1,
-      "lastAccessed": 1776524627911,
+      "lastAccessed": 1776689302242,
       "keyFiles": [
         "index.js"
       ]
@@ -114,7 +114,7 @@
       "path": "tools",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1776524627912,
+      "lastAccessed": 1776689302243,
       "keyFiles": [
         "find_escaped_backtick.js",
         "require_commands_test.js",
@@ -125,7 +125,7 @@
       "path": "src\\data",
       "purpose": "Data files",
       "fileCount": 3,
-      "lastAccessed": 1776524627920,
+      "lastAccessed": 1776689302251,
       "keyFiles": [
         "guild_config.db",
         "last_version.txt",
@@ -136,7 +136,7 @@
       "path": "src\\services",
       "purpose": "Business logic services",
       "fileCount": 16,
-      "lastAccessed": 1776524627921,
+      "lastAccessed": 1776689302253,
       "keyFiles": [
         "coffee.js",
         "events.js",
@@ -147,7 +147,7 @@
       "path": "src\\utils",
       "purpose": "Utility functions",
       "fileCount": 2,
-      "lastAccessed": 1776524627923,
+      "lastAccessed": 1776689302255,
       "keyFiles": [
         "helpers.js",
         "logger.js"
@@ -175,8 +175,8 @@
     },
     {
       "path": "src\\services\\guildConfigService.js",
-      "accessCount": 5,
-      "lastAccessed": 1776356146699,
+      "accessCount": 7,
+      "lastAccessed": 1776690694883,
       "type": "file"
     },
     {
@@ -187,14 +187,32 @@
     },
     {
       "path": "src\\services\\coffee.js",
-      "accessCount": 3,
-      "lastAccessed": 1776356358402,
+      "accessCount": 4,
+      "lastAccessed": 1776689387605,
       "type": "file"
     },
     {
       "path": "src\\commands\\paircoffee.js",
       "accessCount": 3,
       "lastAccessed": 1776356379001,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\messageStatsService.js",
+      "accessCount": 3,
+      "lastAccessed": 1776689379634,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\__tests__\\messageStatsService.test.js",
+      "accessCount": 3,
+      "lastAccessed": 1776689551778,
+      "type": "file"
+    },
+    {
+      "path": "src\\commands\\server-summary.js",
+      "accessCount": 3,
+      "lastAccessed": 1776690720282,
       "type": "file"
     },
     {
@@ -216,18 +234,6 @@
       "type": "file"
     },
     {
-      "path": "src\\services\\messageStatsService.js",
-      "accessCount": 2,
-      "lastAccessed": 1776524672119,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\__tests__\\messageStatsService.test.js",
-      "accessCount": 2,
-      "lastAccessed": 1776524950503,
-      "type": "file"
-    },
-    {
       "path": "src\\events\\voiceStateUpdate.js",
       "accessCount": 1,
       "lastAccessed": 1776524685169,
@@ -237,6 +243,60 @@
       "path": "src\\commands\\register.js",
       "accessCount": 1,
       "lastAccessed": 1776526398891,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 1,
+      "lastAccessed": 1776689365185,
+      "type": "file"
+    },
+    {
+      "path": ".env",
+      "accessCount": 1,
+      "lastAccessed": 1776689368735,
+      "type": "file"
+    },
+    {
+      "path": ".env.example",
+      "accessCount": 1,
+      "lastAccessed": 1776689368898,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\reminders.js",
+      "accessCount": 1,
+      "lastAccessed": 1776689379897,
+      "type": "file"
+    },
+    {
+      "path": "src\\index.js",
+      "accessCount": 1,
+      "lastAccessed": 1776689383617,
+      "type": "file"
+    },
+    {
+      "path": "src\\utils\\helpers.js",
+      "accessCount": 1,
+      "lastAccessed": 1776689383659,
+      "type": "file"
+    },
+    {
+      "path": "reminders.json",
+      "accessCount": 1,
+      "lastAccessed": 1776689555916,
+      "type": "file"
+    },
+    {
+      "path": "coffee_pairs.json",
+      "accessCount": 1,
+      "lastAccessed": 1776689556420,
+      "type": "file"
+    },
+    {
+      "path": "src\\data\\message_stats.json",
+      "accessCount": 1,
+      "lastAccessed": 1776689556556,
       "type": "file"
     }
   ],

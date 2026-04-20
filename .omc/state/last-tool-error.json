@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"npm test -- --testPathPatterns=messageStatsService 2>&1\",\"timeout\":30000,\"description\":\"Run messageStatsService tests only\"}",
-  "error": "Exit code 1\n\n> discord-summarizer@1.0.0 test\n> jest --verbose --colors --testPathPatterns=messageStatsService\n\n  \u001b[2m\u001b[31mconsole.error\u001b[39m\u001b[22m\n\u001b[31m    [messageStats] Failed to load stats file: Unexpected token 'b', \"bad json{{\" is not valid JSON\u001b[39m\n\u001b[2m\u001b[22m\n\u001b[2m    \u001b[0m \u001b[90m 22 |\u001b[39m       }\u001b[22m\n\u001b[2m     \u001b[90m 23 |\u001b[39m     } \u001b[36mcatch\u001b[39m (err) {\u001b[22m\n\u001b[2m    \u001b[31m\u001b[1m>\u001b[22m\u001b[2m\u001b[39m\u001b[90m 24 |\u001b[39m       console\u001b[33m.\u001b[39merror(\u001b[32m'[messageStats] Failed to load stats file:'\u001b[39m\u001b[...",
-  "timestamp": "2026-04-18T15:07:22.526Z",
-  "retry_count": 3
+  "tool_input_preview": "{\"command\":\"sqlite3 /c/Users/JeffJ/Projects/discord-summarizer/src/data/guild_config.db \\\".schema guild_config\\\" 2>/dev/null\"}",
+  "error": "Exit code 127",
+  "timestamp": "2026-04-20T12:56:29.797Z",
+  "retry_count": 1
 }
