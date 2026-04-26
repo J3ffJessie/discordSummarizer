@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"sqlite3 /c/Users/JeffJ/Projects/discord-summarizer/src/data/guild_config.db \\\".schema guild_config\\\" 2>/dev/null\"}",
-  "error": "Exit code 127",
-  "timestamp": "2026-04-20T12:56:29.797Z",
-  "retry_count": 1
-}
