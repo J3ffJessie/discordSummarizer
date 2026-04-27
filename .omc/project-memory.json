@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1776689302294,
+  "lastScanned": 1777292449494,
   "projectRoot": "c:\\Users\\JeffJ\\Projects\\discord-summarizer",
   "techStack": {
     "languages": [
@@ -63,7 +63,7 @@
       "path": "coverage",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1776689302203,
+      "lastAccessed": 1777292449358,
       "keyFiles": [
         "clover.xml",
         "coverage-final.json",
@@ -74,7 +74,7 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 2,
-      "lastAccessed": 1776689302206,
+      "lastAccessed": 1777292449361,
       "keyFiles": [
         "multi-server-testing.md",
         "stream-notes-multi-server-ai-providers.md"
@@ -84,7 +84,7 @@
       "path": "jest-stare",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1776689302237,
+      "lastAccessed": 1777292449410,
       "keyFiles": [
         "index.html",
         "jest-results.json"
@@ -94,7 +94,7 @@
       "path": "public",
       "purpose": "Public files",
       "fileCount": 3,
-      "lastAccessed": 1776689302240,
+      "lastAccessed": 1777292449412,
       "keyFiles": [
         "captions.html",
         "dashboard.html",
@@ -105,7 +105,7 @@
       "path": "src",
       "purpose": "Source code",
       "fileCount": 1,
-      "lastAccessed": 1776689302242,
+      "lastAccessed": 1777292449413,
       "keyFiles": [
         "index.js"
       ]
@@ -114,7 +114,7 @@
       "path": "tools",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1776689302243,
+      "lastAccessed": 1777292449415,
       "keyFiles": [
         "find_escaped_backtick.js",
         "require_commands_test.js",
@@ -125,7 +125,7 @@
       "path": "src\\data",
       "purpose": "Data files",
       "fileCount": 3,
-      "lastAccessed": 1776689302251,
+      "lastAccessed": 1777292449421,
       "keyFiles": [
         "guild_config.db",
         "last_version.txt",
@@ -136,7 +136,7 @@
       "path": "src\\services",
       "purpose": "Business logic services",
       "fileCount": 16,
-      "lastAccessed": 1776689302253,
+      "lastAccessed": 1777292449422,
       "keyFiles": [
         "coffee.js",
         "events.js",
@@ -147,7 +147,7 @@
       "path": "src\\utils",
       "purpose": "Utility functions",
       "fileCount": 2,
-      "lastAccessed": 1776689302255,
+      "lastAccessed": 1777292449423,
       "keyFiles": [
         "helpers.js",
         "logger.js"
@@ -175,8 +175,8 @@
     },
     {
       "path": "src\\services\\guildConfigService.js",
-      "accessCount": 7,
-      "lastAccessed": 1776690694883,
+      "accessCount": 8,
+      "lastAccessed": 1777292538839,
       "type": "file"
     },
     {
@@ -187,14 +187,26 @@
     },
     {
       "path": "src\\services\\coffee.js",
-      "accessCount": 4,
-      "lastAccessed": 1776689387605,
+      "accessCount": 5,
+      "lastAccessed": 1777292511292,
       "type": "file"
     },
     {
       "path": "src\\commands\\paircoffee.js",
-      "accessCount": 3,
-      "lastAccessed": 1776356379001,
+      "accessCount": 4,
+      "lastAccessed": 1777292511911,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\schedulerService.js",
+      "accessCount": 4,
+      "lastAccessed": 1777292529378,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\httpServer.js",
+      "accessCount": 4,
+      "lastAccessed": 1777292654620,
       "type": "file"
     },
     {
@@ -222,16 +234,10 @@
       "type": "directory"
     },
     {
-      "path": "src\\services\\httpServer.js",
+      "path": "public",
       "accessCount": 2,
-      "lastAccessed": 1776084260441,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\schedulerService.js",
-      "accessCount": 2,
-      "lastAccessed": 1776356365160,
-      "type": "file"
+      "lastAccessed": 1777292712591,
+      "type": "directory"
     },
     {
       "path": "src\\events\\voiceStateUpdate.js",
