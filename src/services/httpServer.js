@@ -4,7 +4,7 @@ const path = require('path');
 
 const ALLOWED_CONFIG_FIELDS = new Set([
   'summary_channel_id', 'summary_enabled', 'summary_cron',
-  'coffee_enabled', 'coffee_role_name', 'coffee_cron', 'coffee_biweekly', 'coffee_cooldown_days',
+  'coffee_enabled', 'coffee_role_name', 'coffee_cron', 'coffee_biweekly', 'coffee_cooldown_days', 'coffee_channel_id',
   'timezone',
   'summ_provider', 'summ_api_key', 'summ_model', 'summ_base_url',
   'trans_provider', 'trans_api_key', 'trans_model', 'trans_base_url',
