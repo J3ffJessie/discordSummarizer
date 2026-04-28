@@ -2,8 +2,8 @@ const crypto = require('crypto');
 
 class GiveawayService {
   constructor() {
-    // One active giveaway per guild
     this.giveaways = new Map();
+    this.winnerHistory = new Map(); // guildId → [{winnerName, userId, item, giveawayTitle, giveawayId, timestamp}]
   }
 
   create(guildId, hostId, title, prize) {
@@ -57,7 +57,27 @@ class GiveawayService {
     const idx = Math.floor(Math.random() * g.participants.length);
     const winner = g.participants[idx];
     g.participants.splice(idx, 1);
+
+    const history = this.winnerHistory.get(guildId) || [];
+    history.push({
+      winnerName: winner.displayName,
+      userId: winner.userId,
+      item: g.selectedItem || null,
+      giveawayTitle: g.title,
+      giveawayId: g.id,
+      timestamp: Date.now(),
+    });
+    this.winnerHistory.set(guildId, history);
+
     return { winner, remaining: [...g.participants] };
+  }
+
+  getWinnerHistory(guildId) {
+    return this.winnerHistory.get(guildId) || [];
+  }
+
+  clearWinnerHistory(guildId) {
+    this.winnerHistory.set(guildId, []);
   }
 
   end(guildId) {

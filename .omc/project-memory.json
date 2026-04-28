@@ -158,20 +158,20 @@
   "hotPaths": [
     {
       "path": "public\\dashboard.html",
-      "accessCount": 20,
-      "lastAccessed": 1777216618075,
+      "accessCount": 30,
+      "lastAccessed": 1777404575529,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\httpServer.js",
+      "accessCount": 16,
+      "lastAccessed": 1777404583745,
       "type": "file"
     },
     {
       "path": "src\\commands\\setup.js",
       "accessCount": 15,
       "lastAccessed": 1777216267115,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\httpServer.js",
-      "accessCount": 14,
-      "lastAccessed": 1777403831783,
       "type": "file"
     },
     {
@@ -199,15 +199,15 @@
       "type": "file"
     },
     {
-      "path": "src\\events\\__tests__\\voiceStateUpdate.test.js",
-      "accessCount": 5,
-      "lastAccessed": 1776525498676,
+      "path": "src\\services\\giveawayService.js",
+      "accessCount": 8,
+      "lastAccessed": 1777404582466,
       "type": "file"
     },
     {
-      "path": "src\\services\\giveawayService.js",
+      "path": "src\\events\\__tests__\\voiceStateUpdate.test.js",
       "accessCount": 5,
-      "lastAccessed": 1777403584296,
+      "lastAccessed": 1776525498676,
       "type": "file"
     },
     {

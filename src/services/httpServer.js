@@ -194,6 +194,33 @@ function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildCo
       return;
     }
 
+    // Giveaway winner history — GET (requires dashboard token)
+    if (pathname === '/api/giveaway/winners' && req.method === 'GET' && giveawayService && guildConfigService) {
+      const token = params.get('token');
+      if (!guildId || !guildConfigService.validateDashboardToken(guildId, token)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(giveawayService.getWinnerHistory(guildId)));
+      return;
+    }
+
+    // Giveaway winner history — DELETE/clear (requires dashboard token)
+    if (pathname === '/api/giveaway/winners' && req.method === 'DELETE' && giveawayService && guildConfigService) {
+      const token = params.get('token');
+      if (!guildId || !guildConfigService.validateDashboardToken(guildId, token)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+        return;
+      }
+      giveawayService.clearWinnerHistory(guildId);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
     // Giveaway selected item — POST (requires host token)
     if (pathname === '/api/giveaway/item' && req.method === 'POST' && giveawayService) {
       const body = await readBody(req);
