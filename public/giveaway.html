@@ -560,6 +560,10 @@
         }
         document.getElementById('entry-count').textContent = data.participants.length;
 
+        if (!IS_HOST) {
+          setSelectedItemDisplay(data.selectedItem || null);
+        }
+
         if (data.participants.length !== prevLen) {
           renderParticipantList();
           if (!spinning) drawWheel();
@@ -815,16 +819,32 @@
       renderItems();
     }
 
-    function selectItem(idx) {
-      selectedItemIdx = selectedItemIdx === idx ? -1 : idx;
+    function setSelectedItemDisplay(text) {
       const display = document.getElementById('selected-item-display');
       const label   = document.getElementById('selected-item-label');
-      if (selectedItemIdx >= 0) {
-        label.textContent = items[selectedItemIdx];
+      if (text) {
+        label.textContent = text;
         display.style.display = '';
       } else {
         display.style.display = 'none';
       }
+    }
+
+    async function pushSelectedItem(item) {
+      try {
+        await fetch('/api/giveaway/item', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ guildId: GUILD_ID, id: GIVEAWAY_ID, token: TOKEN, item: item || null }),
+        });
+      } catch { /* non-critical */ }
+    }
+
+    function selectItem(idx) {
+      selectedItemIdx = selectedItemIdx === idx ? -1 : idx;
+      const text = selectedItemIdx >= 0 ? items[selectedItemIdx] : null;
+      setSelectedItemDisplay(text);
+      pushSelectedItem(text);
       renderItems();
     }
 
@@ -832,7 +852,8 @@
       items.splice(idx, 1);
       if (selectedItemIdx === idx) {
         selectedItemIdx = -1;
-        document.getElementById('selected-item-display').style.display = 'none';
+        setSelectedItemDisplay(null);
+        pushSelectedItem(null);
       } else if (selectedItemIdx > idx) {
         selectedItemIdx--;
       }

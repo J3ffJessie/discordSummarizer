@@ -169,15 +169,21 @@
       "type": "file"
     },
     {
+      "path": "src\\services\\httpServer.js",
+      "accessCount": 14,
+      "lastAccessed": 1777403831783,
+      "type": "file"
+    },
+    {
       "path": "src\\index.js",
       "accessCount": 13,
       "lastAccessed": 1777392362745,
       "type": "file"
     },
     {
-      "path": "src\\services\\httpServer.js",
-      "accessCount": 11,
-      "lastAccessed": 1777392361895,
+      "path": "public\\giveaway.html",
+      "accessCount": 12,
+      "lastAccessed": 1777404018637,
       "type": "file"
     },
     {
@@ -193,15 +199,15 @@
       "type": "file"
     },
     {
-      "path": "public\\giveaway.html",
-      "accessCount": 9,
-      "lastAccessed": 1777393076983,
-      "type": "file"
-    },
-    {
       "path": "src\\events\\__tests__\\voiceStateUpdate.test.js",
       "accessCount": 5,
       "lastAccessed": 1776525498676,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\giveawayService.js",
+      "accessCount": 5,
+      "lastAccessed": 1777403584296,
       "type": "file"
     },
     {
@@ -268,12 +274,6 @@
       "path": "src\\commands\\register.js",
       "accessCount": 2,
       "lastAccessed": 1777216624147,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\giveawayService.js",
-      "accessCount": 2,
-      "lastAccessed": 1777391828344,
       "type": "file"
     },
     {

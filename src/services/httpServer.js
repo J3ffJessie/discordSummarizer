@@ -147,6 +147,7 @@ function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildCo
         participants: g.participants.map(p => ({ userId: p.userId, displayName: p.displayName })),
         active: g.active,
         hostId: g.hostId,
+        selectedItem: g.selectedItem || null,
       }));
       return;
     }
@@ -190,6 +191,27 @@ function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildCo
         })();
       }
 
+      return;
+    }
+
+    // Giveaway selected item — POST (requires host token)
+    if (pathname === '/api/giveaway/item' && req.method === 'POST' && giveawayService) {
+      const body = await readBody(req);
+      const gid = body.guildId || guildId;
+      const { id, token, item } = body;
+      if (!gid || !id || !token) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing guildId, id, or token' }));
+        return;
+      }
+      const ok = giveawayService.setItem(gid, id, token, item);
+      if (!ok) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid token or giveaway not found' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
       return;
     }
 

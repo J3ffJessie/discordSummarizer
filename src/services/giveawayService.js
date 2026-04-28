@@ -21,6 +21,7 @@ class GiveawayService {
       createdAt: Date.now(),
       messageId: null,
       channelId: null,
+      selectedItem: null,
     };
     this.giveaways.set(guildId, giveaway);
     return giveaway;
@@ -41,6 +42,13 @@ class GiveawayService {
     if (g.participants.find(p => p.userId === userId)) return 'already_entered';
     g.participants.push({ userId, username, displayName });
     return 'ok';
+  }
+
+  setItem(guildId, id, token, item) {
+    const g = this.validate(guildId, id, token);
+    if (!g) return false;
+    g.selectedItem = item || null;
+    return true;
   }
 
   spin(guildId, id, token) {
