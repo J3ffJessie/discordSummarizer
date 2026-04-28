@@ -302,6 +302,118 @@
     .error-page h2 { font-size: 20px; color: var(--red); }
     .error-page p { font-size: 14px; }
 
+    /* ── Items panel (host) ── */
+    .items-panel {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .item-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 8px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .item-entry {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.1s, border-color 0.1s;
+      border: 1px solid transparent;
+      user-select: none;
+    }
+    .item-entry:hover { background: rgba(255,255,255,0.05); }
+    .item-entry.selected {
+      background: rgba(88,101,242,0.18);
+      border-color: rgba(88,101,242,0.45);
+      color: var(--bright);
+    }
+
+    .item-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .item-remove {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 11px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      line-height: 1;
+      transition: color 0.1s, background 0.1s;
+    }
+    .item-remove:hover { color: var(--red); background: rgba(242,63,67,0.12); }
+
+    .item-input-row {
+      padding: 10px 8px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .item-input-row input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 6px 10px;
+      outline: none;
+      min-width: 0;
+      font-family: inherit;
+    }
+    .item-input-row input:focus { border-color: var(--purple); }
+    .item-input-row input::placeholder { color: var(--muted); }
+    .item-input-row button {
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: filter 0.15s;
+      font-family: inherit;
+    }
+    .item-input-row button:hover { filter: brightness(1.15); }
+
+    /* ── Selected item display (above wheel) ── */
+    .selected-item-display {
+      background: rgba(88,101,242,0.14);
+      border: 1px solid rgba(88,101,242,0.4);
+      border-radius: 12px;
+      padding: 10px 28px;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--bright);
+      text-align: center;
+      max-width: 440px;
+      width: 100%;
+      letter-spacing: 0.01em;
+    }
+
     /* ── Responsive ── */
     @media (max-width: 680px) {
       body { overflow: auto; }
@@ -309,6 +421,7 @@
       .panel { width: 100%; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
       .participant-list { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; }
       .p-item { padding: 4px 8px; }
+      .items-panel { width: 100%; max-height: 200px; border-left: none; border-top: 1px solid var(--border); order: 3; }
       .wheel-area { padding: 16px 12px; }
       #wheel-canvas { width: 300px !important; height: 300px !important; }
       .spin-btn { width: 88px; height: 88px; font-size: 15px; }
@@ -334,6 +447,10 @@
     </aside>
 
     <main class="wheel-area">
+      <div class="selected-item-display" id="selected-item-display" style="display:none">
+        🎁 <span id="selected-item-label"></span>
+      </div>
+
       <div class="wheel-wrapper" id="wheel-wrapper">
         <div class="wheel-pointer"></div>
         <canvas id="wheel-canvas" width="500" height="500"></canvas>
@@ -345,6 +462,16 @@
 
       <div id="ended-notice" class="ended-notice" style="display:none">🔒 This giveaway has ended.</div>
     </main>
+    <aside class="items-panel" id="items-panel" style="display:none">
+      <div class="panel-header">Items / Prizes</div>
+      <div class="item-list" id="item-list">
+        <div class="p-empty">No items added yet.</div>
+      </div>
+      <div class="item-input-row">
+        <input type="text" id="item-input" placeholder="Add an item…" maxlength="80" />
+        <button onclick="addItem()">Add</button>
+      </div>
+    </aside>
   </div>
 
   <!-- Winner overlay -->
@@ -384,6 +511,8 @@
     let spinning        = false;
     let pollTimer       = null;
     let pendingRemaining = null;  // set by spin API, applied on dismiss
+    let items           = [];
+    let selectedItemIdx = -1;
 
     /* ── Canvas ── */
     const canvas = document.getElementById('wheel-canvas');
@@ -675,6 +804,56 @@
     }
 
     /* ─────────────────────────────────────
+       ITEMS
+    ───────────────────────────────────── */
+    function addItem() {
+      const input = document.getElementById('item-input');
+      const val = input.value.trim();
+      if (!val) return;
+      items.push(val);
+      input.value = '';
+      renderItems();
+    }
+
+    function selectItem(idx) {
+      selectedItemIdx = selectedItemIdx === idx ? -1 : idx;
+      const display = document.getElementById('selected-item-display');
+      const label   = document.getElementById('selected-item-label');
+      if (selectedItemIdx >= 0) {
+        label.textContent = items[selectedItemIdx];
+        display.style.display = '';
+      } else {
+        display.style.display = 'none';
+      }
+      renderItems();
+    }
+
+    function removeItem(idx) {
+      items.splice(idx, 1);
+      if (selectedItemIdx === idx) {
+        selectedItemIdx = -1;
+        document.getElementById('selected-item-display').style.display = 'none';
+      } else if (selectedItemIdx > idx) {
+        selectedItemIdx--;
+      }
+      renderItems();
+    }
+
+    function renderItems() {
+      const el = document.getElementById('item-list');
+      if (items.length === 0) {
+        el.innerHTML = '<div class="p-empty">No items added yet.</div>';
+        return;
+      }
+      el.innerHTML = items.map((item, i) => `
+        <div class="item-entry${i === selectedItemIdx ? ' selected' : ''}" onclick="selectItem(${i})">
+          <span class="item-name">${esc(item)}</span>
+          <button class="item-remove" onclick="event.stopPropagation();removeItem(${i})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    /* ─────────────────────────────────────
        CONFETTI
     ───────────────────────────────────── */
     let confettiParticles = [];
@@ -753,6 +932,10 @@
     ───────────────────────────────────── */
     if (IS_HOST) {
       document.getElementById('spin-btn').classList.remove('hidden');
+      document.getElementById('items-panel').style.display = '';
+      document.getElementById('item-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') addItem();
+      });
     }
 
     if (GUILD_ID && GIVEAWAY_ID) {

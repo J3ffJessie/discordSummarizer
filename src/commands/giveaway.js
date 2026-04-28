@@ -60,8 +60,7 @@ module.exports = {
         .setTitle(`🎉 ${title}`)
         .setDescription(
           (prize ? `**Prize:** ${prize}\n\n` : '') +
-          `Click **Enter Giveaway** to add your name to the wheel!\n\n` +
-          `[Watch the wheel spin](${viewUrl})`
+          `Click **Enter Giveaway** to add your name to the wheel!`
         )
         .setColor(0x5865f2)
         .setFooter({ text: `Hosted by ${interaction.member?.displayName || interaction.user.username}` })
@@ -72,7 +71,12 @@ module.exports = {
           .setCustomId(`giveaway_enter_${guildId}`)
           .setLabel('Enter Giveaway')
           .setStyle(ButtonStyle.Primary)
-          .setEmoji('🎉')
+          .setEmoji('🎉'),
+        new ButtonBuilder()
+          .setURL(viewUrl)
+          .setLabel('Watch the Wheel')
+          .setStyle(ButtonStyle.Link)
+          .setEmoji('🎡')
       );
 
       const msg = await interaction.reply({

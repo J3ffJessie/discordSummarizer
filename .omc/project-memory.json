@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1777215940278,
+  "lastScanned": 1777391743995,
   "projectRoot": "c:\\Users\\JeffJ\\Projects\\discord-summarizer",
   "techStack": {
     "languages": [
@@ -63,7 +63,7 @@
       "path": "coverage",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1777215940198,
+      "lastAccessed": 1777391743830,
       "keyFiles": [
         "clover.xml",
         "coverage-final.json",
@@ -74,7 +74,7 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 2,
-      "lastAccessed": 1777215940201,
+      "lastAccessed": 1777391743833,
       "keyFiles": [
         "multi-server-testing.md",
         "stream-notes-multi-server-ai-providers.md"
@@ -84,7 +84,7 @@
       "path": "jest-stare",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1777215940224,
+      "lastAccessed": 1777391743862,
       "keyFiles": [
         "index.html",
         "jest-results.json"
@@ -93,11 +93,12 @@
     "public": {
       "path": "public",
       "purpose": "Public files",
-      "fileCount": 3,
-      "lastAccessed": 1777215940227,
+      "fileCount": 4,
+      "lastAccessed": 1777391743871,
       "keyFiles": [
         "captions.html",
         "dashboard.html",
+        "giveaway.html",
         "torc-logo.png"
       ]
     },
@@ -105,7 +106,7 @@
       "path": "src",
       "purpose": "Source code",
       "fileCount": 1,
-      "lastAccessed": 1777215940228,
+      "lastAccessed": 1777391743873,
       "keyFiles": [
         "index.js"
       ]
@@ -114,7 +115,7 @@
       "path": "tools",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1777215940229,
+      "lastAccessed": 1777391743875,
       "keyFiles": [
         "find_escaped_backtick.js",
         "require_commands_test.js",
@@ -125,7 +126,7 @@
       "path": "src\\data",
       "purpose": "Data files",
       "fileCount": 3,
-      "lastAccessed": 1777215940233,
+      "lastAccessed": 1777391743877,
       "keyFiles": [
         "guild_config.db",
         "last_version.txt",
@@ -135,8 +136,8 @@
     "src\\services": {
       "path": "src\\services",
       "purpose": "Business logic services",
-      "fileCount": 16,
-      "lastAccessed": 1777215940234,
+      "fileCount": 17,
+      "lastAccessed": 1777391743878,
       "keyFiles": [
         "coffee.js",
         "events.js",
@@ -147,7 +148,7 @@
       "path": "src\\utils",
       "purpose": "Utility functions",
       "fileCount": 2,
-      "lastAccessed": 1777215940236,
+      "lastAccessed": 1777391743878,
       "keyFiles": [
         "helpers.js",
         "logger.js"
@@ -168,6 +169,18 @@
       "type": "file"
     },
     {
+      "path": "src\\index.js",
+      "accessCount": 13,
+      "lastAccessed": 1777392362745,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\httpServer.js",
+      "accessCount": 11,
+      "lastAccessed": 1777392361895,
+      "type": "file"
+    },
+    {
       "path": "README.md",
       "accessCount": 9,
       "lastAccessed": 1776357197527,
@@ -180,15 +193,9 @@
       "type": "file"
     },
     {
-      "path": "src\\index.js",
+      "path": "public\\giveaway.html",
       "accessCount": 9,
-      "lastAccessed": 1777216901844,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\httpServer.js",
-      "accessCount": 7,
-      "lastAccessed": 1777216857976,
+      "lastAccessed": 1777393076983,
       "type": "file"
     },
     {
@@ -213,6 +220,12 @@
       "path": "src\\events\\interactionCreate.js",
       "accessCount": 4,
       "lastAccessed": 1777216828812,
+      "type": "file"
+    },
+    {
+      "path": "src\\commands\\giveaway.js",
+      "accessCount": 4,
+      "lastAccessed": 1777393387259,
       "type": "file"
     },
     {
@@ -255,6 +268,12 @@
       "path": "src\\commands\\register.js",
       "accessCount": 2,
       "lastAccessed": 1777216624147,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\giveawayService.js",
+      "accessCount": 2,
+      "lastAccessed": 1777391828344,
       "type": "file"
     },
     {
@@ -348,22 +367,10 @@
       "type": "file"
     },
     {
-      "path": "src\\services\\giveawayService.js",
+      "path": "src",
       "accessCount": 1,
-      "lastAccessed": 1777216787927,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\giveaway.js",
-      "accessCount": 1,
-      "lastAccessed": 1777216809100,
-      "type": "file"
-    },
-    {
-      "path": "public\\giveaway.html",
-      "accessCount": 1,
-      "lastAccessed": 1777216999336,
-      "type": "file"
+      "lastAccessed": 1777391835640,
+      "type": "directory"
     }
   ],
   "userDirectives": []

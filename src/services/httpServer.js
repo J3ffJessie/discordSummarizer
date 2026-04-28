@@ -33,7 +33,7 @@ function sanitizeConfig(config) {
   return out;
 }
 
-function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildConfigService, giveawayService } = {}) {
+function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildConfigService, giveawayService, discordClient } = {}) {
   return http.createServer(async (req, res) => {
     const [pathname, search] = req.url.split('?');
     const params = new URLSearchParams(search || '');
@@ -169,6 +169,27 @@ function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildCo
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(result));
+
+      // Fire-and-forget DM to winner
+      if (discordClient && result.winner) {
+        const giveaway = giveawayService.get(gid);
+        (async () => {
+          try {
+            const [winnerUser, hostUser] = await Promise.all([
+              discordClient.users.fetch(result.winner.userId),
+              giveaway ? discordClient.users.fetch(giveaway.hostId) : Promise.resolve(null),
+            ]);
+            const hostMention = hostUser
+              ? `**${hostUser.displayName || hostUser.username}** (@${hostUser.username})`
+              : 'the giveaway host';
+            const prizeText = giveaway?.prize ? `\n🎁 **Prize:** ${giveaway.prize}` : '';
+            await winnerUser.send(
+              `🎉 Congratulations, **${result.winner.displayName}**! You've been selected as the winner of the **${giveaway?.title || 'giveaway'}**!${prizeText}\n\nPlease reach out to ${hostMention} for further details. Congratulations! 🏆`
+            );
+          } catch { /* DMs may be disabled for this user — silently ignore */ }
+        })();
+      }
+
       return;
     }
 

@@ -95,6 +95,7 @@ const giveawayService = new GiveawayService();
 const server = createHttpServer({
   guildConfigService,
   giveawayService,
+  discordClient: client,
   getStats: (guildId) => messageStatsService.getStats(guildId),
   getGuild: (guildId) => {
     const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
