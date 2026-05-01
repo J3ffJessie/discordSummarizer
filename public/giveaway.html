@@ -1,0 +1,970 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Giveaway Wheel</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #1e1f22;
+      --surface:    #2b2d31;
+      --border:     #3a3c40;
+      --text:       #dbdee1;
+      --muted:      #949ba4;
+      --bright:     #f2f3f5;
+      --purple:     #5865f2;
+      --green:      #23a55a;
+      --yellow:     #f0b132;
+      --red:        #f23f43;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'gg sans', 'Noto Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .header-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--bright);
+    }
+    .header-prize {
+      font-size: 13px;
+      color: var(--yellow);
+      font-weight: 600;
+      background: rgba(240,177,50,0.12);
+      border-radius: 12px;
+      padding: 3px 10px;
+    }
+    .header-badge {
+      margin-left: auto;
+      background: var(--purple);
+      color: #fff;
+      border-radius: 20px;
+      padding: 4px 14px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+    }
+
+    /* ── Participants panel ── */
+    .panel {
+      width: 250px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+    .participant-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 8px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    .p-item {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--text);
+      transition: background 0.1s;
+    }
+    .p-item:hover { background: rgba(0,0,0,0.2); }
+    .p-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .p-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .p-empty {
+      padding: 32px 16px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    /* ── Wheel area ── */
+    .wheel-area {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 24px;
+      padding: 20px;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .wheel-wrapper {
+      position: relative;
+      flex-shrink: 0;
+    }
+    .wheel-pointer {
+      position: absolute;
+      top: -6px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 15px solid transparent;
+      border-right: 15px solid transparent;
+      border-top: 30px solid var(--yellow);
+      z-index: 2;
+      filter: drop-shadow(0 3px 6px rgba(0,0,0,0.7));
+    }
+    #wheel-canvas {
+      display: block;
+      border-radius: 50%;
+      box-shadow:
+        0 0 0 5px var(--border),
+        0 0 0 8px #26282c,
+        0 12px 48px rgba(0,0,0,0.6);
+    }
+
+    /* ── Spin button ── */
+    .spin-btn {
+      width: 110px;
+      height: 110px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #5865f2, #7289da);
+      color: #fff;
+      border: none;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 4px 24px rgba(88,101,242,0.55), 0 0 0 4px rgba(88,101,242,0.2);
+      flex-shrink: 0;
+    }
+    .spin-btn:hover:not(:disabled) {
+      transform: scale(1.08);
+      box-shadow: 0 8px 32px rgba(88,101,242,0.7), 0 0 0 6px rgba(88,101,242,0.25);
+    }
+    .spin-btn:active:not(:disabled) { transform: scale(0.94); }
+    .spin-btn:disabled {
+      background: #35373c;
+      color: #4e5058;
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    .spin-btn.hidden { display: none; }
+
+    .status-bar {
+      font-size: 12px;
+      color: var(--muted);
+      min-height: 18px;
+      text-align: center;
+    }
+
+    .ended-notice {
+      background: rgba(242,63,67,0.12);
+      border: 1px solid var(--red);
+      border-radius: 6px;
+      padding: 8px 20px;
+      color: var(--red);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* ── Winner overlay ── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.88);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .overlay.visible { opacity: 1; pointer-events: all; }
+
+    .winner-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 48px 60px;
+      text-align: center;
+      max-width: 460px;
+      width: 92%;
+      position: relative;
+      animation: pop-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+    }
+    @keyframes pop-in {
+      from { transform: scale(0.65); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    .winner-trophy { font-size: 60px; line-height: 1; margin-bottom: 16px; display: block; }
+    .winner-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .winner-name {
+      font-size: 34px;
+      font-weight: 800;
+      color: var(--bright);
+      margin-bottom: 10px;
+      word-break: break-word;
+      line-height: 1.2;
+    }
+    .winner-prize {
+      font-size: 15px;
+      color: var(--yellow);
+      font-weight: 600;
+      margin-bottom: 36px;
+    }
+    .btn-continue {
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 36px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter 0.15s, transform 0.1s;
+    }
+    .btn-continue:hover { filter: brightness(1.12); transform: scale(1.03); }
+
+    /* ── Confetti canvas ── */
+    #confetti-canvas {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 199;
+    }
+
+    /* ── Error page ── */
+    .error-page {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 12px;
+      color: var(--muted);
+    }
+    .error-page h2 { font-size: 20px; color: var(--red); }
+    .error-page p { font-size: 14px; }
+
+    /* ── Items panel (host) ── */
+    .items-panel {
+      width: 220px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .item-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 8px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .item-entry {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 7px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.1s, border-color 0.1s;
+      border: 1px solid transparent;
+      user-select: none;
+    }
+    .item-entry:hover { background: rgba(255,255,255,0.05); }
+    .item-entry.selected {
+      background: rgba(88,101,242,0.18);
+      border-color: rgba(88,101,242,0.45);
+      color: var(--bright);
+    }
+
+    .item-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .item-remove {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 11px;
+      padding: 2px 5px;
+      border-radius: 3px;
+      flex-shrink: 0;
+      line-height: 1;
+      transition: color 0.1s, background 0.1s;
+    }
+    .item-remove:hover { color: var(--red); background: rgba(242,63,67,0.12); }
+
+    .item-input-row {
+      padding: 10px 8px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+    .item-input-row input {
+      flex: 1;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 6px 10px;
+      outline: none;
+      min-width: 0;
+      font-family: inherit;
+    }
+    .item-input-row input:focus { border-color: var(--purple); }
+    .item-input-row input::placeholder { color: var(--muted); }
+    .item-input-row button {
+      background: var(--purple);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: filter 0.15s;
+      font-family: inherit;
+    }
+    .item-input-row button:hover { filter: brightness(1.15); }
+
+    /* ── Selected item display (above wheel) ── */
+    .selected-item-display {
+      background: rgba(88,101,242,0.14);
+      border: 1px solid rgba(88,101,242,0.4);
+      border-radius: 12px;
+      padding: 10px 28px;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--bright);
+      text-align: center;
+      max-width: 440px;
+      width: 100%;
+      letter-spacing: 0.01em;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 680px) {
+      body { overflow: auto; }
+      .layout { flex-direction: column; overflow: auto; }
+      .panel { width: 100%; max-height: 200px; border-right: none; border-bottom: 1px solid var(--border); }
+      .participant-list { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; }
+      .p-item { padding: 4px 8px; }
+      .items-panel { width: 100%; max-height: 200px; border-left: none; border-top: 1px solid var(--border); order: 3; }
+      .wheel-area { padding: 16px 12px; }
+      #wheel-canvas { width: 300px !important; height: 300px !important; }
+      .spin-btn { width: 88px; height: 88px; font-size: 15px; }
+    }
+  </style>
+</head>
+<body>
+
+  <canvas id="confetti-canvas"></canvas>
+
+  <header class="header">
+    <div class="header-title" id="header-title">🎉 Giveaway</div>
+    <div class="header-prize" id="header-prize" style="display:none"></div>
+    <div class="header-badge"><span id="entry-count">0</span> entries</div>
+  </header>
+
+  <div class="layout" id="main-layout">
+    <aside class="panel">
+      <div class="panel-header">Participants</div>
+      <div class="participant-list" id="participant-list">
+        <div class="p-empty">No entries yet.<br>Participants appear here when they enter.</div>
+      </div>
+    </aside>
+
+    <main class="wheel-area">
+      <div class="selected-item-display" id="selected-item-display" style="display:none">
+        🎁 <span id="selected-item-label"></span>
+      </div>
+
+      <div class="wheel-wrapper" id="wheel-wrapper">
+        <div class="wheel-pointer"></div>
+        <canvas id="wheel-canvas" width="500" height="500"></canvas>
+      </div>
+
+      <div class="status-bar" id="status-bar"></div>
+
+      <button class="spin-btn hidden" id="spin-btn" onclick="handleSpin()">SPIN!</button>
+
+      <div id="ended-notice" class="ended-notice" style="display:none">🔒 This giveaway has ended.</div>
+    </main>
+    <aside class="items-panel" id="items-panel" style="display:none">
+      <div class="panel-header">Items / Prizes</div>
+      <div class="item-list" id="item-list">
+        <div class="p-empty">No items added yet.</div>
+      </div>
+      <div class="item-input-row">
+        <input type="text" id="item-input" placeholder="Add an item…" maxlength="80" />
+        <button onclick="addItem()">Add</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Winner overlay -->
+  <div class="overlay" id="winner-overlay">
+    <div class="winner-card">
+      <span class="winner-trophy">🏆</span>
+      <div class="winner-label">Winner!</div>
+      <div class="winner-name" id="winner-name"></div>
+      <div class="winner-prize" id="winner-prize"></div>
+      <button class="btn-continue" onclick="dismissWinner()">Continue Spinning</button>
+    </div>
+  </div>
+
+  <script>
+    /* ── URL params ── */
+    const QS = new URLSearchParams(location.search);
+    const GUILD_ID    = QS.get('guildId');
+    const GIVEAWAY_ID = QS.get('id');
+    const TOKEN       = QS.get('token');
+    const IS_HOST     = !!TOKEN;
+
+    if (!GUILD_ID || !GIVEAWAY_ID) {
+      document.getElementById('main-layout').innerHTML =
+        '<div class="error-page"><h2>Missing parameters</h2><p>Open this page from the link provided in Discord.</p></div>';
+    }
+
+    /* ── Segment colours ── */
+    const COLORS = [
+      '#5865F2','#EB459E','#23A55A','#F0B132','#F23F43',
+      '#00B0F4','#FF6B35','#9B59B6','#1ABC9C','#E67E22',
+      '#57F287','#3498DB','#E74C3C','#FAA61A','#7289DA',
+    ];
+
+    /* ── State ── */
+    let giveaway        = null;
+    let wheelAngle      = 0;      // cumulative rotation (radians)
+    let spinning        = false;
+    let pollTimer       = null;
+    let pendingRemaining = null;  // set by spin API, applied on dismiss
+    let items           = [];
+    let selectedItemIdx = -1;
+
+    /* ── Canvas ── */
+    const canvas = document.getElementById('wheel-canvas');
+    const ctx    = canvas.getContext('2d');
+    const CX     = canvas.width  / 2;
+    const CY     = canvas.height / 2;
+    const RADIUS = CX - 14;
+
+    /* ── Responsive canvas size ── */
+    function sizeCanvas() {
+      const wrapper = document.getElementById('wheel-wrapper');
+      const area    = document.querySelector('.wheel-area');
+      // Available height: viewport minus header, status, button
+      const available = Math.min(
+        area.clientWidth  - 40,
+        area.clientHeight - 180
+      );
+      const size = Math.max(200, Math.min(500, available));
+      canvas.style.width  = size + 'px';
+      canvas.style.height = size + 'px';
+    }
+    window.addEventListener('resize', () => { sizeCanvas(); drawWheel(); });
+    sizeCanvas();
+
+    /* ─────────────────────────────────────
+       DATA
+    ───────────────────────────────────── */
+    async function fetchGiveaway() {
+      if (!GUILD_ID || !GIVEAWAY_ID) return;
+      try {
+        const res  = await fetch(`/api/giveaway?guildId=${GUILD_ID}&id=${GIVEAWAY_ID}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.error) return;
+
+        const prevLen = giveaway?.participants?.length ?? -1;
+        giveaway = data;
+
+        // Update header
+        document.getElementById('header-title').textContent = `🎉 ${data.title}`;
+        if (data.prize) {
+          const prizeEl = document.getElementById('header-prize');
+          prizeEl.textContent = `Prize: ${data.prize}`;
+          prizeEl.style.display = '';
+        }
+        document.getElementById('entry-count').textContent = data.participants.length;
+
+        if (!IS_HOST) {
+          setSelectedItemDisplay(data.selectedItem || null);
+        }
+
+        if (data.participants.length !== prevLen) {
+          renderParticipantList();
+          if (!spinning) drawWheel();
+        }
+
+        if (!data.active) {
+          document.getElementById('ended-notice').style.display = '';
+          const btn = document.getElementById('spin-btn');
+          btn.disabled = true;
+          stopPolling();
+        }
+
+        if (IS_HOST) {
+          const btn = document.getElementById('spin-btn');
+          btn.disabled = !data.active || data.participants.length === 0 || spinning;
+        }
+      } catch { /* network error, try again next poll */ }
+    }
+
+    function renderParticipantList() {
+      const el = document.getElementById('participant-list');
+      if (!giveaway || giveaway.participants.length === 0) {
+        el.innerHTML = '<div class="p-empty">No entries yet.<br>Participants appear here when they enter.</div>';
+        return;
+      }
+      el.innerHTML = giveaway.participants.map((p, i) => `
+        <div class="p-item">
+          <div class="p-dot" style="background:${COLORS[i % COLORS.length]}"></div>
+          <span class="p-name">${esc(p.displayName)}</span>
+        </div>
+      `).join('');
+    }
+
+    /* ─────────────────────────────────────
+       WHEEL DRAWING
+    ───────────────────────────────────── */
+    function drawWheel() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (!giveaway || giveaway.participants.length === 0) {
+        drawEmpty();
+        return;
+      }
+
+      const n        = giveaway.participants.length;
+      const segAngle = (2 * Math.PI) / n;
+
+      for (let i = 0; i < n; i++) {
+        const startA = wheelAngle + i * segAngle;
+        const endA   = startA + segAngle;
+        const midA   = startA + segAngle / 2;
+
+        /* segment */
+        ctx.beginPath();
+        ctx.moveTo(CX, CY);
+        ctx.arc(CX, CY, RADIUS, startA, endA);
+        ctx.closePath();
+        ctx.fillStyle = COLORS[i % COLORS.length];
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        /* label */
+        if (segAngle > 0.13) {
+          const textR    = RADIUS * 0.63;
+          const tx       = CX + textR * Math.cos(midA);
+          const ty       = CY + textR * Math.sin(midA);
+          const name     = giveaway.participants[i].displayName || '';
+          const label    = name.length > 15 ? name.slice(0, 14) + '…' : name;
+          const fontSize = Math.max(9, Math.min(14, Math.round(segAngle * 20)));
+
+          ctx.save();
+          ctx.translate(tx, ty);
+          const norm = ((midA % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+          ctx.rotate(norm > Math.PI / 2 && norm < 3 * Math.PI / 2 ? midA + Math.PI : midA);
+          ctx.font = `bold ${fontSize}px 'gg sans', sans-serif`;
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.shadowColor = 'rgba(0,0,0,0.7)';
+          ctx.shadowBlur  = 3;
+          ctx.fillText(label, 0, 0);
+          ctx.restore();
+        }
+      }
+
+      /* outer ring */
+      ctx.beginPath();
+      ctx.arc(CX, CY, RADIUS, 0, 2 * Math.PI);
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      /* centre hub */
+      ctx.beginPath();
+      ctx.arc(CX, CY, 20, 0, 2 * Math.PI);
+      ctx.fillStyle = '#1e1f22';
+      ctx.fill();
+      ctx.strokeStyle = '#5865f2';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+    }
+
+    function drawEmpty() {
+      ctx.beginPath();
+      ctx.arc(CX, CY, RADIUS, 0, 2 * Math.PI);
+      ctx.fillStyle = '#26282c';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      ctx.fillStyle = '#4e5058';
+      ctx.font = 'bold 15px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('No entries yet', CX, CY);
+
+      ctx.beginPath();
+      ctx.arc(CX, CY, 20, 0, 2 * Math.PI);
+      ctx.fillStyle = '#1e1f22';
+      ctx.fill();
+    }
+
+    /* ─────────────────────────────────────
+       SPIN
+    ───────────────────────────────────── */
+    async function handleSpin() {
+      if (spinning || !giveaway || giveaway.participants.length === 0) return;
+
+      const snapshot = [...giveaway.participants]; // pre-spin snapshot for angle calc
+
+      spinning = true;
+      stopPolling();
+      document.getElementById('spin-btn').disabled = true;
+      document.getElementById('spin-btn').textContent = '…';
+      document.getElementById('status-bar').textContent = 'Spinning…';
+
+      let result;
+      try {
+        const res = await fetch('/api/giveaway/spin', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ guildId: GUILD_ID, id: GIVEAWAY_ID, token: TOKEN }),
+        });
+        result = await res.json();
+      } catch {
+        spinning = false;
+        document.getElementById('spin-btn').disabled = false;
+        document.getElementById('spin-btn').textContent = 'SPIN!';
+        document.getElementById('status-bar').textContent = 'Network error — try again.';
+        startPolling();
+        return;
+      }
+
+      if (result.error) {
+        spinning = false;
+        document.getElementById('spin-btn').disabled = false;
+        document.getElementById('spin-btn').textContent = 'SPIN!';
+        document.getElementById('status-bar').textContent = result.error;
+        startPolling();
+        return;
+      }
+
+      pendingRemaining = result.remaining;
+
+      /* calculate target angle so winner's segment stops at the top pointer */
+      const winnerIdx        = snapshot.findIndex(p => p.userId === result.winner.userId);
+      const safeIdx          = winnerIdx < 0 ? 0 : winnerIdx;
+      const n                = snapshot.length;
+      const segAngle         = (2 * Math.PI) / n;
+      const winnerCenter     = safeIdx * segAngle + segAngle / 2;
+
+      // pointer sits at top = canvas angle -π/2
+      // we need: wheelFinal + winnerCenter ≡ -π/2  (mod 2π)
+      const baseTarget       = -Math.PI / 2 - winnerCenter;
+      const normBase         = ((baseTarget % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      const normCurrent      = ((wheelAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      let   offset           = normBase - normCurrent;
+      if (offset <= 0) offset += 2 * Math.PI;
+      const targetAngle      = wheelAngle + 8 * 2 * Math.PI + offset;
+
+      animateSpin(wheelAngle, targetAngle, 5200, () => {
+        wheelAngle = targetAngle;
+        drawWheel();
+        showWinner(result.winner.displayName);
+      });
+    }
+
+    function animateSpin(from, to, duration, onDone) {
+      const startTime = performance.now();
+      function frame(now) {
+        const t      = Math.min((now - startTime) / duration, 1);
+        const eased  = easeOutQuart(t);
+        wheelAngle   = from + (to - from) * eased;
+        drawWheel();
+        if (t < 1) requestAnimationFrame(frame);
+        else onDone();
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function easeOutQuart(t) { return 1 - Math.pow(1 - t, 4); }
+
+    /* ─────────────────────────────────────
+       WINNER MODAL
+    ───────────────────────────────────── */
+    function showWinner(displayName) {
+      document.getElementById('winner-name').textContent = displayName;
+      const prize = giveaway?.prize;
+      const prizeEl = document.getElementById('winner-prize');
+      prizeEl.textContent = prize ? `🎁 ${prize}` : '';
+      document.getElementById('winner-overlay').classList.add('visible');
+      launchConfetti();
+    }
+
+    function dismissWinner() {
+      document.getElementById('winner-overlay').classList.remove('visible');
+      stopConfetti();
+
+      if (pendingRemaining !== null) {
+        giveaway.participants = pendingRemaining;
+        pendingRemaining = null;
+        renderParticipantList();
+        document.getElementById('entry-count').textContent = giveaway.participants.length;
+        drawWheel();
+      }
+
+      spinning = false;
+      document.getElementById('spin-btn').textContent = 'SPIN!';
+      document.getElementById('status-bar').textContent = '';
+
+      if (giveaway?.active) {
+        const empty = giveaway.participants.length === 0;
+        document.getElementById('spin-btn').disabled = empty;
+        if (empty) {
+          document.getElementById('status-bar').textContent = 'No more participants!';
+        }
+        startPolling();
+      }
+    }
+
+    /* ─────────────────────────────────────
+       ITEMS
+    ───────────────────────────────────── */
+    function addItem() {
+      const input = document.getElementById('item-input');
+      const val = input.value.trim();
+      if (!val) return;
+      items.push(val);
+      input.value = '';
+      renderItems();
+    }
+
+    function setSelectedItemDisplay(text) {
+      const display = document.getElementById('selected-item-display');
+      const label   = document.getElementById('selected-item-label');
+      if (text) {
+        label.textContent = text;
+        display.style.display = '';
+      } else {
+        display.style.display = 'none';
+      }
+    }
+
+    async function pushSelectedItem(item) {
+      try {
+        await fetch('/api/giveaway/item', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ guildId: GUILD_ID, id: GIVEAWAY_ID, token: TOKEN, item: item || null }),
+        });
+      } catch { /* non-critical */ }
+    }
+
+    function selectItem(idx) {
+      selectedItemIdx = selectedItemIdx === idx ? -1 : idx;
+      const text = selectedItemIdx >= 0 ? items[selectedItemIdx] : null;
+      setSelectedItemDisplay(text);
+      pushSelectedItem(text);
+      renderItems();
+    }
+
+    function removeItem(idx) {
+      items.splice(idx, 1);
+      if (selectedItemIdx === idx) {
+        selectedItemIdx = -1;
+        setSelectedItemDisplay(null);
+        pushSelectedItem(null);
+      } else if (selectedItemIdx > idx) {
+        selectedItemIdx--;
+      }
+      renderItems();
+    }
+
+    function renderItems() {
+      const el = document.getElementById('item-list');
+      if (items.length === 0) {
+        el.innerHTML = '<div class="p-empty">No items added yet.</div>';
+        return;
+      }
+      el.innerHTML = items.map((item, i) => `
+        <div class="item-entry${i === selectedItemIdx ? ' selected' : ''}" onclick="selectItem(${i})">
+          <span class="item-name">${esc(item)}</span>
+          <button class="item-remove" onclick="event.stopPropagation();removeItem(${i})">✕</button>
+        </div>
+      `).join('');
+    }
+
+    /* ─────────────────────────────────────
+       CONFETTI
+    ───────────────────────────────────── */
+    let confettiParticles = [];
+    let confettiAnimId    = null;
+
+    function launchConfetti() {
+      const cc    = document.getElementById('confetti-canvas');
+      cc.width    = window.innerWidth;
+      cc.height   = window.innerHeight;
+      const cCtx  = cc.getContext('2d');
+
+      confettiParticles = Array.from({ length: 100 }, () => ({
+        x:    Math.random() * cc.width,
+        y:    Math.random() * -cc.height * 0.6,
+        w:    Math.random() * 10 + 5,
+        h:    Math.random() * 6  + 3,
+        col:  COLORS[Math.floor(Math.random() * COLORS.length)],
+        vx:   (Math.random() - 0.5) * 3.5,
+        vy:   Math.random() * 4 + 2,
+        rot:  Math.random() * 360,
+        rotV: (Math.random() - 0.5) * 7,
+      }));
+
+      (function draw() {
+        cCtx.clearRect(0, 0, cc.width, cc.height);
+        let alive = false;
+        for (const p of confettiParticles) {
+          p.x   += p.vx;
+          p.y   += p.vy;
+          p.rot += p.rotV;
+          p.vy  += 0.09;
+          if (p.y < cc.height + 20) alive = true;
+          cCtx.save();
+          cCtx.translate(p.x, p.y);
+          cCtx.rotate((p.rot * Math.PI) / 180);
+          cCtx.fillStyle = p.col;
+          cCtx.globalAlpha = Math.max(0, 1 - p.y / cc.height);
+          cCtx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+          cCtx.restore();
+        }
+        if (alive) confettiAnimId = requestAnimationFrame(draw);
+      })();
+    }
+
+    function stopConfetti() {
+      if (confettiAnimId) cancelAnimationFrame(confettiAnimId);
+      confettiAnimId = null;
+      const cc = document.getElementById('confetti-canvas');
+      cc.getContext('2d').clearRect(0, 0, cc.width, cc.height);
+    }
+
+    /* ─────────────────────────────────────
+       POLLING
+    ───────────────────────────────────── */
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = setInterval(fetchGiveaway, 2000);
+    }
+    function stopPolling() {
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    }
+
+    /* ─────────────────────────────────────
+       UTILITIES
+    ───────────────────────────────────── */
+    function esc(s) {
+      return String(s)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    /* ─────────────────────────────────────
+       INIT
+    ───────────────────────────────────── */
+    if (IS_HOST) {
+      document.getElementById('spin-btn').classList.remove('hidden');
+      document.getElementById('items-panel').style.display = '';
+      document.getElementById('item-input').addEventListener('keydown', e => {
+        if (e.key === 'Enter') addItem();
+      });
+    }
+
+    if (GUILD_ID && GIVEAWAY_ID) {
+      fetchGiveaway().then(() => {
+        drawWheel();
+        if (giveaway?.active) startPolling();
+      });
+    }
+  </script>
+</body>
+</html>

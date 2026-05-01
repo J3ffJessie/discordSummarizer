@@ -331,6 +331,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a6.97 6.97 0 0 0-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22l-1.92 3.32a.47.47 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.47.47 0 0 0-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
       Settings
     </a>
+    <a class="nav-item" href="#section-giveaways">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 7h-1.26A4.5 4.5 0 0 0 12 2.5 4.5 4.5 0 0 0 5.26 7H4a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h1v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7h1a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm-8-2.5A2.5 2.5 0 0 1 14.5 7H12V4.5zM9.5 7A2.5 2.5 0 0 1 12 4.5V7H9.5zM11 20H7v-7h4v7zm6 0h-4v-7h4v7zm2-9H5V9h14v2z"/></svg>
+      Giveaways
+    </a>
   </div>
 </div>
 
@@ -809,6 +813,43 @@
       </div>
     </div>
 
+  </div>
+
+  <!-- ═══ Giveaways ═══ -->
+  <div class="section" id="section-giveaways" style="display:none">
+    <div class="section-header">
+      <div class="section-title">Giveaway Winners</div>
+      <div class="section-sub">Every winner recorded from giveaway spins on this server, in reverse order.</div>
+    </div>
+
+    <div class="metrics-grid">
+      <div class="metric-card">
+        <div class="metric-label">Total Spins</div>
+        <div class="metric-value" id="gw-total">—</div>
+        <div class="metric-sub">All-time winner entries</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Unique Winners</div>
+        <div class="metric-value" id="gw-unique">—</div>
+        <div class="metric-sub">Distinct users</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">Most Recent Winner</div>
+        <div class="metric-value" id="gw-recent" style="font-size:18px;line-height:1.3">—</div>
+        <div class="metric-sub" id="gw-recent-time"></div>
+      </div>
+    </div>
+
+    <div class="table-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+        <div class="chart-title">Winner History</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-secondary" id="btn-refresh-winners">Refresh</button>
+          <button class="btn-secondary" id="btn-clear-winners" style="color:var(--red)">Clear History</button>
+        </div>
+      </div>
+      <div id="giveaway-table-wrap">Loading…</div>
+    </div>
   </div>
 
 </div><!-- /main -->
@@ -1565,6 +1606,81 @@
 
     loadChannels();
     loadConfig();
+  })();
+
+  // ── Giveaways ──────────────────────────────────────────────────────────────
+  (function initGiveaways() {
+    const _token = new URLSearchParams(location.search).get('token');
+    if (!_token) return;
+
+    document.getElementById('section-giveaways').style.display = '';
+
+    const baseUrl = `/api/giveaway/winners?guildId=${encodeURIComponent(_guildId || '')}&token=${encodeURIComponent(_token)}`;
+
+    async function loadWinners() {
+      try {
+        const res = await fetch(baseUrl);
+        if (!res.ok) return;
+        renderWinners(await res.json());
+      } catch(err) { console.error('Winners fetch error:', err); }
+    }
+
+    function renderWinners(data) {
+      const total  = data.length;
+      const unique = new Set(data.map(w => w.userId)).size;
+
+      document.getElementById('gw-total').textContent  = total.toLocaleString();
+      document.getElementById('gw-unique').textContent = unique.toLocaleString();
+
+      if (total > 0) {
+        const last = data[data.length - 1];
+        document.getElementById('gw-recent').textContent      = last.winnerName;
+        document.getElementById('gw-recent-time').textContent = new Date(last.timestamp).toLocaleString();
+      } else {
+        document.getElementById('gw-recent').textContent      = '—';
+        document.getElementById('gw-recent-time').textContent = '';
+      }
+
+      const wrap = document.getElementById('giveaway-table-wrap');
+      if (total === 0) {
+        wrap.innerHTML = '<p style="color:var(--muted);padding:12px 0">No winners recorded yet. Winners are captured automatically each time the wheel is spun.</p>';
+        return;
+      }
+
+      const rows = [...data].reverse().map((w, i) => `
+        <tr>
+          <td style="color:#4e5058">${total - i}</td>
+          <td style="font-weight:600;color:var(--bright)">${esc(w.winnerName)}</td>
+          <td>${w.item ? `<span style="color:var(--yellow)">${esc(w.item)}</span>` : '<span style="color:#4e5058">—</span>'}</td>
+          <td style="color:var(--muted)">${esc(w.giveawayTitle)}</td>
+          <td style="color:#4e5058;font-size:12px;white-space:nowrap">${new Date(w.timestamp).toLocaleString()}</td>
+        </tr>`).join('');
+
+      wrap.innerHTML = `
+        <table>
+          <thead><tr>
+            <th style="width:40px">#</th>
+            <th>Winner</th>
+            <th>Item Won</th>
+            <th>Giveaway</th>
+            <th>Date &amp; Time</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    document.getElementById('btn-refresh-winners').addEventListener('click', loadWinners);
+
+    document.getElementById('btn-clear-winners').addEventListener('click', async () => {
+      if (!confirm('Clear all giveaway winner history? This cannot be undone.')) return;
+      try {
+        await fetch(baseUrl, { method: 'DELETE' });
+        renderWinners([]);
+      } catch(err) { console.error('Clear winners error:', err); }
+    });
+
+    loadWinners();
+    setInterval(loadWinners, 30_000);
   })();
 </script>
 </body>

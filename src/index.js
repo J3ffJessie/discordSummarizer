@@ -28,6 +28,7 @@ const { SchedulerService } = require('./services/schedulerService');
 const { GuildConfigService } = require('./services/guildConfigService');
 const { SummarizationService } = require('./services/groq');
 const { MessageStatsService } = require('./services/messageStatsService');
+const { GiveawayService } = require('./services/giveawayService');
 const logger = require('./utils/logger');
 
 /* ===========================
@@ -89,9 +90,12 @@ const PORT = process.env.PORT || 3000;
 
 const messageStatsService = new MessageStatsService();
 const guildConfigService = new GuildConfigService();
+const giveawayService = new GiveawayService();
 
 const server = createHttpServer({
   guildConfigService,
+  giveawayService,
+  discordClient: client,
   getStats: (guildId) => messageStatsService.getStats(guildId),
   getGuild: (guildId) => {
     const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
@@ -169,6 +173,7 @@ client.services = {
   schedulerService,
   summarizationService,
   messageStats: messageStatsService,
+  giveawayService,
 };
 
 server.listen(PORT, () => {

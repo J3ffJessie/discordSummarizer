@@ -33,7 +33,7 @@ function sanitizeConfig(config) {
   return out;
 }
 
-function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildConfigService } = {}) {
+function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildConfigService, giveawayService, discordClient } = {}) {
   return http.createServer(async (req, res) => {
     const [pathname, search] = req.url.split('?');
     const params = new URLSearchParams(search || '');
@@ -107,6 +107,136 @@ function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildCo
       }
 
       guildConfigService.upsertConfig(guildId, fields);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    // Giveaway wheel page
+    if (pathname === '/giveaway') {
+      const filePath = path.join(process.cwd(), 'public', 'giveaway.html');
+      if (fs.existsSync(filePath)) {
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(fs.readFileSync(filePath));
+      } else {
+        res.writeHead(404);
+        res.end('Giveaway page not found');
+      }
+      return;
+    }
+
+    // Giveaway state API — GET
+    if (pathname === '/api/giveaway' && req.method === 'GET' && giveawayService) {
+      const id = params.get('id');
+      if (!guildId || !id) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing guildId or id' }));
+        return;
+      }
+      const g = giveawayService.get(guildId);
+      if (!g || g.id !== id) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Giveaway not found' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        id: g.id,
+        title: g.title,
+        prize: g.prize,
+        participants: g.participants.map(p => ({ userId: p.userId, displayName: p.displayName })),
+        active: g.active,
+        hostId: g.hostId,
+        selectedItem: g.selectedItem || null,
+      }));
+      return;
+    }
+
+    // Giveaway spin API — POST (requires host token)
+    if (pathname === '/api/giveaway/spin' && req.method === 'POST' && giveawayService) {
+      const body = await readBody(req);
+      const gid = body.guildId || guildId;
+      const { id, token } = body;
+      if (!gid || !id || !token) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing guildId, id, or token' }));
+        return;
+      }
+      const result = giveawayService.spin(gid, id, token);
+      if (!result) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Cannot spin: invalid token, no participants, or giveaway inactive' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(result));
+
+      // Fire-and-forget DM to winner
+      if (discordClient && result.winner) {
+        const giveaway = giveawayService.get(gid);
+        (async () => {
+          try {
+            const [winnerUser, hostUser] = await Promise.all([
+              discordClient.users.fetch(result.winner.userId),
+              giveaway ? discordClient.users.fetch(giveaway.hostId) : Promise.resolve(null),
+            ]);
+            const hostMention = hostUser
+              ? `**${hostUser.displayName || hostUser.username}** (@${hostUser.username})`
+              : 'the giveaway host';
+            const prizeText = giveaway?.prize ? `\n🎁 **Prize:** ${giveaway.prize}` : '';
+            await winnerUser.send(
+              `🎉 Congratulations, **${result.winner.displayName}**! You've been selected as the winner of the **${giveaway?.title || 'giveaway'}**!${prizeText}\n\nPlease reach out to ${hostMention} for further details. Congratulations! 🏆`
+            );
+          } catch { /* DMs may be disabled for this user — silently ignore */ }
+        })();
+      }
+
+      return;
+    }
+
+    // Giveaway winner history — GET (requires dashboard token)
+    if (pathname === '/api/giveaway/winners' && req.method === 'GET' && giveawayService && guildConfigService) {
+      const token = params.get('token');
+      if (!guildId || !guildConfigService.validateDashboardToken(guildId, token)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(giveawayService.getWinnerHistory(guildId)));
+      return;
+    }
+
+    // Giveaway winner history — DELETE/clear (requires dashboard token)
+    if (pathname === '/api/giveaway/winners' && req.method === 'DELETE' && giveawayService && guildConfigService) {
+      const token = params.get('token');
+      if (!guildId || !guildConfigService.validateDashboardToken(guildId, token)) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+        return;
+      }
+      giveawayService.clearWinnerHistory(guildId);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    // Giveaway selected item — POST (requires host token)
+    if (pathname === '/api/giveaway/item' && req.method === 'POST' && giveawayService) {
+      const body = await readBody(req);
+      const gid = body.guildId || guildId;
+      const { id, token, item } = body;
+      if (!gid || !id || !token) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing guildId, id, or token' }));
+        return;
+      }
+      const ok = giveawayService.setItem(gid, id, token, item);
+      if (!ok) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid token or giveaway not found' }));
+        return;
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
       return;
