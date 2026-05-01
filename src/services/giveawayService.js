@@ -56,7 +56,15 @@ class GiveawayService {
     if (!g || !g.active || g.participants.length === 0) return null;
     const idx = Math.floor(Math.random() * g.participants.length);
     const winner = g.participants[idx];
+    const preSpin = g.participants.map(p => ({ userId: p.userId, displayName: p.displayName }));
     g.participants.splice(idx, 1);
+
+    g.lastSpin = {
+      winner: { userId: winner.userId, displayName: winner.displayName },
+      winnerIdx: idx,
+      preSpin,
+      ts: Date.now(),
+    };
 
     const history = this.winnerHistory.get(guildId) || [];
     history.push({

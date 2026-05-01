@@ -506,13 +506,15 @@
     ];
 
     /* ── State ── */
-    let giveaway        = null;
-    let wheelAngle      = 0;      // cumulative rotation (radians)
-    let spinning        = false;
-    let pollTimer       = null;
+    let giveaway         = null;
+    let wheelAngle       = 0;      // cumulative rotation (radians)
+    let spinning         = false;
+    let pollTimer        = null;
     let pendingRemaining = null;  // set by spin API, applied on dismiss
-    let items           = [];
-    let selectedItemIdx = -1;
+    let items            = [];
+    let selectedItemIdx  = -1;
+    let lastSeenSpinTs   = null;
+    let initialFetchDone = false;
 
     /* ── Canvas ── */
     const canvas = document.getElementById('wheel-canvas');
@@ -562,6 +564,15 @@
 
         if (!IS_HOST) {
           setSelectedItemDisplay(data.selectedItem || null);
+
+          if (!initialFetchDone) {
+            initialFetchDone = true;
+            lastSeenSpinTs = data.lastSpin?.ts ?? 0;
+          } else if (data.lastSpin && data.lastSpin.ts > lastSeenSpinTs && !spinning) {
+            lastSeenSpinTs = data.lastSpin.ts;
+            triggerViewerSpin(data.lastSpin, data.participants);
+            return;
+          }
         }
 
         if (data.participants.length !== prevLen) {
@@ -754,6 +765,36 @@
       });
     }
 
+    function triggerViewerSpin(spinData, postSpinParticipants) {
+      if (spinning) return;
+      spinning = true;
+      stopPolling();
+      document.getElementById('status-bar').textContent = 'Spinning…';
+
+      // Temporarily restore pre-spin participants so the wheel draws correctly during animation
+      giveaway.participants = spinData.preSpin;
+      renderParticipantList();
+      drawWheel();
+
+      const n           = spinData.preSpin.length;
+      const segAngle    = (2 * Math.PI) / n;
+      const winnerCenter = spinData.winnerIdx * segAngle + segAngle / 2;
+      const baseTarget  = -Math.PI / 2 - winnerCenter;
+      const normBase    = ((baseTarget % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      const normCurrent = ((wheelAngle % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+      let offset        = normBase - normCurrent;
+      if (offset <= 0) offset += 2 * Math.PI;
+      const targetAngle = wheelAngle + 8 * 2 * Math.PI + offset;
+
+      pendingRemaining = postSpinParticipants;
+
+      animateSpin(wheelAngle, targetAngle, 5200, () => {
+        wheelAngle = targetAngle;
+        drawWheel();
+        showWinner(spinData.winner.displayName);
+      });
+    }
+
     function animateSpin(from, to, duration, onDone) {
       const startTime = performance.now();
       function frame(now) {
@@ -931,7 +972,7 @@
     ───────────────────────────────────── */
     function startPolling() {
       if (pollTimer) return;
-      pollTimer = setInterval(fetchGiveaway, 2000);
+      pollTimer = setInterval(fetchGiveaway, 500);
     }
     function stopPolling() {
       if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }

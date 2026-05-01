@@ -148,6 +148,7 @@ function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildCo
         active: g.active,
         hostId: g.hostId,
         selectedItem: g.selectedItem || null,
+        lastSpin: g.lastSpin || null,
       }));
       return;
     }

@@ -163,9 +163,15 @@
       "type": "file"
     },
     {
+      "path": "public\\giveaway.html",
+      "accessCount": 21,
+      "lastAccessed": 1777659823226,
+      "type": "file"
+    },
+    {
       "path": "src\\services\\httpServer.js",
-      "accessCount": 16,
-      "lastAccessed": 1777404583745,
+      "accessCount": 19,
+      "lastAccessed": 1777659421851,
       "type": "file"
     },
     {
@@ -181,9 +187,15 @@
       "type": "file"
     },
     {
-      "path": "public\\giveaway.html",
-      "accessCount": 12,
-      "lastAccessed": 1777404018637,
+      "path": "src\\services\\guildConfigService.js",
+      "accessCount": 10,
+      "lastAccessed": 1777641242221,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\giveawayService.js",
+      "accessCount": 10,
+      "lastAccessed": 1777659405939,
       "type": "file"
     },
     {
@@ -193,33 +205,27 @@
       "type": "file"
     },
     {
-      "path": "src\\services\\guildConfigService.js",
-      "accessCount": 9,
-      "lastAccessed": 1777216295515,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\giveawayService.js",
-      "accessCount": 8,
-      "lastAccessed": 1777404582466,
-      "type": "file"
-    },
-    {
       "path": "src\\events\\__tests__\\voiceStateUpdate.test.js",
       "accessCount": 5,
       "lastAccessed": 1776525498676,
       "type": "file"
     },
     {
-      "path": "src\\services\\coffee.js",
-      "accessCount": 4,
-      "lastAccessed": 1776689387605,
+      "path": "src\\commands\\giveaway.js",
+      "accessCount": 5,
+      "lastAccessed": 1777641583276,
       "type": "file"
     },
     {
       "path": "src\\commands\\paircoffee.js",
-      "accessCount": 4,
-      "lastAccessed": 1777216300035,
+      "accessCount": 5,
+      "lastAccessed": 1777641584990,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\coffee.js",
+      "accessCount": 5,
+      "lastAccessed": 1777641590973,
       "type": "file"
     },
     {
@@ -229,9 +235,9 @@
       "type": "file"
     },
     {
-      "path": "src\\commands\\giveaway.js",
+      "path": "src\\commands\\server-summary.js",
       "accessCount": 4,
-      "lastAccessed": 1777393387259,
+      "lastAccessed": 1777641585102,
       "type": "file"
     },
     {
@@ -244,12 +250,6 @@
       "path": "src\\services\\__tests__\\messageStatsService.test.js",
       "accessCount": 3,
       "lastAccessed": 1776689551778,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\server-summary.js",
-      "accessCount": 3,
-      "lastAccessed": 1776690720282,
       "type": "file"
     },
     {
@@ -274,6 +274,30 @@
       "path": "src\\commands\\register.js",
       "accessCount": 2,
       "lastAccessed": 1777216624147,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\releaseNotifier.js",
+      "accessCount": 2,
+      "lastAccessed": 1777641227317,
+      "type": "file"
+    },
+    {
+      "path": "src\\events\\ready.js",
+      "accessCount": 2,
+      "lastAccessed": 1777641228312,
+      "type": "file"
+    },
+    {
+      "path": "src\\events\\messageCreate.js",
+      "accessCount": 2,
+      "lastAccessed": 1777641584432,
+      "type": "file"
+    },
+    {
+      "path": "src\\commands\\remindme.js",
+      "accessCount": 2,
+      "lastAccessed": 1777641591103,
       "type": "file"
     },
     {
@@ -325,12 +349,6 @@
       "type": "file"
     },
     {
-      "path": "src\\commands\\remindme.js",
-      "accessCount": 1,
-      "lastAccessed": 1777216276794,
-      "type": "file"
-    },
-    {
       "path": "src\\commands\\help.js",
       "accessCount": 1,
       "lastAccessed": 1777216276981,
@@ -349,18 +367,6 @@
       "type": "file"
     },
     {
-      "path": "src\\events\\messageCreate.js",
-      "accessCount": 1,
-      "lastAccessed": 1777216305077,
-      "type": "file"
-    },
-    {
-      "path": "src\\events\\ready.js",
-      "accessCount": 1,
-      "lastAccessed": 1777216305600,
-      "type": "file"
-    },
-    {
       "path": "register-commands.js",
       "accessCount": 1,
       "lastAccessed": 1777216387645,
@@ -373,15 +379,21 @@
       "type": "directory"
     },
     {
-      "path": "src\\services\\releaseNotifier.js",
-      "accessCount": 1,
-      "lastAccessed": 1777639407300,
-      "type": "file"
-    },
-    {
       "path": "CHANGELOG.md",
       "accessCount": 1,
       "lastAccessed": 1777639407541,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\installerService.js",
+      "accessCount": 1,
+      "lastAccessed": 1777641242166,
+      "type": "file"
+    },
+    {
+      "path": "src\\events\\guildMemberAdd.js",
+      "accessCount": 1,
+      "lastAccessed": 1777641584083,
       "type": "file"
     }
   ],
