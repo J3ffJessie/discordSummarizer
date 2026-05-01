@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1777391743995,
+  "lastScanned": 1777639369923,
   "projectRoot": "c:\\Users\\JeffJ\\Projects\\discord-summarizer",
   "techStack": {
     "languages": [
@@ -63,7 +63,7 @@
       "path": "coverage",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1777391743830,
+      "lastAccessed": 1777639369603,
       "keyFiles": [
         "clover.xml",
         "coverage-final.json",
@@ -74,7 +74,7 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 2,
-      "lastAccessed": 1777391743833,
+      "lastAccessed": 1777639369645,
       "keyFiles": [
         "multi-server-testing.md",
         "stream-notes-multi-server-ai-providers.md"
@@ -84,7 +84,7 @@
       "path": "jest-stare",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1777391743862,
+      "lastAccessed": 1777639369648,
       "keyFiles": [
         "index.html",
         "jest-results.json"
@@ -94,7 +94,7 @@
       "path": "public",
       "purpose": "Public files",
       "fileCount": 4,
-      "lastAccessed": 1777391743871,
+      "lastAccessed": 1777639369651,
       "keyFiles": [
         "captions.html",
         "dashboard.html",
@@ -106,7 +106,7 @@
       "path": "src",
       "purpose": "Source code",
       "fileCount": 1,
-      "lastAccessed": 1777391743873,
+      "lastAccessed": 1777639369653,
       "keyFiles": [
         "index.js"
       ]
@@ -115,7 +115,7 @@
       "path": "tools",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1777391743875,
+      "lastAccessed": 1777639369654,
       "keyFiles": [
         "find_escaped_backtick.js",
         "require_commands_test.js",
@@ -126,7 +126,7 @@
       "path": "src\\data",
       "purpose": "Data files",
       "fileCount": 3,
-      "lastAccessed": 1777391743877,
+      "lastAccessed": 1777639369659,
       "keyFiles": [
         "guild_config.db",
         "last_version.txt",
@@ -137,7 +137,7 @@
       "path": "src\\services",
       "purpose": "Business logic services",
       "fileCount": 17,
-      "lastAccessed": 1777391743878,
+      "lastAccessed": 1777639369661,
       "keyFiles": [
         "coffee.js",
         "events.js",
@@ -148,7 +148,7 @@
       "path": "src\\utils",
       "purpose": "Utility functions",
       "fileCount": 2,
-      "lastAccessed": 1777391743878,
+      "lastAccessed": 1777639369662,
       "keyFiles": [
         "helpers.js",
         "logger.js"
@@ -371,6 +371,18 @@
       "accessCount": 1,
       "lastAccessed": 1777391835640,
       "type": "directory"
+    },
+    {
+      "path": "src\\services\\releaseNotifier.js",
+      "accessCount": 1,
+      "lastAccessed": 1777639407300,
+      "type": "file"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "accessCount": 1,
+      "lastAccessed": 1777639407541,
+      "type": "file"
     }
   ],
   "userDirectives": []
