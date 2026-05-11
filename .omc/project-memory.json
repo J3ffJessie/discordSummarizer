@@ -205,6 +205,12 @@
       "type": "file"
     },
     {
+      "path": "",
+      "accessCount": 6,
+      "lastAccessed": 1778513587133,
+      "type": "directory"
+    },
+    {
       "path": "src\\events\\__tests__\\voiceStateUpdate.test.js",
       "accessCount": 5,
       "lastAccessed": 1776525498676,
@@ -235,16 +241,16 @@
       "type": "file"
     },
     {
+      "path": "package.json",
+      "accessCount": 5,
+      "lastAccessed": 1778513598389,
+      "type": "file"
+    },
+    {
       "path": "src\\events\\interactionCreate.js",
       "accessCount": 4,
       "lastAccessed": 1777216828812,
       "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 4,
-      "lastAccessed": 1778508514382,
-      "type": "directory"
     },
     {
       "path": "src",
@@ -268,12 +274,6 @@
       "path": "src\\services\\schedulerService.js",
       "accessCount": 3,
       "lastAccessed": 1778508554261,
-      "type": "file"
-    },
-    {
-      "path": "package.json",
-      "accessCount": 3,
-      "lastAccessed": 1778508559766,
       "type": "file"
     },
     {
@@ -442,6 +442,12 @@
       "path": "src\\commands\\__tests__\\server-summary.test.js",
       "accessCount": 1,
       "lastAccessed": 1778508555420,
+      "type": "file"
+    },
+    {
+      "path": ".node-version",
+      "accessCount": 1,
+      "lastAccessed": 1778513603320,
       "type": "file"
     }
   ],
