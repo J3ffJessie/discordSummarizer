@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.1.1] - 2026-05-01
+## [1.1.2] - 2026-05-11
 
 ### Fixed
-- Fixed issue where user view of wheel spin was not synced with host view so it did not spin on the user view of the wheel at all or show who won.
+- Fixed: Increase on Server summary to grab more messages to get a better summarization across the entire server rather than the small sample size it was getting previously.

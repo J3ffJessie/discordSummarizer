@@ -131,6 +131,6 @@ describe('gatherServerConversationsAndSummarize', () => {
     await gatherServerConversationsAndSummarize(guild, true, { summarizationService });
 
     const calledWith = summarizationService.serverSummarize.mock.calls[0][0];
-    expect(calledWith.length).toBeLessThanOrEqual(16000);
+    expect(calledWith.length).toBeLessThanOrEqual(25000);
   });
 });
