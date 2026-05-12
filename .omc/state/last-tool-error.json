@@ -1,7 +1,7 @@
 {
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"cd \\\"c:\\\\Users\\\\JeffJ\\\\Projects\\\\discord-summarizer\\\" && npm test -- --testPathPatterns=\\\"gather|groq\\\" 2>&1\",\"description\":\"Run gather and groq service tests\"}",
-  "error": "Exit code 1\n\n> discord-summarizer@1.1.1 test\n> jest --verbose --colors --testPathPatterns=gather|groq\n\n\u001b[0m\u001b[7m\u001b[1m\u001b[31m FAIL \u001b[39m\u001b[22m\u001b[27m\u001b[0m \u001b[2msrc/services/__tests__/\u001b[22m\u001b[1mgroq.test.js\u001b[22m (\u001b[0m\u001b[1m\u001b[41m6.799 s\u001b[49m\u001b[22m\u001b[0m)\n  SummarizationService (groq)\n    summarizeMessages\n      \u001b[32m√\u001b[39m \u001b[2mshould call provider.chat with correct options and return content (18 ms)\u001b[22m\n      \u001b[32m√\u001b[39m \u001b[2mshould include the messages in the user content (2 ms)\u001b[22m\n      \u001b[32m√\u001b[39m \u001b[2mshould...",
-  "timestamp": "2026-05-11T14:40:35.900Z",
+  "tool_name": "Read",
+  "tool_input_preview": "{\"file_path\":\"c:\\\\Users\\\\JeffJ\\\\Projects\\\\discord-summarizer\\\\public\\\\dashboard.html\"}",
+  "error": "File content (26966 tokens) exceeds maximum allowed tokens (25000). Use offset and limit parameters to read specific portions of the file, or search for specific content instead of reading the whole file.",
+  "timestamp": "2026-05-12T20:21:43.441Z",
   "retry_count": 1
 }
