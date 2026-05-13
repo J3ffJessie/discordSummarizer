@@ -53,7 +53,7 @@ class MessageStatsService {
     return this._data.guilds[guildId];
   }
 
-  _increment(guildId, dateKey, channelId, channelName, userId, count = 1) {
+  _increment(guildId, dateKey, channelId, channelName, userId, displayName, count = 1) {
     const gd = this._getGuildData(guildId);
     if (!gd.daily[dateKey]) {
       gd.daily[dateKey] = { total: 0, channels: {}, users: {} };
@@ -69,14 +69,24 @@ class MessageStatsService {
 
     if (userId) {
       if (!day.users) day.users = {};
-      day.users[userId] = (day.users[userId] || 0) + count;
+      const existing = day.users[userId];
+      if (typeof existing === 'number') {
+        // migrate old flat-number format
+        day.users[userId] = { count: existing + count, name: displayName || 'Unknown' };
+      } else if (existing) {
+        existing.count += count;
+        if (displayName) existing.name = displayName;
+      } else {
+        day.users[userId] = { count, name: displayName || 'Unknown' };
+      }
     }
   }
 
   recordMessage(message) {
     if (!message.guild) return;
     const dateKey = this._todayKey();
-    this._increment(message.guild.id, dateKey, message.channel.id, message.channel.name || message.channel.id, message.author?.id);
+    const displayName = message.member?.displayName || message.author?.globalName || message.author?.username;
+    this._increment(message.guild.id, dateKey, message.channel.id, message.channel.name || message.channel.id, message.author?.id, displayName);
     this._scheduleSave();
   }
 
@@ -203,7 +213,8 @@ class MessageStatsService {
         }
         if (msg.author?.bot) continue;
         const dateKey = msg.createdAt.toISOString().slice(0, 10);
-        this._increment(guildId, dateKey, channel.id, channel.name, msg.author?.id);
+        const displayName = msg.author?.globalName || msg.author?.username;
+        this._increment(guildId, dateKey, channel.id, channel.name, msg.author?.id, displayName);
       }
 
       lastId = messages.last()?.id;
