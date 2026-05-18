@@ -119,7 +119,7 @@ describe('gatherServerConversationsAndSummarize', () => {
     await expect(gatherServerConversationsAndSummarize(guild, false, { summarizationService })).resolves.toBeDefined();
   });
 
-  it('should truncate combined messages to 16000 chars before summarizing', async () => {
+  it('should truncate combined messages to 10000 chars before summarizing', async () => {
     const summarizationService = makeSummarizationService();
     summarizationService.serverSummarize.mockResolvedValue('truncated summary');
 
@@ -131,6 +131,6 @@ describe('gatherServerConversationsAndSummarize', () => {
     await gatherServerConversationsAndSummarize(guild, true, { summarizationService });
 
     const calledWith = summarizationService.serverSummarize.mock.calls[0][0];
-    expect(calledWith.length).toBeLessThanOrEqual(25000);
+    expect(calledWith.length).toBeLessThanOrEqual(10000);
   });
 });
