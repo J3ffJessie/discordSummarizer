@@ -11,6 +11,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 - **Automated weekly summaries** — Scheduled AI-generated server summaries posted to a configured channel
 - **Coffee chat pairing** — Randomly pairs members with a designated role and announces pairings in a configured channel (falls back to DMs if no channel is set)
 - **Web dashboard** — Admins configure all settings and AI provider keys through a browser UI (no slash commands required for setup)
+- **Sticky messages** — Admins can pin a persistent message to the bottom of any channel; the bot automatically reposts it whenever a new message is sent so it always stays visible
 - **Reminders** — Set, list, and cancel personal reminders delivered via DM
 - **Events** — Fetch and display upcoming server events
 
@@ -235,6 +236,25 @@ Fetches and DMs you the next 7 days of scheduled server events (up to 10).
 
 ---
 
+### `/sticky set`
+*(Admin only)* Sets a sticky message for the current channel. After every new message posted by a user, the bot deletes its previous sticky post and reposts it so it always appears at the bottom of the channel — useful for keeping rules, tips, or guides visible.
+
+| Option | Type | Required | Description |
+|--------|------|----------|-------------|
+| `content` | String | Yes | The message to keep at the bottom of the channel (max 2000 characters) |
+
+---
+
+### `/sticky remove`
+*(Admin only)* Removes the sticky message from the current channel and deletes the bot's last sticky post.
+
+---
+
+### `/sticky view`
+*(Admin only)* Shows the current sticky message content for this channel as an ephemeral embed (only visible to you).
+
+---
+
 ## AI Provider Configuration
 
 Each server configures its own AI provider through the dashboard. Three tasks can each use a different provider and model:
@@ -309,6 +329,7 @@ discord-summarizer/
 │   │   ├── server-summary.js
 │   │   ├── paircoffee.js
 │   │   ├── coffee-list.js
+│   │   ├── sticky.js
 │   │   ├── remindme.js
 │   │   ├── listreminders.js
 │   │   ├── cancelreminder.js
@@ -327,6 +348,7 @@ discord-summarizer/
 │   │   ├── streamingService.js     # WebSocket server — broadcasts captions to browser clients
 │   │   ├── sessionService.js       # Per-guild session management with token auth
 │   │   ├── guildConfigService.js   # SQLite config store — per-guild settings and AI provider config
+│   │   ├── stickyService.js        # SQLite store for per-channel sticky messages
 │   │   ├── messageStatsService.js  # Per-guild message statistics tracking
 │   │   ├── schedulerService.js     # Cron job management (summary + coffee pairing)
 │   │   ├── httpServer.js           # HTTP server — dashboard API, static files, health check

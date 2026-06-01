@@ -29,6 +29,7 @@ const { GuildConfigService } = require('./services/guildConfigService');
 const { SummarizationService } = require('./services/groq');
 const { MessageStatsService } = require('./services/messageStatsService');
 const { GiveawayService } = require('./services/giveawayService');
+const { StickyService } = require('./services/stickyService');
 const logger = require('./utils/logger');
 
 /* ===========================
@@ -91,6 +92,7 @@ const PORT = process.env.PORT || 3000;
 const messageStatsService = new MessageStatsService();
 const guildConfigService = new GuildConfigService();
 const giveawayService = new GiveawayService();
+const stickyService = new StickyService();
 
 const server = createHttpServer({
   guildConfigService,
@@ -174,6 +176,7 @@ client.services = {
   summarizationService,
   messageStats: messageStatsService,
   giveawayService,
+  stickyService,
 };
 
 server.listen(PORT, () => {

@@ -1,7 +1,7 @@
 {
-  "tool_name": "Edit",
-  "tool_input_preview": "{\"file_path\":\"c:\\\\Users\\\\JeffJ\\\\Projects\\\\discord-summarizer\\\\src\\\\services\\\\groq.js\",\"old_string\":\"    return await provider.chat(\\n      `\\\\nYou are a Discord conversation summarizer.\\\\n\\\\nCRITICAL ...",
-  "error": "File content has changed since it was last read. This commonly happens when a linter or formatter run via Bash rewrites the file. Call Read on this file to refresh, then retry the edit.",
-  "timestamp": "2026-05-18T13:29:14.223Z",
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"Get-ChildItem -Path \\\"c:\\\\Users\\\\JeffJ\\\\Projects\\\\discord-summarizer\\\" -Force | Select-Object Name, PSIsContainer\",\"description\":\"Get top-level directory structure\"}",
+  "error": "Exit code 127\n/usr/bin/bash: line 1: Get-ChildItem: command not found\n/usr/bin/bash: line 1: Select-Object: command not found",
+  "timestamp": "2026-06-01T15:18:51.323Z",
   "retry_count": 1
 }
