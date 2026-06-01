@@ -1,12 +1,4 @@
-const { EmbedBuilder } = require('discord.js');
-
-function buildStickyEmbed(content) {
-  return new EmbedBuilder()
-    .setColor(0xFFD700)
-    .setTitle('📌 Sticky Message')
-    .setDescription(content)
-    .setFooter({ text: 'This message is pinned to the bottom of this channel.' });
-}
+const { buildStickyEmbed } = require('../services/stickyService');
 
 module.exports = (client) => {
   client.on('messageCreate', async (message) => {

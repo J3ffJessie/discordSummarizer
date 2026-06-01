@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"Get-ChildItem -Path \\\"c:\\\\Users\\\\JeffJ\\\\Projects\\\\discord-summarizer\\\" -Force | Select-Object Name, PSIsContainer\",\"description\":\"Get top-level directory structure\"}",
-  "error": "Exit code 127\n/usr/bin/bash: line 1: Get-ChildItem: command not found\n/usr/bin/bash: line 1: Select-Object: command not found",
-  "timestamp": "2026-06-01T15:18:51.323Z",
-  "retry_count": 1
-}

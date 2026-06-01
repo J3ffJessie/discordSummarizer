@@ -1,18 +1,10 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-
-function buildStickyEmbed(content) {
-  return new EmbedBuilder()
-    .setColor(0xFFD700)
-    .setTitle('📌 Sticky Message')
-    .setDescription(content)
-    .setFooter({ text: 'This message is pinned to the bottom of this channel.' });
-}
+const { buildStickyEmbed } = require('../services/stickyService');
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('sticky')
     .setDescription('Manage a sticky message that stays at the bottom of a channel')
-    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
     .addSubcommand(sub =>
       sub.setName('set')
         .setDescription('Set or update the sticky message for this channel')
@@ -34,8 +26,21 @@ module.exports = {
     .toJSON(),
 
   async execute(interaction, services) {
+    const { stickyService, guildConfigService } = services;
+    const guildId = interaction.guildId;
+
+    const isDiscordAdmin = interaction.memberPermissions?.has(PermissionFlagsBits.Administrator);
+    const isStoredAdmin  = guildConfigService.isAdmin(guildId, interaction.user.id);
+    const isBotOwner     = process.env.ADMIN_USER_ID && interaction.user.id === process.env.ADMIN_USER_ID;
+
+    if (!isDiscordAdmin && !isStoredAdmin && !isBotOwner) {
+      return interaction.reply({
+        content: '❌ You need Administrator permission or must be configured as a bot admin to use this command.',
+        ephemeral: true,
+      });
+    }
+
     const sub = interaction.options.getSubcommand();
-    const { stickyService } = services;
     const channelId = interaction.channelId;
 
     if (sub === 'set') {
