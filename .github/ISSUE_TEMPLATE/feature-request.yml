@@ -1,7 +1,7 @@
 name: Feature Request
 description: Suggest a new feature or improvement for Torc Bot
 title: "[Feature]: "
-labels: ["feature request"]
+labels: ["roadmap", "status: planned"]
 body:
   - type: markdown
     attributes:
