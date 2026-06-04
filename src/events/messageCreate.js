@@ -1,5 +1,3 @@
-const { buildStickyEmbed } = require('../services/stickyService');
-
 module.exports = (client) => {
   client.on('messageCreate', async (message) => {
     if (message.author?.bot) return;
@@ -20,7 +18,7 @@ module.exports = (client) => {
     }
 
     try {
-      const sent = await message.channel.send({ embeds: [buildStickyEmbed(sticky.content)] });
+      const sent = await message.channel.send({ content: `📌 **Sticky Message**\n\n${sticky.content}` });
       stickyService.updateMessageId(message.channelId, sent.id);
     } catch (err) {
       console.error('[sticky] Failed to repost sticky message:', err.message);

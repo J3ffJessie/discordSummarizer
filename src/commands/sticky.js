@@ -1,5 +1,4 @@
 const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
-const { buildStickyEmbed } = require('../services/stickyService');
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -58,7 +57,7 @@ module.exports = {
       // Defer so the send + DB write can complete before we reply
       await interaction.deferReply({ ephemeral: true });
 
-      const sent = await interaction.channel.send({ embeds: [buildStickyEmbed(content)] });
+      const sent = await interaction.channel.send({ content: `📌 **Sticky Message**\n\n${content}` });
       stickyService.setSticky(channelId, interaction.guildId, content, interaction.user.id, sent.id);
 
       await interaction.editReply({ content: '✅ Sticky message set for this channel.' });

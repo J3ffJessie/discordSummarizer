@@ -1,15 +1,6 @@
 const Database = require('better-sqlite3');
 const path = require('path');
-const { EmbedBuilder } = require('discord.js');
 const { ensureDataDir } = require('../utils/helpers');
-
-function buildStickyEmbed(content) {
-  return new EmbedBuilder()
-    .setColor(0xFFD700)
-    .setTitle('📌 Sticky Message')
-    .setDescription(content)
-    .setFooter({ text: 'This message is pinned to the bottom of this channel.' });
-}
 
 const DB_PATH = path.join(ensureDataDir(), 'guild_config.db');
 
@@ -60,4 +51,4 @@ class StickyService {
   }
 }
 
-module.exports = { StickyService, buildStickyEmbed };
+module.exports = { StickyService };
