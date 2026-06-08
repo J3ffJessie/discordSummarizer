@@ -193,6 +193,12 @@
       "type": "file"
     },
     {
+      "path": "README.md",
+      "accessCount": 4,
+      "lastAccessed": 1780948720541,
+      "type": "file"
+    },
+    {
       "path": "src\\services\\guildConfigService.js",
       "accessCount": 3,
       "lastAccessed": 1780944187037,
@@ -209,6 +215,12 @@
       "accessCount": 2,
       "lastAccessed": 1780945510087,
       "type": "file"
+    },
+    {
+      "path": "",
+      "accessCount": 2,
+      "lastAccessed": 1780948579624,
+      "type": "directory"
     },
     {
       "path": "src\\commands\\sticky.js",
@@ -251,12 +263,6 @@
       "accessCount": 1,
       "lastAccessed": 1780943526646,
       "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 1,
-      "lastAccessed": 1780944578326,
-      "type": "directory"
     },
     {
       "path": ".env",

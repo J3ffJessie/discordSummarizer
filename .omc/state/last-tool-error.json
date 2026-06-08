@@ -1,7 +1,7 @@
 {
   "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"node -e \\\"const { PDFParse } = require('./node_modules/pdf-parse'); const p = new PDFParse(); console.log(Object.getOwnPropertyNames(Object.getPrototypeOf(p)));\\\"\",\"description\":\"List PDFP...",
-  "error": "Exit code 1\nC:\\Users\\JeffJ\\Projects\\discord-summarizer\\node_modules\\pdf-parse\\dist\\pdf-parse\\cjs\\index.cjs:1\r\n\"use strict\";var t,e,i,s,n,r,a,o,l,h,c,d,u,p,g=t=>{throw TypeError(t)},m=(t,e,i)=>e.has(t)||g(\"Cannot \"+i),f=(t,e,i)=>(m(t,e,\"read from private field\"),i?i.call(t):e.get(t)),b=(t,e,i)=>e.has(t)?g(\"Cannot add the same private member more than once\"):e instanceof WeakSet?e.add(t):e.set(t,i),v=(t,e,i,s)=>(m(t,e,\"write to private field\"),s?s.call(t,i):e.set(t,i),i),y=(t,e,i)=>(m(t,e,\"access ...",
-  "timestamp": "2026-06-08T19:23:23.854Z",
-  "retry_count": 2
+  "tool_input_preview": "{\"command\":\"ls c:\\\\Users\\\\JeffJ\\\\Projects\\\\discord-summarizer\\\\*.md 2>$null\",\"description\":\"List markdown files at project root\"}",
+  "error": "Exit code 1\n/usr/bin/bash: line 1: $null: ambiguous redirect",
+  "timestamp": "2026-06-08T19:56:40.341Z",
+  "retry_count": 1
 }
