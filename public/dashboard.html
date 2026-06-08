@@ -339,6 +339,10 @@
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 7h-1.26A4.5 4.5 0 0 0 12 2.5 4.5 4.5 0 0 0 5.26 7H4a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h1v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7h1a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm-8-2.5A2.5 2.5 0 0 1 14.5 7H12V4.5zM9.5 7A2.5 2.5 0 0 1 12 4.5V7H9.5zM11 20H7v-7h4v7zm6 0h-4v-7h4v7zm2-9H5V9h14v2z"/></svg>
       Giveaways
     </a>
+    <a class="nav-item" href="#section-settings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13zM8 16h8v2H8v-2zm0-4h8v2H8v-2zm0-4h5v2H8V8z"/></svg>
+      Resume Review
+    </a>
   </div>
 </div>
 
@@ -837,6 +841,32 @@
       <div class="save-row">
         <button class="btn-primary" id="btn-save-admins">Save Admin List</button>
         <span class="save-status" id="status-admins"></span>
+      </div>
+    </div>
+
+    <!-- Resume Review -->
+    <div class="settings-card">
+      <div class="settings-card-title">Resume Review</div>
+      <div class="settings-card-sub">Automatically review resumes posted in a designated channel. The bot replies in the thread with structured AI feedback on each submission.</div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Enable resume review</div>
+          <div class="toggle-sub">Bot will review attachments posted in threads in the selected channel.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="cfg-resume-enabled"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <div class="field-label">Resume Channel</div>
+          <select id="cfg-resume-channel">
+            <option value="">— Select a channel —</option>
+          </select>
+          <div class="field-hint">Members post their resumes here. The bot replies in each thread with AI feedback. Uses your configured summarization AI provider.</div>
+        </div>
+      </div>
+      <div class="save-row">
+        <button class="btn-primary" id="btn-save-resume">Save Resume Settings</button>
+        <span class="save-status" id="status-resume"></span>
       </div>
     </div>
 
@@ -1551,6 +1581,7 @@
         const channels = await res.json();
         const selSummary = document.getElementById('cfg-summary-channel');
         const selCoffee  = document.getElementById('cfg-coffee-channel');
+        const selResume  = document.getElementById('cfg-resume-channel');
         channels.forEach(c => {
           const opt1 = document.createElement('option');
           opt1.value = c.id; opt1.textContent = '#' + c.name;
@@ -1559,6 +1590,10 @@
           const opt2 = document.createElement('option');
           opt2.value = c.id; opt2.textContent = '#' + c.name;
           selCoffee.appendChild(opt2);
+
+          const opt3 = document.createElement('option');
+          opt3.value = c.id; opt3.textContent = '#' + c.name;
+          selResume.appendChild(opt3);
         });
       } catch(err) { console.error('Channels fetch error:', err); }
     }
@@ -1597,6 +1632,10 @@
       // Admin IDs
       try { adminIds = cfg.admin_user_ids ? JSON.parse(cfg.admin_user_ids) : []; } catch { adminIds = []; }
       renderAdminTags();
+
+      // Resume Review
+      setCheck('cfg-resume-enabled', cfg.resume_review_enabled);
+      setVal('cfg-resume-channel',   cfg.resume_channel_id || '');
     }
 
     function renderAdminTags() {
@@ -1708,6 +1747,13 @@
 
     document.getElementById('btn-save-admins').addEventListener('click', () => {
       saveConfig({ admin_user_ids: JSON.stringify(adminIds) }, 'status-admins');
+    });
+
+    document.getElementById('btn-save-resume').addEventListener('click', () => {
+      saveConfig({
+        resume_review_enabled: getCheck('cfg-resume-enabled'),
+        resume_channel_id:     getVal('cfg-resume-channel') || null,
+      }, 'status-resume');
     });
 
     loadChannels();

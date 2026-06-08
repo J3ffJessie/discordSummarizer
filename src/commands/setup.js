@@ -195,6 +195,23 @@ module.exports = {
       sub
         .setName('dashboard')
         .setDescription('Get a private link to the web configuration dashboard (expires in 24 hours)')
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('resume-channel')
+        .setDescription('Set the channel where resumes are posted for automated AI review')
+        .addChannelOption(opt =>
+          opt
+            .setName('channel')
+            .setDescription('Channel where members post their resumes (should use threads)')
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildForum)
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('resume-disable')
+        .setDescription('Disable automated resume review for this server')
     ),
 
   async execute(interaction, services) {
@@ -308,6 +325,8 @@ module.exports = {
           { name: 'AI — Summarization', value: `Provider: \`${summProvider}\`\nModel: \`${summModel}\`\nKey: ${summKey}`, inline: false },
           { name: 'AI — Translation', value: `Provider: \`${transProvider}\`\nModel: \`${transModel}\`\nKey: ${transKey}`, inline: false },
           { name: 'AI — Transcription', value: `Provider: \`${sttProvider}\`\nModel: \`${sttModel}\`\nKey: ${sttKey}`, inline: false },
+          { name: '\u200b', value: '\u200b', inline: false },
+          { name: 'Resume Review', value: config?.resume_review_enabled ? `Enabled \u2014 <#${config.resume_channel_id}>` : 'Disabled \u2014 use `/setup resume-channel` to enable', inline: false },
           { name: '\u200b', value: '\u200b', inline: false },
           { name: 'Bot Admins', value: adminValue, inline: false },
         )
@@ -584,6 +603,46 @@ module.exports = {
         .setTimestamp();
 
       return interaction.reply({ embeds: [embed], ephemeral: true });
+    }
+
+    if (subcommand === 'resume-channel') {
+      const channel = interaction.options.getChannel('channel');
+
+      await interaction.deferReply({ ephemeral: true });
+
+      guildConfigService.upsertConfig(guildId, {
+        resume_channel_id:     channel.id,
+        resume_review_enabled: 1,
+      });
+
+      const embed = new EmbedBuilder()
+        .setTitle('Resume Review Enabled')
+        .setDescription(
+          `The bot will now review resumes posted in <#${channel.id}>.\n\n` +
+          'When a member posts a message with an attachment in a thread in that channel, ' +
+          'the bot will reply in the thread with structured AI feedback.'
+        )
+        .addFields({ name: 'AI Provider', value: 'Uses your configured summarization provider (`/setup ai`)', inline: false })
+        .setColor(0x2ecc71)
+        .setFooter({ text: 'Run /setup resume-disable to turn off resume review.' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
+    }
+
+    if (subcommand === 'resume-disable') {
+      await interaction.deferReply({ ephemeral: true });
+
+      guildConfigService.upsertConfig(guildId, { resume_review_enabled: 0 });
+
+      const embed = new EmbedBuilder()
+        .setTitle('Resume Review Disabled')
+        .setDescription('Automated resume review has been turned off for this server.')
+        .setColor(0xe74c3c)
+        .setFooter({ text: 'Run /setup resume-channel to re-enable it.' })
+        .setTimestamp();
+
+      return interaction.editReply({ embeds: [embed] });
     }
   },
 };

@@ -41,6 +41,8 @@ const AI_COLUMNS = [
   'installer_user_id   TEXT',
   'admin_user_ids TEXT',
   'coffee_channel_id TEXT',
+  'resume_channel_id     TEXT',
+  'resume_review_enabled INTEGER NOT NULL DEFAULT 0',
 ];
 
 class GuildConfigService {

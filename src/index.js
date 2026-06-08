@@ -30,6 +30,7 @@ const { SummarizationService } = require('./services/groq');
 const { MessageStatsService } = require('./services/messageStatsService');
 const { GiveawayService } = require('./services/giveawayService');
 const { StickyService } = require('./services/stickyService');
+const { ResumeReviewService } = require('./services/resumeReviewService');
 const logger = require('./utils/logger');
 
 /* ===========================
@@ -89,10 +90,11 @@ if (fs.existsSync(eventsPath)) {
 
 const PORT = process.env.PORT || 3000;
 
-const messageStatsService = new MessageStatsService();
-const guildConfigService = new GuildConfigService();
-const giveawayService = new GiveawayService();
-const stickyService = new StickyService();
+const messageStatsService  = new MessageStatsService();
+const guildConfigService   = new GuildConfigService();
+const giveawayService      = new GiveawayService();
+const stickyService        = new StickyService();
+const resumeReviewService  = new ResumeReviewService();
 
 const server = createHttpServer({
   guildConfigService,
@@ -177,6 +179,7 @@ client.services = {
   messageStats: messageStatsService,
   giveawayService,
   stickyService,
+  resumeReviewService,
 };
 
 server.listen(PORT, () => {

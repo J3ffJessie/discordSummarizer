@@ -6,7 +6,8 @@
       "Bash(node --check src/commands/giveaway.js)",
       "Bash(node --check src/events/interactionCreate.js)",
       "Bash(node --check src/services/httpServer.js)",
-      "Bash(node --check src/index.js)"
+      "Bash(node --check src/index.js)",
+      "Bash(node *)"
     ]
   }
 }

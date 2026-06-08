@@ -10,6 +10,7 @@ const ALLOWED_CONFIG_FIELDS = new Set([
   'trans_provider', 'trans_api_key', 'trans_model', 'trans_base_url',
   'stt_provider',  'stt_api_key',  'stt_model',  'stt_base_url',
   'admin_user_ids',
+  'resume_channel_id', 'resume_review_enabled',
 ]);
 
 function readBody(req) {
