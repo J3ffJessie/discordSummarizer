@@ -1,7 +1,0 @@
-{
-  "tool_name": "Bash",
-  "tool_input_preview": "{\"command\":\"ls c:\\\\Users\\\\JeffJ\\\\Projects\\\\discord-summarizer\\\\*.md 2>$null\",\"description\":\"List markdown files at project root\"}",
-  "error": "Exit code 1\n/usr/bin/bash: line 1: $null: ambiguous redirect",
-  "timestamp": "2026-06-08T19:56:40.341Z",
-  "retry_count": 1
-}
