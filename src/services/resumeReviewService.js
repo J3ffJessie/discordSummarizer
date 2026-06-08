@@ -20,6 +20,39 @@ class ResumeReviewService {
       ? '\n\n> Note: multiple attachments were found — only the first was reviewed.'
       : '';
 
+    // Pre-flight: ask for target role before running the review
+    // message.channel is already the thread if the channel is thread-based
+    const collectorChannel = message.channel;
+    await message.reply(
+      `What role or position are you targeting with this resume? ` +
+      `*(You have 2 minutes to reply — or I'll proceed with a general review.)*`
+    );
+
+    let timedOut = false;
+    const collector = collectorChannel.createMessageCollector({
+      filter: m => m.author.id === message.author.id,
+      max: 1,
+      time: 120_000,
+    });
+
+    const targetRole = await new Promise(resolve => {
+      collector.on('collect', m => resolve(m.content.trim()));
+      collector.on('end', (collected, reason) => {
+        if (reason !== 'limit') {
+          timedOut = true;
+          resolve('a general professional role');
+        }
+      });
+    });
+
+    if (timedOut) {
+      try {
+        await message.reply(
+          `No response received — proceeding with the review assuming **a general professional role**.`
+        );
+      } catch { /* ignore secondary failure */ }
+    }
+
     try {
       await message.channel.sendTyping();
 
@@ -37,7 +70,7 @@ class ResumeReviewService {
           return;
         }
         const mimeType   = IMAGE_MIME_TYPES[ext] || 'image/png';
-        const reviewText = await this.reviewImage(buffer, mimeType, guildConfig);
+        const reviewText = await this.reviewImage(buffer, mimeType, guildConfig, targetRole);
         await this._sendChunked(message, this._buildPreface() + reviewText + multipleNote);
         return;
       }
@@ -51,7 +84,7 @@ class ResumeReviewService {
         return;
       }
 
-      const reviewText = await this.reviewText(text, guildConfig);
+      const reviewText = await this.reviewText(text, guildConfig, targetRole);
       await this._sendChunked(message, this._buildPreface() + reviewText + multipleNote);
 
     } catch (err) {
@@ -90,28 +123,28 @@ class ResumeReviewService {
     return buffer.toString('utf8');
   }
 
-  async reviewText(text, guildConfig) {
+  async reviewText(text, guildConfig, targetRole = 'a general professional role') {
     const provider = createChatProvider('summ', guildConfig);
     const truncated = text.slice(0, 12000);
     return provider.chat(
-      this._buildSystemPrompt(),
+      this._buildSystemPrompt(targetRole),
       `Here is the resume to review:\n\n${truncated}`,
       { max_tokens: 2048 }
     );
   }
 
-  async reviewImage(buffer, mimeType, guildConfig) {
+  async reviewImage(buffer, mimeType, guildConfig, targetRole = 'a general professional role') {
     const provider = createChatProvider('summ', guildConfig);
     return provider.chatWithVision(
-      this._buildSystemPrompt(),
+      this._buildSystemPrompt(targetRole),
       'Please review this resume image.',
       buffer,
       mimeType
     );
   }
 
-  _buildSystemPrompt() {
-    return `You are an expert resume reviewer with deep knowledge of hiring practices, ATS systems, and career coaching. Review the resume and give structured, actionable feedback covering these 6 sections:
+  _buildSystemPrompt(targetRole = 'a general professional role') {
+    return `You are an expert resume reviewer with deep knowledge of hiring practices, ATS systems, and career coaching. The candidate is targeting: ${targetRole}. Tailor your feedback to this specific role. Review the resume and give structured, actionable feedback covering these 6 sections:
 
 **1. Summary/Objective**
 Evaluate clarity, tailoring to a target role, and impact. Note if it's missing or too generic.
