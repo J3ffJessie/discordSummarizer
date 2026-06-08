@@ -158,32 +158,38 @@
   "hotPaths": [
     {
       "path": "public\\dashboard.html",
-      "accessCount": 12,
-      "lastAccessed": 1780944524145,
+      "accessCount": 14,
+      "lastAccessed": 1780948267204,
       "type": "file"
     },
     {
       "path": "src\\commands\\setup.js",
-      "accessCount": 9,
-      "lastAccessed": 1780944440829,
+      "accessCount": 10,
+      "lastAccessed": 1780944998204,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\resumeReviewService.js",
+      "accessCount": 10,
+      "lastAccessed": 1780947692496,
+      "type": "file"
+    },
+    {
+      "path": "src\\index.js",
+      "accessCount": 8,
+      "lastAccessed": 1780948258229,
+      "type": "file"
+    },
+    {
+      "path": "src\\events\\messageCreate.js",
+      "accessCount": 7,
+      "lastAccessed": 1780945004313,
       "type": "file"
     },
     {
       "path": "src\\providers\\index.js",
       "accessCount": 6,
       "lastAccessed": 1780944345103,
-      "type": "file"
-    },
-    {
-      "path": "src\\events\\messageCreate.js",
-      "accessCount": 6,
-      "lastAccessed": 1780944772604,
-      "type": "file"
-    },
-    {
-      "path": "src\\index.js",
-      "accessCount": 5,
-      "lastAccessed": 1780944364404,
       "type": "file"
     },
     {
@@ -196,6 +202,12 @@
       "path": "src\\services\\httpServer.js",
       "accessCount": 3,
       "lastAccessed": 1780944189932,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 2,
+      "lastAccessed": 1780945510087,
       "type": "file"
     },
     {
@@ -241,22 +253,28 @@
       "type": "file"
     },
     {
-      "path": "package.json",
-      "accessCount": 1,
-      "lastAccessed": 1780943529585,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\resumeReviewService.js",
-      "accessCount": 1,
-      "lastAccessed": 1780944278369,
-      "type": "file"
-    },
-    {
       "path": "",
       "accessCount": 1,
       "lastAccessed": 1780944578326,
       "type": "directory"
+    },
+    {
+      "path": ".env",
+      "accessCount": 1,
+      "lastAccessed": 1780945494785,
+      "type": "file"
+    },
+    {
+      "path": "register-commands.js",
+      "accessCount": 1,
+      "lastAccessed": 1780945708672,
+      "type": "file"
+    },
+    {
+      "path": "src\\commands\\register.js",
+      "accessCount": 1,
+      "lastAccessed": 1780945715462,
+      "type": "file"
     }
   ],
   "userDirectives": []

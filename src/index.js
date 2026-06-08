@@ -110,8 +110,8 @@ const server = createHttpServer({
     const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
     if (!guild) return [];
     return guild.channels.cache
-      .filter(c => c.isTextBased() && !c.isDMBased() && !c.isThread())
-      .map(c => ({ id: c.id, name: c.name }))
+      .filter(c => (c.isTextBased() && !c.isDMBased() && !c.isThread()) || c.type === 15)
+      .map(c => ({ id: c.id, name: c.name, type: c.type }))
       .sort((a, b) => a.name.localeCompare(b.name));
   },
   getMembers: (guildId) => {

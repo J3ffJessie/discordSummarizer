@@ -38,7 +38,7 @@ class ResumeReviewService {
         }
         const mimeType   = IMAGE_MIME_TYPES[ext] || 'image/png';
         const reviewText = await this.reviewImage(buffer, mimeType, guildConfig);
-        await this._sendChunked(message, reviewText + multipleNote);
+        await this._sendChunked(message, this._buildPreface() + reviewText + multipleNote);
         return;
       }
 
@@ -52,7 +52,7 @@ class ResumeReviewService {
       }
 
       const reviewText = await this.reviewText(text, guildConfig);
-      await this._sendChunked(message, reviewText + multipleNote);
+      await this._sendChunked(message, this._buildPreface() + reviewText + multipleNote);
 
     } catch (err) {
       console.error('[resume-review] Error:', err.message);
@@ -138,6 +138,10 @@ Be direct, specific, and constructive. Reference specific sections or bullet poi
     const lower = filename.toLowerCase();
     const idx   = lower.lastIndexOf('.');
     return idx >= 0 ? lower.slice(idx) : '';
+  }
+
+  _buildPreface() {
+    return `> **Note:** This is an auto generated review from the AI Bot in this server. These suggestions are to be taken into consideration to make adjustments to your resume based on feedback from recruiters and resume reviewers.\n\n`;
   }
 
   async _sendChunked(message, text) {
