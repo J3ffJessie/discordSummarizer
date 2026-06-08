@@ -11,6 +11,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 - **Automated weekly summaries** — Scheduled AI-generated server summaries posted to a configured channel
 - **Coffee chat pairing** — Randomly pairs members with a designated role and announces pairings in a configured channel (falls back to DMs if no channel is set)
 - **Web dashboard** — Admins configure all settings and AI provider keys through a browser UI (no slash commands required for setup)
+- **Resume review** — Automatically reviews resumes posted as attachments in a designated channel; the bot replies in the thread with structured AI feedback covering summary, skills, experience, education, formatting, and top improvements
 - **Sticky messages** — Admins can pin a persistent message to the bottom of any channel; the bot automatically reposts it whenever a new message is sent so it always stays visible
 - **Reminders** — Set, list, and cancel personal reminders delivered via DM
 - **Events** — Fetch and display upcoming server events
@@ -236,6 +237,32 @@ Fetches and DMs you the next 7 days of scheduled server events (up to 10).
 
 ---
 
+### `/setup resume-channel`
+*(Admin only)* Designates a text or forum channel as the resume review channel. Once set, the bot monitors all threads in that channel and automatically reviews any resume attachment posted there.
+
+**How resume review works:**
+1. An admin runs `/setup resume-channel #channel` to enable the feature
+2. A member creates a thread in that channel and posts their resume as an attachment
+3. The bot downloads the attachment, extracts the text, and sends it to the configured summarization AI provider
+4. The bot replies in the thread with a structured review covering:
+   - **Summary/Objective** — clarity, tailoring, and impact
+   - **Skills** — relevance, specificity, and organization
+   - **Experience** — action verbs, quantified achievements, and relevance
+   - **Education** — completeness and formatting
+   - **Formatting & Length** — ATS compatibility and readability
+   - **Top 3 Improvements** — highest-priority changes in order of impact
+
+**Supported file types:** PDF, DOCX, TXT, and images (PNG, JPG, GIF, WEBP — requires a vision-capable provider such as Anthropic or OpenAI)
+
+The review uses your server's configured **summarization** AI provider. If no provider is configured, it defaults to Groq.
+
+---
+
+### `/setup resume-disable`
+*(Admin only)* Turns off automated resume review for the server.
+
+---
+
 ### `/sticky set`
 *(Admin only)* Sets a sticky message for the current channel. After every new message posted by a user, the bot deletes its previous sticky post and reposts it so it always appears at the bottom of the channel — useful for keeping rules, tips, or guides visible.
 
@@ -353,6 +380,7 @@ discord-summarizer/
 │   │   ├── schedulerService.js     # Cron job management (summary + coffee pairing)
 │   │   ├── httpServer.js           # HTTP server — dashboard API, static files, health check
 │   │   ├── coffee.js               # Coffee pairing logic (matching algorithm, channel announcements, DM fallback)
+│   │   ├── resumeReviewService.js  # Resume review — attachment download, text extraction, AI review, chunked reply
 │   │   └── gather.js               # Message gathering and summarization for server summary
 │   └── utils/
 │       ├── helpers.js              # Shared utilities (delay, ensureDataDir)
