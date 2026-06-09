@@ -1,7 +1,46 @@
 const { Events } = require('discord.js');
+const { MODAL_ID: PROFILE_MODAL_ID } = require('../commands/profile');
 
 module.exports = (client) => {
   client.on(Events.InteractionCreate, async (interaction) => {
+    // Modal submissions
+    if (interaction.isModalSubmit()) {
+      if (interaction.customId === PROFILE_MODAL_ID) {
+        const { profileService, guildConfigService } = client.services;
+        const str = (field) => interaction.fields.getTextInputValue(field).trim() || null;
+        const networkingRaw = interaction.fields.getTextInputValue('networking').trim().toLowerCase();
+        const networking = networkingRaw === 'yes' ? 1 : 0;
+
+        profileService.upsertProfile(interaction.guildId, interaction.user.id, {
+          bio:      str('bio'),
+          title:    str('title'),
+          skills:   str('skills'),
+          timezone: str('timezone'),
+          networking,
+        });
+
+        // Sync coffee role with networking preference
+        try {
+          const config = guildConfigService?.getConfig(interaction.guildId);
+          const roleName = config?.coffee_role_name || process.env.COFFEE_ROLE_NAME || 'coffee chat';
+          const role = interaction.guild.roles.cache.find(r => r.name === roleName || r.id === roleName);
+          if (role) {
+            const member = interaction.member;
+            if (networking && !member.roles.cache.has(role.id)) {
+              await member.roles.add(role);
+            } else if (!networking && member.roles.cache.has(role.id)) {
+              await member.roles.remove(role);
+            }
+          }
+        } catch (err) {
+          console.warn('[profile] Could not sync coffee role:', err.message);
+        }
+
+        await interaction.reply({ content: '✅ Your profile has been updated!', ephemeral: true });
+      }
+      return;
+    }
+
     // Button interactions
     if (interaction.isButton()) {
       if (interaction.customId.startsWith('giveaway_enter_')) {

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { ensureDataDir } = require('../utils/helpers');
+const { buildProfileEmbed } = require('./profileService');
 
 const DATA_DIR = ensureDataDir();
 const COFFEE_FILE = path.join(DATA_DIR, 'coffee_pairs.json');
@@ -216,7 +217,7 @@ function pairUpWithCooldown(members, history, cooldownMs) {
   return pairs;
 }
 
-async function notifyPairs(pairs, guild, source = 'scheduled', channelId = null) {
+async function notifyPairs(pairs, guild, source = 'scheduled', channelId = null, profileService = null) {
   let history = readCoffeePairs();
   const results = [];
   let totalFailedDMs = 0;
@@ -249,11 +250,17 @@ async function notifyPairs(pairs, guild, source = 'scheduled', channelId = null)
     // Fall back to DMs when no channel is configured
     for (const pair of pairs) {
       for (const m of pair) {
-        const others = pair.filter((p) => p.id !== m.id).map((p) => p.displayName || p._capturedUsername).join(' and ');
+        const partners = pair.filter((p) => p.id !== m.id);
+        const others = partners.map((p) => p.displayName || p._capturedUsername).join(' and ');
         const senderName = m._capturedUsername;
-        const content = `☕ Hi ${senderName}! You were paired for a coffee chat with ${others}. Please DM them to set up a time. (${source})`;
+        const content = `☕ Hi ${senderName}! You were paired for a coffee chat with **${others}**. Reach out to set up a time!`;
+
+        const embeds = profileService
+          ? partners.map((p) => buildProfileEmbed(p.user, p, profileService.getProfile(guild.id, p.id)))
+          : [];
+
         try {
-          await m.send({ content });
+          await m.send({ content, embeds });
           await new Promise((r) => setTimeout(r, 500));
         } catch (err) {
           totalFailedDMs++;
@@ -279,7 +286,7 @@ async function notifyPairs(pairs, guild, source = 'scheduled', channelId = null)
   return { results, failed: totalFailedDMs };
 }
 
-async function runCoffeePairing(guild, roleIdentifier = process.env.COFFEE_ROLE_NAME || 'coffee chat', source = 'scheduled', channelId = null) {
+async function runCoffeePairing(guild, roleIdentifier = process.env.COFFEE_ROLE_NAME || 'coffee chat', source = 'scheduled', channelId = null, profileService = null) {
   try {
     const members = await getMembersWithCoffeeRole(guild, roleIdentifier);
     console.log(`runCoffeePairing: found ${members.length} members eligible`);
@@ -289,7 +296,7 @@ async function runCoffeePairing(guild, roleIdentifier = process.env.COFFEE_ROLE_
     const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
     const pairs = pairUpWithCooldown(members, history, cooldownMs);
     console.log(`runCoffeePairing: created ${pairs.length} pair groups`);
-    const res = await notifyPairs(pairs, guild, source, channelId);
+    const res = await notifyPairs(pairs, guild, source, channelId, profileService);
     return res.results;
   } catch (err) {
     console.error('Error running coffee pairing:', err?.message || err);

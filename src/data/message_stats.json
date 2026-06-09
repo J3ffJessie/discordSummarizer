@@ -1,7 +1,7 @@
 {
   "guilds": {
     "1432392018008739882": {
-      "lastBackfill": "2026-06-08T20:28:19.104Z",
+      "lastBackfill": "2026-06-09T14:51:58.437Z",
       "daily": {
         "2026-03-04": {
           "total": 68,
@@ -151,20 +151,16 @@
           }
         },
         "2026-06-08": {
-          "total": 5,
+          "total": 3,
           "channels": {
             "1513622880993415378": {
               "name": "Resume Test",
               "count": 3
-            },
-            "1513640815170158733": {
-              "name": "Testing Bot Review",
-              "count": 2
             }
           },
           "users": {
             "280096257282670592": {
-              "count": 5,
+              "count": 3,
               "name": "Jeff"
             }
           }
