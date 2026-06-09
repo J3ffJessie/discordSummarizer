@@ -23,6 +23,7 @@ module.exports = (client) => {
         try {
           const config = guildConfigService?.getConfig(interaction.guildId);
           const roleName = config?.coffee_role_name || process.env.COFFEE_ROLE_NAME || 'coffee chat';
+          await interaction.guild.roles.fetch();
           const role = interaction.guild.roles.cache.find(r => r.name === roleName || r.id === roleName);
           if (role) {
             const member = interaction.member;
@@ -33,7 +34,7 @@ module.exports = (client) => {
             }
           }
         } catch (err) {
-          console.warn('[profile] Could not sync coffee role:', err.message);
+          console.warn('[profile] Could not sync coffee role:', err.message, '| code:', err.code, '| status:', err.status);
         }
 
         await interaction.reply({ content: '✅ Your profile has been updated!', ephemeral: true });
