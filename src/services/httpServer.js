@@ -33,7 +33,7 @@ function sanitizeConfig(config) {
   return out;
 }
 
-function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildConfigService, giveawayService, discordClient } = {}) {
+function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildConfigService, giveawayService, discordClient, musicService } = {}) {
   return http.createServer(async (req, res) => {
     const [pathname, search] = req.url.split('?');
     const params = new URLSearchParams(search || '');
@@ -262,6 +262,46 @@ function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildCo
 
       res.writeHead(404);
       res.end('File not found');
+      return;
+    }
+
+    // Spotify OAuth callback
+    if (pathname === '/oauth/spotify/callback' && musicService) {
+      const code = params.get('code');
+      const state = params.get('state');
+      if (!code || !state) {
+        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.end('<p>Missing code or state parameter.</p>');
+        return;
+      }
+      try {
+        await musicService.handleSpotifyCallback(code, state);
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<h2>Spotify connected!</h2><p>You can close this tab and return to Discord.</p>');
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.end(`<h2>Spotify auth failed</h2><p>${err.message}</p>`);
+      }
+      return;
+    }
+
+    // YouTube OAuth callback
+    if (pathname === '/oauth/youtube/callback' && musicService) {
+      const code = params.get('code');
+      const state = params.get('state');
+      if (!code || !state) {
+        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.end('<p>Missing code or state parameter.</p>');
+        return;
+      }
+      try {
+        await musicService.handleYoutubeCallback(code, state);
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end('<h2>YouTube Music connected!</h2><p>You can close this tab and return to Discord.</p>');
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'text/html' });
+        res.end(`<h2>YouTube auth failed</h2><p>${err.message}</p>`);
+      }
       return;
     }
 

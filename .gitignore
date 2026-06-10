@@ -53,3 +53,6 @@ temp_*.wav
 # Jest coverage and reports
 coverage/
 jest-stare/
+
+# Oh My Claude Code
+.omc/

@@ -157,6 +157,12 @@
   },
   "hotPaths": [
     {
+      "path": "src\\services\\musicService.js",
+      "accessCount": 28,
+      "lastAccessed": 1781122613115,
+      "type": "file"
+    },
+    {
       "path": "public\\dashboard.html",
       "accessCount": 18,
       "lastAccessed": 1778687098384,
@@ -169,6 +175,12 @@
       "type": "file"
     },
     {
+      "path": "src\\index.js",
+      "accessCount": 13,
+      "lastAccessed": 1781110870639,
+      "type": "file"
+    },
+    {
       "path": "",
       "accessCount": 12,
       "lastAccessed": 1778617506012,
@@ -176,14 +188,8 @@
     },
     {
       "path": "src\\events\\messageCreate.js",
-      "accessCount": 10,
-      "lastAccessed": 1780593556122,
-      "type": "file"
-    },
-    {
-      "path": "src\\index.js",
-      "accessCount": 9,
-      "lastAccessed": 1780327698763,
+      "accessCount": 11,
+      "lastAccessed": 1781110429856,
       "type": "file"
     },
     {
@@ -199,15 +205,33 @@
       "type": "file"
     },
     {
+      "path": "src\\services\\guildConfigService.js",
+      "accessCount": 6,
+      "lastAccessed": 1781110576156,
+      "type": "file"
+    },
+    {
       "path": "README.md",
       "accessCount": 5,
       "lastAccessed": 1780328282410,
       "type": "file"
     },
     {
-      "path": "src\\services\\guildConfigService.js",
+      "path": "src\\services\\httpServer.js",
+      "accessCount": 5,
+      "lastAccessed": 1781110807785,
+      "type": "file"
+    },
+    {
+      "path": "src\\commands\\music.js",
       "accessCount": 4,
-      "lastAccessed": 1780345294505,
+      "lastAccessed": 1781120556654,
+      "type": "file"
+    },
+    {
+      "path": "src\\events\\musicRecs.js",
+      "accessCount": 4,
+      "lastAccessed": 1781122622408,
       "type": "file"
     },
     {
@@ -235,9 +259,15 @@
       "type": "directory"
     },
     {
-      "path": "src\\services\\httpServer.js",
-      "accessCount": 2,
-      "lastAccessed": 1778617511267,
+      "path": "src\\commands\\setup.js",
+      "accessCount": 3,
+      "lastAccessed": 1781110429450,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 3,
+      "lastAccessed": 1781110526840,
       "type": "file"
     },
     {
@@ -259,15 +289,21 @@
       "type": "file"
     },
     {
-      "path": "package.json",
+      "path": "src\\events\\interactionCreate.js",
       "accessCount": 2,
-      "lastAccessed": 1780327159884,
+      "lastAccessed": 1781110526782,
       "type": "file"
     },
     {
-      "path": "src\\commands\\setup.js",
+      "path": "register-commands.js",
       "accessCount": 2,
-      "lastAccessed": 1780346824349,
+      "lastAccessed": 1781110531938,
+      "type": "file"
+    },
+    {
+      "path": "src\\commands\\register.js",
+      "accessCount": 2,
+      "lastAccessed": 1781112517974,
       "type": "file"
     },
     {
@@ -295,27 +331,9 @@
       "type": "file"
     },
     {
-      "path": "register-commands.js",
-      "accessCount": 1,
-      "lastAccessed": 1780327148572,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\register.js",
-      "accessCount": 1,
-      "lastAccessed": 1780327152806,
-      "type": "file"
-    },
-    {
       "path": "src\\commands\\remindme.js",
       "accessCount": 1,
       "lastAccessed": 1780327153342,
-      "type": "file"
-    },
-    {
-      "path": "src\\events\\interactionCreate.js",
-      "accessCount": 1,
-      "lastAccessed": 1780327160265,
       "type": "file"
     },
     {
