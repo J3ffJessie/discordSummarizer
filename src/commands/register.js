@@ -24,8 +24,13 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
     console.log('Registering commands...');
+<<<<<<< HEAD
     // await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
     await rest.put(Routes.applicationGuildCommands(CLIENT_ID, process.env.GUILD_ID), { body: commands });
+=======
+    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+    //await rest.put(Routes.applicationGuildCommands(CLIENT_ID, process.env.GUILD_ID), { body: commands });
+>>>>>>> origin/main
 
     console.log('Commands registered');
   } catch (err) {

@@ -41,8 +41,23 @@ const AI_COLUMNS = [
   'installer_user_id   TEXT',
   'admin_user_ids TEXT',
   'coffee_channel_id TEXT',
+<<<<<<< HEAD
   'resume_channel_id     TEXT',
   'resume_review_enabled INTEGER NOT NULL DEFAULT 0',
+=======
+  'music_channel_id        TEXT',
+  'music_enabled           INTEGER DEFAULT 0',
+  'spotify_access_token    TEXT',
+  'spotify_refresh_token   TEXT',
+  'spotify_token_expires   INTEGER',
+  'spotify_playlist_id     TEXT',
+  'youtube_access_token    TEXT',
+  'youtube_refresh_token   TEXT',
+  'youtube_token_expires   INTEGER',
+  'youtube_playlist_id     TEXT',
+  'google_client_id        TEXT',
+  'google_client_secret    TEXT',
+>>>>>>> origin/main
 ];
 
 class GuildConfigService {

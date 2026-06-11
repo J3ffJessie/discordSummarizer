@@ -54,9 +54,14 @@ temp_*.wav
 coverage/
 jest-stare/
 
+<<<<<<< HEAD
 # Claude Code and oh-my-claudecode local config
 .claude/
 .omc/
 
 .claude
 .omc
+=======
+# Oh My Claude Code
+.omc/
+>>>>>>> origin/main
