@@ -76,6 +76,14 @@ class MusicService {
     return { Authorization: `Bearer ${updated.youtube_access_token}` };
   }
 
+  _googleClientId(config) {
+    return config?.google_client_id || process.env.GOOGLE_CLIENT_ID;
+  }
+
+  _googleClientSecret(config) {
+    return config?.google_client_secret || process.env.GOOGLE_CLIENT_SECRET;
+  }
+
   async refreshYoutubeToken(guildId) {
     const config = this.guildConfigService.getConfig(guildId);
     if (!config?.youtube_refresh_token) throw new Error('No YouTube refresh token stored');
@@ -84,8 +92,8 @@ class MusicService {
       new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: config.youtube_refresh_token,
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        client_id: this._googleClientId(config),
+        client_secret: this._googleClientSecret(config),
       }).toString(),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );
@@ -187,8 +195,9 @@ class MusicService {
   }
 
   generateYoutubeAuthUrl(guildId) {
+    const config = this.guildConfigService.getConfig(guildId);
     const params = new URLSearchParams({
-      client_id: process.env.GOOGLE_CLIENT_ID,
+      client_id: this._googleClientId(config),
       redirect_uri: `${(process.env.PUBLIC_URL || '').replace(/\/$/, '')}/oauth/youtube/callback`,
       response_type: 'code',
       scope: 'https://www.googleapis.com/auth/youtube',
@@ -200,13 +209,14 @@ class MusicService {
   }
 
   async handleYoutubeCallback(code, guildId) {
+    const config = this.guildConfigService.getConfig(guildId);
     const resp = await axios.post(GOOGLE_TOKEN_URL,
       new URLSearchParams({
         grant_type: 'authorization_code',
         code,
         redirect_uri: `${(process.env.PUBLIC_URL || '').replace(/\/$/, '')}/oauth/youtube/callback`,
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        client_id: this._googleClientId(config),
+        client_secret: this._googleClientSecret(config),
       }).toString(),
       { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
     );

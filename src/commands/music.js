@@ -86,9 +86,20 @@ module.exports = {
         });
       }
 
-      if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      const config = guildConfigService.getConfig(guildId);
+      const hasClientId     = config?.google_client_id     || process.env.GOOGLE_CLIENT_ID;
+      const hasClientSecret = config?.google_client_secret || process.env.GOOGLE_CLIENT_SECRET;
+
+      if (!hasClientId || !hasClientSecret) {
         return interaction.reply({
-          content: '❌ `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are not configured. Ask the bot owner to add them.',
+          content:
+            '❌ Google API credentials are not configured for this server.\n\n' +
+            'To set them up:\n' +
+            '1. Create a Google Cloud project and enable the YouTube Data API v3\n' +
+            '2. Create an OAuth 2.0 client ID (Web application type)\n' +
+            `3. Add \`${(process.env.PUBLIC_URL || '').replace(/\/$/, '')}/oauth/youtube/callback\` as an authorised redirect URI\n` +
+            '4. Open the server dashboard → **Music** section and enter your Client ID and Client Secret\n' +
+            '5. Run `/music auth` again once saved',
           ephemeral: true,
         });
       }

@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "lastScanned": 1780593389471,
+  "lastScanned": 1781126547536,
   "projectRoot": "c:\\Users\\JeffJ\\Projects\\discord-summarizer",
   "techStack": {
     "languages": [
@@ -48,6 +48,7 @@
     "isMonorepo": false,
     "workspaces": [],
     "mainDirectories": [
+      "assets",
       "docs",
       "public",
       "src"
@@ -59,11 +60,20 @@
   },
   "customNotes": [],
   "directoryMap": {
+    "assets": {
+      "path": "assets",
+      "purpose": "Static assets",
+      "fileCount": 1,
+      "lastAccessed": 1781126547322,
+      "keyFiles": [
+        "TorcGrooves.jpg"
+      ]
+    },
     "coverage": {
       "path": "coverage",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1780593388745,
+      "lastAccessed": 1781126547325,
       "keyFiles": [
         "clover.xml",
         "coverage-final.json",
@@ -74,7 +84,7 @@
       "path": "docs",
       "purpose": "Documentation",
       "fileCount": 2,
-      "lastAccessed": 1780593388756,
+      "lastAccessed": 1781126547420,
       "keyFiles": [
         "multi-server-testing.md",
         "stream-notes-multi-server-ai-providers.md"
@@ -84,7 +94,7 @@
       "path": "jest-stare",
       "purpose": null,
       "fileCount": 2,
-      "lastAccessed": 1780593388954,
+      "lastAccessed": 1781126547422,
       "keyFiles": [
         "index.html",
         "jest-results.json"
@@ -94,7 +104,7 @@
       "path": "public",
       "purpose": "Public files",
       "fileCount": 4,
-      "lastAccessed": 1780593388956,
+      "lastAccessed": 1781126547423,
       "keyFiles": [
         "captions.html",
         "dashboard.html",
@@ -106,7 +116,7 @@
       "path": "src",
       "purpose": "Source code",
       "fileCount": 1,
-      "lastAccessed": 1780593388958,
+      "lastAccessed": 1781126547424,
       "keyFiles": [
         "index.js"
       ]
@@ -115,7 +125,7 @@
       "path": "tools",
       "purpose": null,
       "fileCount": 3,
-      "lastAccessed": 1780593388959,
+      "lastAccessed": 1781126547425,
       "keyFiles": [
         "find_escaped_backtick.js",
         "require_commands_test.js",
@@ -125,8 +135,8 @@
     "src\\data": {
       "path": "src\\data",
       "purpose": "Data files",
-      "fileCount": 3,
-      "lastAccessed": 1780593388963,
+      "fileCount": 4,
+      "lastAccessed": 1781126547433,
       "keyFiles": [
         "guild_config.db",
         "last_version.txt",
@@ -136,8 +146,8 @@
     "src\\services": {
       "path": "src\\services",
       "purpose": "Business logic services",
-      "fileCount": 18,
-      "lastAccessed": 1780593388964,
+      "fileCount": 19,
+      "lastAccessed": 1781126547435,
       "keyFiles": [
         "coffee.js",
         "events.js",
@@ -148,7 +158,7 @@
       "path": "src\\utils",
       "purpose": "Utility functions",
       "fileCount": 2,
-      "lastAccessed": 1780593388965,
+      "lastAccessed": 1781126547438,
       "keyFiles": [
         "helpers.js",
         "logger.js"
@@ -157,213 +167,33 @@
   },
   "hotPaths": [
     {
-      "path": "src\\services\\musicService.js",
-      "accessCount": 28,
-      "lastAccessed": 1781122613115,
-      "type": "file"
-    },
-    {
       "path": "public\\dashboard.html",
-      "accessCount": 18,
-      "lastAccessed": 1778687098384,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\sticky.js",
-      "accessCount": 14,
-      "lastAccessed": 1780593539487,
-      "type": "file"
-    },
-    {
-      "path": "src\\index.js",
-      "accessCount": 13,
-      "lastAccessed": 1781110870639,
-      "type": "file"
-    },
-    {
-      "path": "",
-      "accessCount": 12,
-      "lastAccessed": 1778617506012,
-      "type": "directory"
-    },
-    {
-      "path": "src\\events\\messageCreate.js",
-      "accessCount": 11,
-      "lastAccessed": 1781110429856,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\stickyService.js",
-      "accessCount": 9,
-      "lastAccessed": 1780593570912,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\messageStatsService.js",
-      "accessCount": 6,
-      "lastAccessed": 1778618818565,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\guildConfigService.js",
-      "accessCount": 6,
-      "lastAccessed": 1781110576156,
-      "type": "file"
-    },
-    {
-      "path": "README.md",
-      "accessCount": 5,
-      "lastAccessed": 1780328282410,
+      "accessCount": 17,
+      "lastAccessed": 1781182740765,
       "type": "file"
     },
     {
       "path": "src\\services\\httpServer.js",
-      "accessCount": 5,
-      "lastAccessed": 1781110807785,
+      "accessCount": 3,
+      "lastAccessed": 1781127165361,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\musicService.js",
+      "accessCount": 2,
+      "lastAccessed": 1781127061318,
+      "type": "file"
+    },
+    {
+      "path": "src\\services\\guildConfigService.js",
+      "accessCount": 1,
+      "lastAccessed": 1781126976857,
       "type": "file"
     },
     {
       "path": "src\\commands\\music.js",
-      "accessCount": 4,
-      "lastAccessed": 1781120556654,
-      "type": "file"
-    },
-    {
-      "path": "src\\events\\musicRecs.js",
-      "accessCount": 4,
-      "lastAccessed": 1781122622408,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\gather.js",
-      "accessCount": 3,
-      "lastAccessed": 1779110226483,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\groq.js",
-      "accessCount": 3,
-      "lastAccessed": 1779110968274,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\server-summary.js",
-      "accessCount": 3,
-      "lastAccessed": 1780327153821,
-      "type": "file"
-    },
-    {
-      "path": "src",
-      "accessCount": 3,
-      "lastAccessed": 1780593484077,
-      "type": "directory"
-    },
-    {
-      "path": "src\\commands\\setup.js",
-      "accessCount": 3,
-      "lastAccessed": 1781110429450,
-      "type": "file"
-    },
-    {
-      "path": "package.json",
-      "accessCount": 3,
-      "lastAccessed": 1781110526840,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\__tests__\\gather.test.js",
-      "accessCount": 2,
-      "lastAccessed": 1779110275622,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\help.js",
-      "accessCount": 2,
-      "lastAccessed": 1780327149316,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\summarize.js",
-      "accessCount": 2,
-      "lastAccessed": 1780327149438,
-      "type": "file"
-    },
-    {
-      "path": "src\\events\\interactionCreate.js",
-      "accessCount": 2,
-      "lastAccessed": 1781110526782,
-      "type": "file"
-    },
-    {
-      "path": "register-commands.js",
-      "accessCount": 2,
-      "lastAccessed": 1781110531938,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\register.js",
-      "accessCount": 2,
-      "lastAccessed": 1781112517974,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands",
       "accessCount": 1,
-      "lastAccessed": 1778617317155,
-      "type": "directory"
-    },
-    {
-      "path": "src\\data\\message_stats.json",
-      "accessCount": 1,
-      "lastAccessed": 1778617341887,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\schedulerService.js",
-      "accessCount": 1,
-      "lastAccessed": 1779110112164,
-      "type": "file"
-    },
-    {
-      "path": "src\\providers\\index.js",
-      "accessCount": 1,
-      "lastAccessed": 1779110131132,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\remindme.js",
-      "accessCount": 1,
-      "lastAccessed": 1780327153342,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\giveaway.js",
-      "accessCount": 1,
-      "lastAccessed": 1780327174249,
-      "type": "file"
-    },
-    {
-      "path": "src\\commands\\translate.js",
-      "accessCount": 1,
-      "lastAccessed": 1780327174349,
-      "type": "file"
-    },
-    {
-      "path": "src\\services\\reminders.js",
-      "accessCount": 1,
-      "lastAccessed": 1780345295597,
-      "type": "file"
-    },
-    {
-      "path": "src/utils/helpers.js",
-      "accessCount": 1,
-      "lastAccessed": 1780345300493,
-      "type": "directory"
-    },
-    {
-      "path": "src\\utils\\helpers.js",
-      "accessCount": 1,
-      "lastAccessed": 1780345307429,
+      "lastAccessed": 1781127176231,
       "type": "file"
     }
   ],

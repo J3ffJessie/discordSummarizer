@@ -10,6 +10,8 @@ const ALLOWED_CONFIG_FIELDS = new Set([
   'trans_provider', 'trans_api_key', 'trans_model', 'trans_base_url',
   'stt_provider',  'stt_api_key',  'stt_model',  'stt_base_url',
   'admin_user_ids',
+  'google_client_id',
+  'google_client_secret',
 ]);
 
 function readBody(req) {
@@ -26,8 +28,8 @@ function sanitizeConfig(config) {
   const out = { ...config };
   delete out.dashboard_token;
   delete out.dashboard_token_exp;
-  // Replace api key values with a boolean so the UI knows if they're set
-  for (const key of ['summ_api_key', 'trans_api_key', 'stt_api_key']) {
+  // Replace secret values with a boolean so the UI knows if they're set
+  for (const key of ['summ_api_key', 'trans_api_key', 'stt_api_key', 'google_client_secret']) {
     out[key] = !!out[key];
   }
   return out;

@@ -51,6 +51,8 @@ const AI_COLUMNS = [
   'youtube_refresh_token   TEXT',
   'youtube_token_expires   INTEGER',
   'youtube_playlist_id     TEXT',
+  'google_client_id        TEXT',
+  'google_client_secret    TEXT',
 ];
 
 class GuildConfigService {
