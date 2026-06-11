@@ -30,6 +30,7 @@ const { SummarizationService } = require('./services/groq');
 const { MessageStatsService } = require('./services/messageStatsService');
 const { GiveawayService } = require('./services/giveawayService');
 const { StickyService } = require('./services/stickyService');
+const { MusicService } = require('./services/musicService');
 const logger = require('./utils/logger');
 
 /* ===========================
@@ -93,10 +94,12 @@ const messageStatsService = new MessageStatsService();
 const guildConfigService = new GuildConfigService();
 const giveawayService = new GiveawayService();
 const stickyService = new StickyService();
+const musicService = new MusicService(guildConfigService);
 
 const server = createHttpServer({
   guildConfigService,
   giveawayService,
+  musicService,
   discordClient: client,
   getStats: (guildId) => messageStatsService.getStats(guildId),
   getGuild: (guildId) => {
@@ -177,6 +180,7 @@ client.services = {
   messageStats: messageStatsService,
   giveawayService,
   stickyService,
+  musicService,
 };
 
 server.listen(PORT, () => {

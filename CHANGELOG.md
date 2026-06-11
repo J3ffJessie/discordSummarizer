@@ -1,6 +1,7 @@
 # Changelog
 
-## [1.3.0] - 2026-06-01
+## [1.4.0] - 2026-06-11
 
-### Sticky Messages
-Added the ability for admins to use /sticky commands to pin messages to the bottom of channels as well as remove them at will and see all their sticky messages using /sticky view. 
+### Youtube Music Playlist Creation
+
+Google app verification. Configuration in the dashboard for Google app credentials for the application. Set a channel that is used for music links shared by the community and the bot automatically finds that song on YTM and adds it to the generated playlist for the server. If a message is deleted in the chat channel that song will then be removed from the playlist to protect from someone putting inappropriate links or non musical links in and spamming the playlist.
