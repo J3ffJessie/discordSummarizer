@@ -30,12 +30,9 @@ const { SummarizationService } = require('./services/groq');
 const { MessageStatsService } = require('./services/messageStatsService');
 const { GiveawayService } = require('./services/giveawayService');
 const { StickyService } = require('./services/stickyService');
-<<<<<<< HEAD
-const { ResumeReviewService } = require('./services/resumeReviewService');
 const { ProfileService } = require('./services/profileService');
-=======
 const { MusicService } = require('./services/musicService');
->>>>>>> origin/main
+
 const logger = require('./utils/logger');
 
 /* ===========================
@@ -95,21 +92,12 @@ if (fs.existsSync(eventsPath)) {
 
 const PORT = process.env.PORT || 3000;
 
-<<<<<<< HEAD
 const messageStatsService  = new MessageStatsService();
 const guildConfigService   = new GuildConfigService();
 const giveawayService      = new GiveawayService();
 const stickyService        = new StickyService();
-const resumeReviewService  = new ResumeReviewService();
 const profileService       = new ProfileService();
-=======
-const messageStatsService = new MessageStatsService();
-const guildConfigService = new GuildConfigService();
-const giveawayService = new GiveawayService();
-const stickyService = new StickyService();
 const musicService = new MusicService(guildConfigService);
->>>>>>> origin/main
-
 const server = createHttpServer({
   guildConfigService,
   giveawayService,
@@ -194,12 +182,8 @@ client.services = {
   messageStats: messageStatsService,
   giveawayService,
   stickyService,
-<<<<<<< HEAD
-  resumeReviewService,
   profileService,
-=======
   musicService,
->>>>>>> origin/main
 };
 
 server.listen(PORT, () => {

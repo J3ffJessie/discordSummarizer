@@ -43,7 +43,7 @@ describe('MessageStatsService', () => {
       const stats = service.getStats('g1');
       expect(stats.daily[today].total).toBe(1);
       expect(stats.daily[today].channels['ch1'].count).toBe(1);
-      expect(stats.daily[today].users['u1']).toBe(1);
+      expect(stats.daily[today].users['u1'].count).toBe(1);
     });
 
     it('should accumulate multiple messages', () => {

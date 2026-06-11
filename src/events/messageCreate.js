@@ -23,22 +23,5 @@ module.exports = (client) => {
       }
     }
 
-    // ── Resume review ────────────────────────────────────────────────────────
-    const resumeReviewService = client.services?.resumeReviewService;
-    if (resumeReviewService) {
-      const guildConfig    = client.services?.guildConfigService?.getConfig(message.guildId);
-      const resumeEnabled  = guildConfig?.resume_review_enabled || (process.env.RESUME_REVIEW_ENABLED === 'true' ? 1 : 0);
-      const resumeChannel  = guildConfig?.resume_channel_id     || process.env.RESUME_CHANNEL_ID;
-      if (
-        resumeEnabled &&
-        resumeChannel &&
-        message.channel.isThread() &&
-        message.channel.parentId === resumeChannel &&
-        message.attachments.size > 0
-      ) {
-        resumeReviewService.handleMessage(message, guildConfig)
-          .catch(err => console.error('[resume-review] Unhandled error:', err.message));
-      }
-    }
   });
 };

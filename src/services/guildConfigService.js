@@ -41,10 +41,6 @@ const AI_COLUMNS = [
   'installer_user_id   TEXT',
   'admin_user_ids TEXT',
   'coffee_channel_id TEXT',
-<<<<<<< HEAD
-  'resume_channel_id     TEXT',
-  'resume_review_enabled INTEGER NOT NULL DEFAULT 0',
-=======
   'music_channel_id        TEXT',
   'music_enabled           INTEGER DEFAULT 0',
   'spotify_access_token    TEXT',
@@ -57,7 +53,6 @@ const AI_COLUMNS = [
   'youtube_playlist_id     TEXT',
   'google_client_id        TEXT',
   'google_client_secret    TEXT',
->>>>>>> origin/main
 ];
 
 class GuildConfigService {
