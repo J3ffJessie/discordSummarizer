@@ -27,7 +27,7 @@ module.exports = {
         {
           name: '👤 Profile',
           value: [
-            '`/profile edit` — Edit your member profile (bio, title, skills, timezone, networking)',
+            '`/profile edit` — Edit your member profile (bio, title, skills, timezone, networking). Setting networking to **yes** opts you in to bi-weekly coffee chat pairings.',
             '`/profile view` — View your profile or another member\'s profile',
           ].join('\n'),
           inline: false,

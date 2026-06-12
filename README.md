@@ -13,6 +13,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 - **Web dashboard** — Admins configure all settings and AI provider keys through a browser UI (no slash commands required for setup)
 - **Resume review** — Automatically reviews resumes posted as attachments in a designated channel; the bot replies in the thread with structured AI feedback covering summary, skills, experience, education, formatting, and top improvements
 - **Sticky messages** — Admins can pin a persistent message to the bottom of any channel; the bot automatically reposts it whenever a new message is sent so it always stays visible
+- **Member profiles** — Members can set a public profile (bio, role/title, skills, timezone) and opt in to bi-weekly coffee chat pairings directly from their profile
 - **Reminders** — Set, list, and cancel personal reminders delivered via DM
 - **Events** — Fetch and display upcoming server events
 
@@ -237,6 +238,15 @@ Fetches and DMs you the next 7 days of scheduled server events (up to 10).
 
 ---
 
+### `/profile`
+
+| Subcommand | Description |
+|-----------|-------------|
+| `edit` | Opens a modal to set your bio, role/title, skills, timezone, and networking preference. Setting networking to **yes** opts you in to the server's bi-weekly coffee chat pairings. |
+| `view` | Displays your profile (or another member's) as an embed — showing their avatar, banner, bio, role, skills, timezone, and networking status. |
+
+---
+
 ### `/setup resume-channel`
 *(Admin only)* Designates a text or forum channel as the resume review channel. Once set, the bot monitors all threads in that channel and automatically reviews any resume attachment posted there.
 
@@ -360,6 +370,7 @@ discord-summarizer/
 │   │   ├── remindme.js
 │   │   ├── listreminders.js
 │   │   ├── cancelreminder.js
+│   │   ├── profile.js
 │   │   ├── events.js
 │   │   ├── location.js
 │   │   └── downloadlocations.js
@@ -380,6 +391,7 @@ discord-summarizer/
 │   │   ├── schedulerService.js     # Cron job management (summary + coffee pairing)
 │   │   ├── httpServer.js           # HTTP server — dashboard API, static files, health check
 │   │   ├── coffee.js               # Coffee pairing logic (matching algorithm, channel announcements, DM fallback)
+│   │   ├── profileService.js        # SQLite store for member profiles + buildProfileEmbed helper
 │   │   ├── resumeReviewService.js  # Resume review — attachment download, text extraction, AI review, chunked reply
 │   │   └── gather.js               # Message gathering and summarization for server summary
 │   └── utils/

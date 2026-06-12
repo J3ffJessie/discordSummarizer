@@ -5,10 +5,14 @@ jest.mock('../../services/profileService', () => ({
 const profileCmd = require('../profile');
 const { buildProfileEmbed } = require('../../services/profileService');
 
-function makeInteraction({ sub = 'view', targetUser = null, existingProfile = null } = {}) {
+function makeInteraction({ sub = 'view', targetUser = null } = {}) {
+  const self = { id: 'u1', username: 'alice' };
+  self.fetch = jest.fn().mockResolvedValue(self);
+  self.send = jest.fn().mockResolvedValue(undefined);
+  const target = targetUser ?? self;
   return {
     guildId: 'g1',
-    user: { id: 'u1', username: 'alice' },
+    user: self,
     guild: {
       members: {
         fetch: jest.fn().mockResolvedValue({ displayName: 'Alice', user: { username: 'alice' } }),
@@ -16,7 +20,7 @@ function makeInteraction({ sub = 'view', targetUser = null, existingProfile = nu
     },
     options: {
       getSubcommand: jest.fn().mockReturnValue(sub),
-      getUser: jest.fn().mockReturnValue(targetUser),
+      getUser: jest.fn().mockReturnValue(target),
     },
     showModal: jest.fn().mockResolvedValue(undefined),
     reply: jest.fn().mockResolvedValue(undefined),
@@ -49,19 +53,19 @@ describe('/profile command', () => {
   });
 
   describe('view subcommand', () => {
-    it('should fetch member and reply with profile embed for self', async () => {
-      const interaction = makeInteraction({ sub: 'view', targetUser: null });
+    it('should DM the profile embed to the invoking user', async () => {
+      const interaction = makeInteraction({ sub: 'view' });
       await profileCmd.execute(interaction, makeServices(null));
       expect(buildProfileEmbed).toHaveBeenCalled();
-      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ embeds: expect.any(Array) }));
+      expect(interaction.user.send).toHaveBeenCalledWith(expect.objectContaining({ embeds: expect.any(Array) }));
+      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }));
     });
 
-    it('should fetch another user when target is specified', async () => {
-      const targetUser = { id: 'u2', username: 'bob' };
-      const interaction = makeInteraction({ sub: 'view', targetUser });
+    it('should fall back to ephemeral reply if DMs are disabled', async () => {
+      const interaction = makeInteraction({ sub: 'view' });
+      interaction.user.send = jest.fn().mockRejectedValue(new Error('Cannot send DM'));
       await profileCmd.execute(interaction, makeServices(null));
-      expect(interaction.guild.members.fetch).toHaveBeenCalledWith('u2');
-      expect(buildProfileEmbed).toHaveBeenCalledWith(targetUser, expect.anything(), null);
+      expect(interaction.reply).toHaveBeenCalledWith(expect.objectContaining({ embeds: expect.any(Array), ephemeral: true }));
     });
   });
 

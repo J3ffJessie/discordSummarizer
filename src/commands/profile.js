@@ -21,8 +21,8 @@ module.exports = {
         .setDescription("View a member's profile")
         .addUserOption(opt =>
           opt.setName('user')
-            .setDescription('Member to view (defaults to you)')
-            .setRequired(false)
+            .setDescription('Member to view')
+            .setRequired(true)
         )
     )
     .toJSON(),
@@ -43,7 +43,7 @@ module.exports = {
             .setCustomId('bio')
             .setLabel('About me')
             .setStyle(TextInputStyle.Paragraph)
-            .setMaxLength(300)
+            .setMaxLength(400)
             .setRequired(false)
             .setValue(existing?.bio || '')
         ),
@@ -81,6 +81,7 @@ module.exports = {
             .setStyle(TextInputStyle.Short)
             .setMaxLength(3)
             .setRequired(false)
+            .setPlaceholder('yes = opts you in to bi-weekly coffee chat pairings')
             .setValue(existing?.networking ? 'yes' : 'no')
         ),
       );
@@ -90,12 +91,21 @@ module.exports = {
     }
 
     if (sub === 'view') {
-      const targetUser = interaction.options.getUser('user') || interaction.user;
-      const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+      const targetUser = interaction.options.getUser('user');
+      const [member, fullUser] = await Promise.all([
+        interaction.guild.members.fetch(targetUser.id).catch(() => null),
+        targetUser.fetch().catch(() => targetUser),
+      ]);
       const profile = services.profileService?.getProfile(interaction.guildId, targetUser.id);
 
-      const embed = buildProfileEmbed(targetUser, member, profile);
-      await interaction.reply({ embeds: [embed] });
+      const embed = buildProfileEmbed(fullUser, member, profile);
+
+      try {
+        await interaction.user.send({ embeds: [embed] });
+        await interaction.reply({ content: 'Profile sent to your DMs!', ephemeral: true });
+      } catch {
+        await interaction.reply({ embeds: [embed], ephemeral: true });
+      }
     }
   },
 

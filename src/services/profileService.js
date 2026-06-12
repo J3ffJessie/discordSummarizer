@@ -64,14 +64,14 @@ class ProfileService {
 
 function buildProfileEmbed(user, member, profile) {
   const displayName = member?.displayName || user?.globalName || user?.username || 'Unknown';
-  const color = member?.displayHexColor && member.displayHexColor !== '#000000'
-    ? member.displayHexColor
-    : 0x5865F2;
 
   const embed = new EmbedBuilder()
     .setTitle(displayName)
     .setThumbnail(user?.displayAvatarURL?.({ size: 128 }) ?? null)
-    .setColor(color);
+    .setColor(0x002ca3);
+
+  const bannerUrl = user?.bannerURL?.({ size: 1024 });
+  if (bannerUrl) embed.setImage(bannerUrl);
 
   if (member?.joinedAt) {
     const joined = member.joinedAt.toLocaleDateString('en-US', {
@@ -89,11 +89,11 @@ function buildProfileEmbed(user, member, profile) {
   if (profile.bio) embed.setDescription(profile.bio);
 
   const fields = [];
-  if (profile.title)    fields.push({ name: 'Role',              value: profile.title,    inline: true });
-  if (profile.timezone) fields.push({ name: 'Timezone',          value: profile.timezone, inline: true });
-  if (profile.skills)   fields.push({ name: 'Skills & Interests', value: profile.skills });
+  if (profile.title)    fields.push({ name: '🧑‍💼 Role',              value: profile.title,    inline: true });
+  if (profile.timezone) fields.push({ name: '🌍 Timezone',            value: profile.timezone, inline: true });
+  if (profile.skills)   fields.push({ name: '🛠️ Skills & Interests',  value: profile.skills });
   fields.push({
-    name: 'Networking',
+    name: '🤝 Networking',
     value: profile.networking ? '✅ Open to connect' : '❌ Not currently looking',
     inline: true,
   });
