@@ -32,6 +32,7 @@ const { GiveawayService } = require('./services/giveawayService');
 const { StickyService } = require('./services/stickyService');
 const { ProfileService } = require('./services/profileService');
 const { MusicService } = require('./services/musicService');
+const { ResumeReviewService } = require('./services/resumeReviewService');
 
 const logger = require('./utils/logger');
 
@@ -98,6 +99,7 @@ const giveawayService      = new GiveawayService();
 const stickyService        = new StickyService();
 const profileService       = new ProfileService();
 const musicService = new MusicService(guildConfigService);
+const resumeReviewService  = new ResumeReviewService();
 const server = createHttpServer({
   guildConfigService,
   giveawayService,
@@ -184,6 +186,7 @@ client.services = {
   stickyService,
   profileService,
   musicService,
+  resumeReviewService,
 };
 
 server.listen(PORT, () => {

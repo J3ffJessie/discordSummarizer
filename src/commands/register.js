@@ -4,6 +4,7 @@ const path = require('path');
 require('dotenv').config();
 
 const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID  = process.env.GUILD_ID;
 const TOKEN = process.env.DISCORD_TOKEN;
 
 if (!TOKEN || !CLIENT_ID) {
@@ -24,7 +25,12 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 (async () => {
   try {
     console.log('Registering commands...');
-    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+    await rest.put(
+      GUILD_ID
+        ? Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID)
+        : Routes.applicationCommands(CLIENT_ID),
+      { body: commands }
+    );
 
     console.log('Commands registered');
   } catch (err) {
