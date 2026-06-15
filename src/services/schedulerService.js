@@ -12,10 +12,11 @@ function getISOWeek(date) {
 }
 
 class SchedulerService {
-  constructor(client, guildConfigService, summarizationService) {
+  constructor(client, guildConfigService, summarizationService, profileService = null) {
     this.client = client;
     this.guildConfigService = guildConfigService;
     this.summarizationService = summarizationService;
+    this.profileService = profileService;
     // Map<guildId, { summaryTask: ScheduledTask|null, coffeeTask: ScheduledTask|null }>
     this.tasks = new Map();
   }
@@ -144,7 +145,8 @@ class SchedulerService {
       guild,
       config.coffee_role_name || process.env.COFFEE_ROLE_NAME || 'coffee chat',
       'scheduled',
-      config.coffee_channel_id || null
+      config.coffee_channel_id || null,
+      this.profileService
     );
 
     logger.notifyAdmin(

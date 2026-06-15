@@ -67,6 +67,25 @@ class OpenAICompatibleAdapter {
     });
     return response.choices[0].message.content;
   }
+
+  async chatWithVision(systemPrompt, userText, imageBuffer, mimeType, options = {}) {
+    const base64   = imageBuffer.toString('base64');
+    const response = await this.client.chat.completions.create({
+      model:       this.model,
+      max_tokens:  options.max_tokens ?? 2048,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        {
+          role: 'user',
+          content: [
+            { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
+            { type: 'text', text: userText },
+          ],
+        },
+      ],
+    });
+    return response.choices[0].message.content;
+  }
 }
 
 class AnthropicAdapter {
@@ -82,6 +101,23 @@ class AnthropicAdapter {
       max_tokens: options.max_tokens ?? 1024,
       system: systemPrompt,
       messages: [{ role: 'user', content: userContent }],
+    });
+    return response.content[0].text;
+  }
+
+  async chatWithVision(systemPrompt, userText, imageBuffer, mimeType, options = {}) {
+    const base64   = imageBuffer.toString('base64');
+    const response = await this.client.messages.create({
+      model:      this.model,
+      max_tokens: options.max_tokens ?? 2048,
+      system:     systemPrompt,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
+          { type: 'text',  text: userText },
+        ],
+      }],
     });
     return response.content[0].text;
   }
@@ -225,4 +261,8 @@ function createTranscriptionProvider(guildConfig) {
   }
 }
 
-module.exports = { createChatProvider, createTranscriptionProvider };
+function supportsVision(provider) {
+  return ['anthropic', 'openai'].includes(provider);
+}
+
+module.exports = { createChatProvider, createTranscriptionProvider, resolveConfig, supportsVision };

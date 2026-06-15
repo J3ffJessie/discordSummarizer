@@ -8,7 +8,7 @@ module.exports = {
     try {
       const config = services?.guildConfigService?.getConfig(interaction.guildId);
       const channelId = config?.coffee_channel_id || null;
-      const res = await coffeeService.runCoffeePairing(interaction.guild, process.env.COFFEE_ROLE_NAME, 'manual', channelId);
+      const res = await coffeeService.runCoffeePairing(interaction.guild, process.env.COFFEE_ROLE_NAME, 'manual', channelId, services.profileService);
       if (!res || res.length === 0) {
         await interaction.followUp({ content: '⚠️ No pairings created — not enough eligible members or member fetch timed out.', ephemeral: true });
       } else {

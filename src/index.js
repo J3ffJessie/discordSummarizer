@@ -30,7 +30,9 @@ const { SummarizationService } = require('./services/groq');
 const { MessageStatsService } = require('./services/messageStatsService');
 const { GiveawayService } = require('./services/giveawayService');
 const { StickyService } = require('./services/stickyService');
+const { ProfileService } = require('./services/profileService');
 const { MusicService } = require('./services/musicService');
+
 const logger = require('./utils/logger');
 
 /* ===========================
@@ -90,12 +92,12 @@ if (fs.existsSync(eventsPath)) {
 
 const PORT = process.env.PORT || 3000;
 
-const messageStatsService = new MessageStatsService();
-const guildConfigService = new GuildConfigService();
-const giveawayService = new GiveawayService();
-const stickyService = new StickyService();
+const messageStatsService  = new MessageStatsService();
+const guildConfigService   = new GuildConfigService();
+const giveawayService      = new GiveawayService();
+const stickyService        = new StickyService();
+const profileService       = new ProfileService();
 const musicService = new MusicService(guildConfigService);
-
 const server = createHttpServer({
   guildConfigService,
   giveawayService,
@@ -111,8 +113,8 @@ const server = createHttpServer({
     const guild = client.guilds.cache.get(guildId || process.env.GUILD_ID);
     if (!guild) return [];
     return guild.channels.cache
-      .filter(c => c.isTextBased() && !c.isDMBased() && !c.isThread())
-      .map(c => ({ id: c.id, name: c.name }))
+      .filter(c => (c.isTextBased() && !c.isDMBased() && !c.isThread()) || c.type === 15)
+      .map(c => ({ id: c.id, name: c.name, type: c.type }))
       .sort((a, b) => a.name.localeCompare(b.name));
   },
   getMembers: (guildId) => {
@@ -168,7 +170,7 @@ const voiceService = new VoiceService(
   translationService
 );
 
-const schedulerService = new SchedulerService(client, guildConfigService, summarizationService);
+const schedulerService = new SchedulerService(client, guildConfigService, summarizationService, profileService);
 
 client.services = {
   guildConfigService,
@@ -180,6 +182,7 @@ client.services = {
   messageStats: messageStatsService,
   giveawayService,
   stickyService,
+  profileService,
   musicService,
 };
 

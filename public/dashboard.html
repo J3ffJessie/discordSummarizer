@@ -340,7 +340,8 @@
       Music</a>
     <a class="nav-item" href="#section-giveaways">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 7h-1.26A4.5 4.5 0 0 0 12 2.5 4.5 4.5 0 0 0 5.26 7H4a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h1v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7h1a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2zm-8-2.5A2.5 2.5 0 0 1 14.5 7H12V4.5zM9.5 7A2.5 2.5 0 0 1 12 4.5V7H9.5zM11 20H7v-7h4v7zm6 0h-4v-7h4v7zm2-9H5V9h14v2z"/></svg>
-      Giveaways</a>
+      Giveaways
+    </a>
   </div>
 </div>
 
@@ -1581,13 +1582,16 @@
         const selSummary = document.getElementById('cfg-summary-channel');
         const selCoffee  = document.getElementById('cfg-coffee-channel');
         channels.forEach(c => {
-          const opt1 = document.createElement('option');
-          opt1.value = c.id; opt1.textContent = '#' + c.name;
-          selSummary.appendChild(opt1);
+          const isForum = c.type === 15;
+          if (!isForum) {
+            const opt1 = document.createElement('option');
+            opt1.value = c.id; opt1.textContent = '#' + c.name;
+            selSummary.appendChild(opt1);
 
-          const opt2 = document.createElement('option');
-          opt2.value = c.id; opt2.textContent = '#' + c.name;
-          selCoffee.appendChild(opt2);
+            const opt2 = document.createElement('option');
+            opt2.value = c.id; opt2.textContent = '#' + c.name;
+            selCoffee.appendChild(opt2);
+          }
         });
       } catch(err) { console.error('Channels fetch error:', err); }
     }
@@ -1634,6 +1638,7 @@
       // Admin IDs
       try { adminIds = cfg.admin_user_ids ? JSON.parse(cfg.admin_user_ids) : []; } catch { adminIds = []; }
       renderAdminTags();
+
     }
 
     function renderAdminTags() {

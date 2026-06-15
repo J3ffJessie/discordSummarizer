@@ -68,7 +68,7 @@ describe('SummarizationService (groq)', () => {
       expect(mockChat).toHaveBeenCalledWith(
         expect.stringContaining('summarizer'),
         expect.any(String),
-        expect.objectContaining({ temperature: 0.3, max_tokens: 2048 })
+        expect.objectContaining({ temperature: 0.3, max_tokens: 1024 })
       );
       expect(result).toContain('Summary');
     });
