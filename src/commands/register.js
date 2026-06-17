@@ -4,10 +4,17 @@ const path = require('path');
 require('dotenv').config();
 
 const CLIENT_ID = process.env.CLIENT_ID;
-const TOKEN = process.env.DISCORD_TOKEN;
+const GUILD_ID  = process.env.GUILD_ID;
+const TOKEN     = process.env.DISCORD_TOKEN;
+const isGuild   = process.argv.includes('--guild');
 
 if (!TOKEN || !CLIENT_ID) {
   console.error('DISCORD_TOKEN and CLIENT_ID must be set');
+  process.exit(1);
+}
+
+if (isGuild && !GUILD_ID) {
+  console.error('GUILD_ID must be set in .env to use --guild');
   process.exit(1);
 }
 
@@ -23,8 +30,13 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
   try {
-    console.log('Registering commands...');
-    await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+    if (isGuild) {
+      console.log(`Registering commands to guild ${GUILD_ID} (instant)...`);
+      await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
+    } else {
+      console.log('Registering commands globally (~1 hour to propagate)...');
+      await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+    }
 
     console.log('Commands registered');
   } catch (err) {

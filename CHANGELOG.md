@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.5.0] - 2026-06-15
+## [1.5.1] - 2026-06-17
 
-### Server Profile 
-You can now have a specific Server Profile without Nitro. Add your bio and other details. Also conveniently attaches with coffee pairing so if you select Yes to networking you will be auto enrolled into the coffee pairings. 
+### Sticky Fix 
+Implemented a fix for sticky messages where it displays a modal for content entry so that you can format the message better instead of plain text where it gets squished together and doesn't allow for spacing of the message.

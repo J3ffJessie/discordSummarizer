@@ -1,10 +1,37 @@
-const { Events } = require('discord.js');
+const { Events, EmbedBuilder } = require('discord.js');
 const { MODAL_ID: PROFILE_MODAL_ID } = require('../commands/profile');
+const { MODAL_ID: STICKY_MODAL_ID } = require('../commands/sticky');
 
 module.exports = (client) => {
   client.on(Events.InteractionCreate, async (interaction) => {
     // Modal submissions
     if (interaction.isModalSubmit()) {
+      if (interaction.customId === STICKY_MODAL_ID) {
+        const { stickyService } = client.services;
+        const content = interaction.fields.getTextInputValue('sticky_content').trim();
+        const channelId = interaction.channelId;
+
+        const existing = stickyService.getSticky(channelId);
+        if (existing?.message_id) {
+          try {
+            const old = await interaction.channel.messages.fetch(existing.message_id);
+            await old.delete();
+          } catch { /* already deleted */ }
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+
+        const stickyEmbed = new EmbedBuilder()
+          .setColor(0xFFD700)
+          .setTitle('📌 Sticky Message')
+          .setDescription(content);
+        const sent = await interaction.channel.send({ embeds: [stickyEmbed] });
+        stickyService.setSticky(channelId, interaction.guildId, content, interaction.user.id, sent.id);
+
+        await interaction.editReply({ content: '✅ Sticky message set for this channel.' });
+        return;
+      }
+
       if (interaction.customId === PROFILE_MODAL_ID) {
         const { profileService, guildConfigService } = client.services;
         const str = (field) => interaction.fields.getTextInputValue(field).trim() || null;
