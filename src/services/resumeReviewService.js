@@ -149,7 +149,7 @@ class ResumeReviewService {
 Evaluate clarity, tailoring to a target role, and impact. Note if it's missing or too generic. Ensure that the Summary is in bullet format.
 
 **2. Skills**
-Assess relevance, specificity, and organization. Flag missing hard skills or overly vague soft skills.
+Assess relevance, specificity, and organization. Flag missing hard skills or overly vague soft skills. Do not suggest soft skills be listed in the skills section.
 
 **3. Experience**
 Check for strong action verbs, quantified achievements (numbers, percentages, outcomes), and relevance. Flag bullet points that only describe duties without showing impact.
