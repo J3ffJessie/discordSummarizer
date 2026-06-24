@@ -10,7 +10,8 @@ const {
 } = require('@discordjs/voice');
 const { EmbedBuilder } = require('discord.js');
 const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
-const { createChatProvider } = require('../providers');
+const { createChatProvider, resolveConfig } = require('../providers');
+const Groq = require('groq-sdk');
 const OpusScript = require('opusscript');
 const fs = require('fs');
 const path = require('path');
@@ -132,19 +133,32 @@ class InterviewService {
 
   async generateSummary(jdText, history, guildId, company = null, style = 'behavioral') {
     const guildConfig = this.gcs?.getConfig(guildId) || null;
-    const provider = createChatProvider('summ', guildConfig);
+    const { apiKey } = resolveConfig('summ', guildConfig);
+    const groq = new Groq({ apiKey });
     const truncatedJd = jdText.substring(0, 3000);
     const companyContext = company ? ` The candidate interviewed at: ${company}.` : '';
     const styleInstructions = this._styleInstructions(style);
 
-    const result = await provider.chat(
-      `You are an expert hiring manager evaluating a job interview.${companyContext} The interview was conducted in the following style: ${styleInstructions} Based on the job description and the candidate's answers, return ONLY valid JSON with this exact shape: { "score": <integer 1-10>, "strengths": [<string>, ...], "gaps": [<string>, ...] }. No markdown, no explanation — just JSON.`,
-      JSON.stringify({ job_description: truncatedJd, interview_transcript: history }),
-      { max_tokens: 1024, temperature: 0.3 }
-    );
+    const completion = await groq.chat.completions.create({
+      model: 'deepseek-r1-distill-llama-70b',
+      max_tokens: 1024,
+      temperature: 0.3,
+      messages: [
+        {
+          role: 'system',
+          content: `You are an expert hiring manager evaluating a job interview.${companyContext} The interview was conducted in the following style: ${styleInstructions} Based on the job description and the candidate's answers, return ONLY valid JSON with this exact shape: { "score": <integer 1-10>, "strengths": [<string>, ...], "gaps": [<string>, ...] }. No markdown, no explanation — just JSON.`,
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({ job_description: truncatedJd, interview_transcript: history }),
+        },
+      ],
+    });
 
     try {
-      return JSON.parse(result.trim());
+      const raw = completion.choices[0].message.content;
+      const stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+      return JSON.parse(stripped);
     } catch {
       return { score: 5, strengths: ['Interview completed'], gaps: ['Evaluation could not be parsed'] };
     }
@@ -320,7 +334,11 @@ class InterviewService {
       if (!session.aborted && history.length > 0) {
         const summary = await this.generateSummary(jdText, history, guildId, company, style);
         const embed = this._buildSummaryEmbed(summary, history, member);
-        await originalChannel.send({ embeds: [embed] }).catch(() => {});
+        try {
+          await member.send({ embeds: [embed] });
+        } catch {
+          await originalChannel.send({ content: `<@${member.id}>`, embeds: [embed] }).catch(() => {});
+        }
       }
     } catch (err) {
       console.error('[interview] Error during interview:', err?.message);
@@ -341,7 +359,11 @@ class InterviewService {
       try {
         const summary = await this.generateSummary(session.jdText, session.history, session.guildId, session.company, session.style);
         const embed = this._buildSummaryEmbed(summary, session.history, session.member);
-        await session.originalChannel.send({ embeds: [embed] }).catch(() => {});
+        try {
+          await session.member.send({ embeds: [embed] });
+        } catch {
+          await session.originalChannel.send({ content: `<@${session.member.id}>`, embeds: [embed] }).catch(() => {});
+        }
       } catch (err) {
         console.error('[interview] Failed to generate early-stop summary:', err?.message);
       }
