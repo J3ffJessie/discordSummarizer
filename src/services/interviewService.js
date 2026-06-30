@@ -20,6 +20,7 @@ const os = require('os');
 const MAX_QUESTIONS = 8;
 const MAX_ANSWER_WAIT_MS = 45000;
 const MIN_ANSWER_CHARS = 5;
+const ANSWER_SILENCE_MS = 2500; // wait for this long a pause before treating the answer as done
 
 class InterviewService {
   constructor(client, transcriptionService, guildConfigService) {
@@ -121,8 +122,8 @@ class InterviewService {
     const styleInstructions = this._styleInstructions(style);
 
     const systemPrompt = history.length === 0
-      ? `You are a professional job interviewer conducting a voice interview.${companyContext} ${styleInstructions} Based on the job description, ask a single clear opening interview question directly relevant to the role. Return ONLY the question — no preamble, numbering, or explanation.`
-      : `You are a professional job interviewer conducting a voice interview.${companyContext} ${styleInstructions} Based on the job description and prior Q&A history, ask a single follow-up question that probes deeper into the candidate's experience and skills. Return ONLY the question — no preamble, numbering, or explanation.`;
+      ? `You are a professional job interviewer conducting a voice interview.${companyContext} ${styleInstructions} Based on the job description, ask a single concise opening interview question directly relevant to the role. Keep it short — one sentence, no multi-part questions. Return ONLY the question — no preamble, numbering, or explanation.`
+      : `You are a professional job interviewer conducting a voice interview.${companyContext} ${styleInstructions} Based on the job description and prior Q&A history, ask a single concise follow-up question that probes deeper into the candidate's experience. Keep it short — one sentence, no multi-part questions. Return ONLY the question — no preamble, numbering, or explanation.`;
 
     return await provider.chat(
       systemPrompt,
@@ -140,7 +141,7 @@ class InterviewService {
     const styleInstructions = this._styleInstructions(style);
 
     const completion = await groq.chat.completions.create({
-      model: 'deepseek-r1-distill-llama-70b',
+      model: 'llama-3.3-70b-versatile',
       max_tokens: 1024,
       temperature: 0.3,
       messages: [
@@ -205,7 +206,7 @@ class InterviewService {
 
   async captureAnswer(receiver, userId, guildId) {
     const opusStream = receiver.subscribe(userId, {
-      end: { behavior: EndBehaviorType.AfterSilence, duration: 1000 },
+      end: { behavior: EndBehaviorType.AfterSilence, duration: ANSWER_SILENCE_MS },
     });
 
     const decoder = new OpusScript(48000, 2, OpusScript.Application.AUDIO);

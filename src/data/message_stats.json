@@ -1,8 +1,111 @@
 {
   "guilds": {
     "1432392018008739882": {
-      "lastBackfill": "2026-06-24T16:21:46.674Z",
+      "lastBackfill": "2026-06-30T12:43:02.633Z",
       "daily": {
+        "2026-04-28": {
+          "total": 45,
+          "channels": {
+            "1432392019308843161": {
+              "name": "general",
+              "count": 16
+            },
+            "1432392019308843162": {
+              "name": "General",
+              "count": 29
+            }
+          },
+          "users": {
+            "280096257282670592": {
+              "count": 7,
+              "name": "Jeff"
+            },
+            "837878612891009034": {
+              "count": 3,
+              "name": "Roxy RodBeck"
+            },
+            "630934203139227658": {
+              "count": 29,
+              "name": "alanacapcreates"
+            },
+            "1151686192253898843": {
+              "count": 6,
+              "name": "Lucas"
+            }
+          },
+          "newMembers": 3,
+          "accountAges": {
+            "new": 0,
+            "established": 0,
+            "veteran": 3
+          }
+        },
+        "2026-06-30": {
+          "total": 23,
+          "channels": {
+            "1432392019308843161": {
+              "name": "general",
+              "count": 23
+            }
+          },
+          "users": {
+            "280096257282670592": {
+              "count": 12,
+              "name": "Jeff"
+            },
+            "417494193812799508": {
+              "count": 9,
+              "name": "MrDeathray"
+            },
+            "1186762076857843824": {
+              "count": 2,
+              "name": "Solomon Neas"
+            }
+          },
+          "newMembers": 1,
+          "accountAges": {
+            "new": 0,
+            "established": 0,
+            "veteran": 1
+          }
+        },
+        "2026-06-29": {
+          "total": 15,
+          "channels": {
+            "1432392019308843161": {
+              "name": "general",
+              "count": 14
+            },
+            "1506657786090492074": {
+              "name": "giggles",
+              "count": 1
+            }
+          },
+          "users": {
+            "280096257282670592": {
+              "count": 9,
+              "name": "Jeff"
+            },
+            "1506473969048486008": {
+              "count": 2,
+              "name": "KyAaron"
+            },
+            "417494193812799508": {
+              "count": 1,
+              "name": "MrDeathray"
+            },
+            "489806834392236077": {
+              "count": 3,
+              "name": "Dave S."
+            }
+          },
+          "newMembers": 3,
+          "accountAges": {
+            "new": 0,
+            "established": 1,
+            "veteran": 2
+          }
+        },
         "2026-06-01": {
           "total": 4,
           "channels": {
@@ -56,96 +159,6 @@
             }
           }
         },
-        "2026-04-28": {
-          "total": 45,
-          "channels": {
-            "1432392019308843161": {
-              "name": "general",
-              "count": 16
-            },
-            "1432392019308843162": {
-              "name": "General",
-              "count": 29
-            }
-          },
-          "users": {
-            "280096257282670592": {
-              "count": 7,
-              "name": "Jeff"
-            },
-            "837878612891009034": {
-              "count": 3,
-              "name": "Roxy RodBeck"
-            },
-            "630934203139227658": {
-              "count": 29,
-              "name": "alanacapcreates"
-            },
-            "1151686192253898843": {
-              "count": 6,
-              "name": "Lucas"
-            }
-          },
-          "newMembers": 3,
-          "accountAges": {
-            "new": 0,
-            "established": 0,
-            "veteran": 3
-          }
-        },
-        "2026-06-10": {
-          "total": 84,
-          "channels": {
-            "1506657786090492074": {
-              "name": "giggles",
-              "count": 1
-            },
-            "1514313313939493086": {
-              "name": "music-recs",
-              "count": 83
-            }
-          },
-          "users": {
-            "280096257282670592": {
-              "count": 56,
-              "name": "Jeff"
-            },
-            "1151686192253898843": {
-              "count": 28,
-              "name": "Lucas"
-            }
-          }
-        },
-        "2026-06-09": {
-          "total": 1,
-          "channels": {
-            "1506657786090492074": {
-              "name": "giggles",
-              "count": 1
-            }
-          },
-          "users": {
-            "280096257282670592": {
-              "count": 1,
-              "name": "Jeff"
-            }
-          }
-        },
-        "2026-06-04": {
-          "total": 1,
-          "channels": {
-            "1506657786090492074": {
-              "name": "giggles",
-              "count": 1
-            }
-          },
-          "users": {
-            "280096257282670592": {
-              "count": 1,
-              "name": "Jeff"
-            }
-          }
-        },
         "2026-05-20": {
           "total": 1,
           "channels": {
@@ -157,6 +170,25 @@
           "users": {
             "280096257282670592": {
               "count": 1,
+              "name": "Jeff"
+            }
+          }
+        },
+        "2026-06-10": {
+          "total": 83,
+          "channels": {
+            "1514313313939493086": {
+              "name": "music-recs",
+              "count": 83
+            }
+          },
+          "users": {
+            "1151686192253898843": {
+              "count": 28,
+              "name": "Lucas"
+            },
+            "280096257282670592": {
+              "count": 55,
               "name": "Jeff"
             }
           }
