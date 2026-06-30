@@ -18,7 +18,7 @@ const path = require('path');
 const os = require('os');
 
 const MAX_QUESTIONS = 8;
-const MAX_ANSWER_WAIT_MS = 45000;
+const MAX_ANSWER_WAIT_MS = 65000;
 const MIN_ANSWER_CHARS = 5;
 const ANSWER_SILENCE_MS = 2500; // wait for this long a pause before treating the answer as done
 
