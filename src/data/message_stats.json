@@ -1,7 +1,7 @@
 {
   "guilds": {
     "1432392018008739882": {
-      "lastBackfill": "2026-06-30T12:43:02.633Z",
+      "lastBackfill": "2026-06-30T19:34:12.634Z",
       "daily": {
         "2026-04-28": {
           "total": 45,
@@ -41,25 +41,25 @@
           }
         },
         "2026-06-30": {
-          "total": 23,
+          "total": 28,
           "channels": {
             "1432392019308843161": {
               "name": "general",
-              "count": 23
+              "count": 28
             }
           },
           "users": {
+            "1186762076857843824": {
+              "count": 3,
+              "name": "Solomon Neas"
+            },
             "280096257282670592": {
-              "count": 12,
+              "count": 15,
               "name": "Jeff"
             },
             "417494193812799508": {
-              "count": 9,
+              "count": 10,
               "name": "MrDeathray"
-            },
-            "1186762076857843824": {
-              "count": 2,
-              "name": "Solomon Neas"
             }
           },
           "newMembers": 1,
@@ -140,21 +140,6 @@
             },
             "280096257282670592": {
               "count": 10,
-              "name": "Jeff"
-            }
-          }
-        },
-        "2026-05-01": {
-          "total": 1,
-          "channels": {
-            "1432392019308843161": {
-              "name": "general",
-              "count": 1
-            }
-          },
-          "users": {
-            "280096257282670592": {
-              "count": 1,
               "name": "Jeff"
             }
           }
