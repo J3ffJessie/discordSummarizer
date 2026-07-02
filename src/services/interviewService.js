@@ -21,6 +21,8 @@ const MAX_QUESTIONS = 8;
 const MAX_ANSWER_WAIT_MS = 65000;
 const MIN_ANSWER_CHARS = 5;
 const ANSWER_SILENCE_MS = 2500; // wait for this long a pause before treating the answer as done
+const MAX_TTS_ATTEMPTS = 3;
+const TTS_RETRY_BASE_MS = 500; // exponential backoff: 500ms, 1000ms, ...
 
 class InterviewService {
   constructor(client, transcriptionService, guildConfigService) {
@@ -165,21 +167,38 @@ class InterviewService {
     }
   }
 
+  // Possible options for the voice
+  // en-US-AriaNeural — current (US female)
+  // en-US-GuyNeural — US male
+  // en-US-JennyNeural — US female
+  // en-US-EricNeural — US male
+  // en-GB-SoniaNeural — British female
+  // en-GB-RyanNeural — British male
+  // en-AU-NatashaNeural — Australian female
+  async _synthesizeSpeech(tmpDir, text, userId, attempt = 1) {
+    try {
+      const tts = new MsEdgeTTS();
+      await tts.setMetadata('en-US-AriaNeural', OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
+      const { audioFilePath } = await tts.toFile(tmpDir, text);
+      return audioFilePath;
+    } catch (err) {
+      if (attempt >= MAX_TTS_ATTEMPTS) {
+        console.error(`[interview] TTS failed for ${userId} after ${MAX_TTS_ATTEMPTS} attempts:`, err?.message);
+        return null;
+      }
+      console.warn(`[interview] TTS attempt ${attempt} failed for ${userId}, retrying:`, err?.message);
+      const backoffMs = TTS_RETRY_BASE_MS * 2 ** (attempt - 1);
+      await new Promise((resolve) => setTimeout(resolve, backoffMs));
+      return this._synthesizeSpeech(tmpDir, text, userId, attempt + 1);
+    }
+  }
+
   async speakQuestion(connection, userId, text) {
     const tmpDir = path.join(os.tmpdir(), `tts_${Date.now()}_${userId}`);
     fs.mkdirSync(tmpDir, { recursive: true });
     try {
-      const tts = new MsEdgeTTS();
-      await tts.setMetadata('en-US-AriaNeural', OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
-      // Possible options for the voice 
-      // en-US-AriaNeural — current (US female)
-      // en-US-GuyNeural — US male
-      // en-US-JennyNeural — US female
-      // en-US-EricNeural — US male
-      // en-GB-SoniaNeural — British female
-      // en-GB-RyanNeural — British male
-      // en-AU-NatashaNeural — Australian female
-      const { audioFilePath } = await tts.toFile(tmpDir, text);
+      const audioFilePath = await this._synthesizeSpeech(tmpDir, text, userId);
+      if (!audioFilePath) return; // TTS unavailable after retries — skip this turn's audio rather than aborting the interview
 
       const resource = createAudioResource(fs.createReadStream(audioFilePath), {
         inputType: StreamType.WebmOpus,
