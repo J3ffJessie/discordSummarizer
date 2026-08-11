@@ -149,7 +149,7 @@ class InterviewService {
       messages: [
         {
           role: 'system',
-          content: `You are an expert hiring manager evaluating a job interview.${companyContext} The interview was conducted in the following style: ${styleInstructions} Based on the job description and the candidate's answers, return ONLY valid JSON with this exact shape: { "score": <integer 1-10>, "strengths": [<string>, ...], "gaps": [<string>, ...] }. No markdown, no explanation — just JSON.`,
+          content: `You are an expert hiring manager evaluating a job interview.${companyContext} The interview was conducted in the following style: ${styleInstructions} Based on the job description and the candidate's answers, return ONLY valid JSON with this exact shape: { "score": <integer 1-10>, "strengths": [<string>, ...], "gaps": [<string>, ...], "narrative": <string> }. The "narrative" should be a 3-5 sentence paragraph, written directly to the candidate, that explains their weaknesses in context and gives concrete, actionable steps they can take to make those weaknesses less impactful in future interviews. No markdown, no explanation — just JSON.`,
         },
         {
           role: 'user',
@@ -163,7 +163,7 @@ class InterviewService {
       const stripped = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
       return JSON.parse(stripped);
     } catch {
-      return { score: 5, strengths: ['Interview completed'], gaps: ['Evaluation could not be parsed'] };
+      return { score: 5, strengths: ['Interview completed'], gaps: ['Evaluation could not be parsed'], narrative: '' };
     }
   }
 
@@ -403,7 +403,7 @@ class InterviewService {
   }
 
   _buildSummaryEmbed(summary, history, member) {
-    const { score, strengths, gaps } = summary;
+    const { score, strengths, gaps, narrative } = summary;
 
     const strengthsText = Array.isArray(strengths) && strengths.length
       ? strengths.map(s => `• ${s}`).join('\n')
@@ -415,7 +415,7 @@ class InterviewService {
 
     const scoreColor = score >= 8 ? 0x2ecc71 : score >= 5 ? 0xf39c12 : 0xe74c3c;
 
-    return new EmbedBuilder()
+    const embed = new EmbedBuilder()
       .setTitle(`📋 Interview Summary — ${member.displayName || member.user.username}`)
       .setColor(scoreColor)
       .addFields(
@@ -423,7 +423,13 @@ class InterviewService {
         { name: '📊 Questions Answered', value: `${history.length}/${MAX_QUESTIONS}`, inline: true },
         { name: '✅ Strengths', value: strengthsText },
         { name: '🔍 Areas for Improvement', value: gapsText },
-      )
+      );
+
+    if (narrative && narrative.trim()) {
+      embed.addFields({ name: '📝 Coaching Notes', value: narrative.trim().slice(0, 1024) });
+    }
+
+    return embed
       .setTimestamp()
       .setFooter({ text: 'AI-Powered Interview Assessment' });
   }

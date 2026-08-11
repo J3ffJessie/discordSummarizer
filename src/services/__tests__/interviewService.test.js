@@ -345,6 +345,15 @@ describe('InterviewService', () => {
       const call = mockGroqCreate.mock.calls[0][0];
       expect(call.messages[0].content).toContain('Initech');
     });
+
+    it('should request a narrative field in the system prompt', async () => {
+      mockGroqCreate.mockResolvedValue({
+        choices: [{ message: { content: MOCK_SUMMARY_JSON } }],
+      });
+      await service.generateSummary('Engineer', history, 'g1');
+      const call = mockGroqCreate.mock.calls[0][0];
+      expect(call.messages[0].content).toContain('"narrative"');
+    });
   });
 
   // ── _buildSummaryEmbed ─────────────────────────────────────────────────────
@@ -385,6 +394,19 @@ describe('InterviewService', () => {
         expect.objectContaining({ value: '• Leadership' }),
         expect.objectContaining({ value: '• Needs clarity' })
       );
+    });
+
+    it('should add a Coaching Notes field when narrative is present', () => {
+      service._buildSummaryEmbed({ score: 7, strengths: [], gaps: [], narrative: 'Work on concise answers.' }, [], member);
+      expect(EmbedBuilder.mock.results[0].value.addFields).toHaveBeenCalledWith(
+        expect.objectContaining({ name: '📝 Coaching Notes', value: 'Work on concise answers.' })
+      );
+    });
+
+    it('should not add a Coaching Notes field when narrative is missing or blank', () => {
+      service._buildSummaryEmbed({ score: 7, strengths: [], gaps: [] }, [], member);
+      const calls = EmbedBuilder.mock.results[0].value.addFields.mock.calls;
+      expect(calls.some(args => args[0]?.name === '📝 Coaching Notes')).toBe(false);
     });
 
     it('should show questions answered out of MAX_QUESTIONS', () => {
