@@ -16,6 +16,8 @@ module.exports = {
           value: [
             '`/translate start` — Join your voice channel and begin live captioning',
             '`/translate stop` — End the active translation session',
+            '`/interview start` — Start an AI-powered voice interview based on a job description',
+            '`/interview stop` — End your current AI voice interview',
             '`/summarize` — Summarize recent messages in this channel',
             '`/remindme` — Set a personal reminder',
             '`/listreminders` — View your pending reminders',
