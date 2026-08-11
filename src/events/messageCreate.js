@@ -1,3 +1,5 @@
+const { EmbedBuilder } = require('discord.js');
+
 module.exports = (client) => {
   client.on('messageCreate', async (message) => {
     if (message.author?.bot) return;
@@ -15,7 +17,11 @@ module.exports = (client) => {
           } catch { /* already deleted or missing */ }
         }
         try {
-          const sent = await message.channel.send({ content: `📌 **Sticky Message**\n\n${sticky.content}` });
+          const stickyEmbed = new EmbedBuilder()
+            .setColor(0xFFD700)
+            .setTitle('📌 Sticky Message')
+            .setDescription(sticky.content);
+          const sent = await message.channel.send({ embeds: [stickyEmbed] });
           stickyService.updateMessageId(message.channelId, sent.id);
         } catch (err) {
           console.error('[sticky] Failed to repost sticky message:', err.message);

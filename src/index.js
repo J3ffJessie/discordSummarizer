@@ -33,6 +33,7 @@ const { StickyService } = require('./services/stickyService');
 const { ProfileService } = require('./services/profileService');
 const { MusicService } = require('./services/musicService');
 const { ResumeReviewService } = require('./services/resumeReviewService');
+const { InterviewService } = require('./services/interviewService');
 
 const logger = require('./utils/logger');
 
@@ -164,6 +165,8 @@ const transcriptionService = new TranscriptionService(guildConfigService);
 const translationService = new TranslationService(guildConfigService);
 const summarizationService = new SummarizationService(guildConfigService);
 
+const interviewService = new InterviewService(client, transcriptionService, guildConfigService);
+
 const voiceService = new VoiceService(
   client,
   sessionService,
@@ -179,6 +182,7 @@ client.services = {
   sessionService,
   streamingService,
   voiceService,
+  interviewService,
   schedulerService,
   summarizationService,
   messageStats: messageStatsService,

@@ -1,18 +1,24 @@
-const { SlashCommandBuilder, PermissionFlagsBits, EmbedBuilder } = require('discord.js');
+const {
+  SlashCommandBuilder,
+  PermissionFlagsBits,
+  EmbedBuilder,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder,
+} = require('discord.js');
+
+const MODAL_ID = 'sticky_set_modal';
 
 module.exports = {
+  MODAL_ID,
+
   data: new SlashCommandBuilder()
     .setName('sticky')
     .setDescription('Manage a sticky message that stays at the bottom of a channel')
     .addSubcommand(sub =>
       sub.setName('set')
         .setDescription('Set or update the sticky message for this channel')
-        .addStringOption(opt =>
-          opt.setName('content')
-            .setDescription('The message to keep at the bottom of this channel')
-            .setRequired(true)
-            .setMaxLength(2000)
-        )
     )
     .addSubcommand(sub =>
       sub.setName('remove')
@@ -43,24 +49,26 @@ module.exports = {
     const channelId = interaction.channelId;
 
     if (sub === 'set') {
-      const content = interaction.options.getString('content');
-
-      // Delete existing sticky message from the channel if present
       const existing = stickyService.getSticky(channelId);
-      if (existing?.message_id) {
-        try {
-          const old = await interaction.channel.messages.fetch(existing.message_id);
-          await old.delete();
-        } catch { /* already deleted or not found */ }
+
+      const contentInput = new TextInputBuilder()
+        .setCustomId('sticky_content')
+        .setLabel('Sticky Message')
+        .setStyle(TextInputStyle.Paragraph)
+        .setMaxLength(2000)
+        .setRequired(true)
+        .setPlaceholder('Type your sticky message here. Press Enter for new lines.');
+
+      if (existing?.content) {
+        contentInput.setValue(existing.content);
       }
 
-      // Defer so the send + DB write can complete before we reply
-      await interaction.deferReply({ ephemeral: true });
+      const modal = new ModalBuilder()
+        .setCustomId(MODAL_ID)
+        .setTitle('Set Sticky Message')
+        .addComponents(new ActionRowBuilder().addComponents(contentInput));
 
-      const sent = await interaction.channel.send({ content: `📌 **Sticky Message**\n\n${content}` });
-      stickyService.setSticky(channelId, interaction.guildId, content, interaction.user.id, sent.id);
-
-      await interaction.editReply({ content: '✅ Sticky message set for this channel.' });
+      await interaction.showModal(modal);
 
     } else if (sub === 'remove') {
       const existing = stickyService.getSticky(channelId);
