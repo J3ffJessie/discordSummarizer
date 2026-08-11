@@ -20,7 +20,7 @@ const os = require('os');
 const MAX_QUESTIONS = 8;
 const MAX_ANSWER_WAIT_MS = 65000;
 const MIN_ANSWER_CHARS = 5;
-const ANSWER_SILENCE_MS = 2500; // wait for this long a pause before treating the answer as done
+const ANSWER_SILENCE_MS = 3000; // wait for this long a pause before treating the answer as done
 const MAX_TTS_ATTEMPTS = 3;
 const TTS_RETRY_BASE_MS = 500; // exponential backoff: 500ms, 1000ms, ...
 
