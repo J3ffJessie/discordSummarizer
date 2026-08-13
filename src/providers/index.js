@@ -134,11 +134,10 @@ class GroqTranscriptionAdapter {
     this.model = model;
   }
 
-  async transcribe(fileStream) {
-    return await this.client.audio.transcriptions.create({
-      file: fileStream,
-      model: this.model,
-    });
+  async transcribe(fileStream, language = null) {
+    const params = { file: fileStream, model: this.model };
+    if (language) params.language = language;
+    return await this.client.audio.transcriptions.create(params);
   }
 }
 
@@ -149,11 +148,10 @@ class OpenAITranscriptionAdapter {
     this.model = model;
   }
 
-  async transcribe(fileStream) {
-    return await this.client.audio.transcriptions.create({
-      file: fileStream,
-      model: this.model,
-    });
+  async transcribe(fileStream, language = null) {
+    const params = { file: fileStream, model: this.model };
+    if (language) params.language = language;
+    return await this.client.audio.transcriptions.create(params);
   }
 }
 

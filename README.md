@@ -7,6 +7,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 ## Features
 
 - **Live voice translation** — Captures voice channel audio, transcribes with Whisper, translates via your chosen AI provider, and streams captions to a web page in near real-time
+- **AI voice interview practice** — `/interview start` conducts a live, spoken mock interview in a private voice channel based on a job description, then DMs a scored summary plus a full Q&A transcript
 - **Server summarization** — Summarizes recent messages across all text channels using your configured AI provider
 - **Automated weekly summaries** — Scheduled AI-generated server summaries posted to a configured channel
 - **Coffee chat pairing** — Randomly pairs members with a designated role and announces pairings in a configured channel (falls back to DMs if no channel is set)
@@ -189,6 +190,31 @@ Sessions auto-expire after 1 hour.
 
 ---
 
+### `/interview`
+Start or stop a private, AI-powered voice interview for practice.
+
+| Subcommand | Description |
+|-----------|-------------|
+| `start` | Begins interview setup — choose a style, then provide a job description (`attachment` option accepts a PDF/DOCX) |
+| `stop` | Ends your current interview early. If you answered at least one question, a summary is still generated and sent. |
+
+**How it works:**
+1. Run `/interview start` (optionally attach a PDF/DOCX job description)
+2. Pick an interview style — **Behavioral** (STAR-method, default), **Technical**, **Conversational**, or **Case-based**
+3. Pick an interview language — English (default), Spanish, French, German, Italian, Portuguese, Japanese, Korean, Chinese, Hindi, Arabic, or Russian
+4. Click **Continue** and fill in the company name (optional) and job description in the modal (skip the text field if you attached a file)
+5. The bot creates a private voice channel (only you and the bot can join) and joins it
+6. The bot asks up to 8 questions aloud in your chosen language, one at a time, adapting follow-ups based on your previous answers; speak your answer and pause to let the bot transcribe it
+7. When the interview ends — either after all questions or via `/interview stop` — the bot DMs you:
+   - A scored summary embed (1–10) with strengths, gaps, and coaching notes (written in your chosen language)
+   - A `.txt` file attachment with the full transcript of every question and answer
+
+Spoken questions use a language-matched Microsoft Edge TTS voice, and your answers are transcribed with a Whisper language hint for better accuracy — no extra setup needed.
+
+Uses your server's configured **summarization** AI provider to generate questions and score the interview, and the **transcription** provider (Whisper) to convert your spoken answers to text; both default to Groq if unconfigured. Spoken questions use free Microsoft Edge TTS — no extra API key required.
+
+---
+
 ### `/summarize`
 Summarizes the last 100 messages in the current channel and DMs the result to you.
 
@@ -362,6 +388,7 @@ discord-summarizer/
 │   ├── commands/                   # One file per slash command
 │   │   ├── setup.js                # /setup — dashboard link, view config, channel/schedule/AI/admin config
 │   │   ├── translate.js
+│   │   ├── interview.js
 │   │   ├── summarize.js
 │   │   ├── server-summary.js
 │   │   ├── paircoffee.js
@@ -382,6 +409,7 @@ discord-summarizer/
 │   │   ├── voiceService.js         # Voice capture and per-frame Opus decoding
 │   │   ├── transcriptionService.js # PCM→WAV conversion and Whisper API calls (provider-aware)
 │   │   ├── translationService.js   # Text translation (provider-aware)
+│   │   ├── interviewService.js     # AI voice interview — question generation, TTS, answer capture, scored summary + transcript
 │   │   ├── groq.js                 # SummarizationService — provider-aware summarization
 │   │   ├── streamingService.js     # WebSocket server — broadcasts captions to browser clients
 │   │   ├── sessionService.js       # Per-guild session management with token auth

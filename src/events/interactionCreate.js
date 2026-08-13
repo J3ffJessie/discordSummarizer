@@ -12,6 +12,7 @@ const { MODAL_ID: PROFILE_MODAL_ID } = require('../commands/profile');
 const { MODAL_ID: STICKY_MODAL_ID } = require('../commands/sticky');
 const {
   INTERVIEW_STYLE_SELECT_ID,
+  INTERVIEW_LANGUAGE_SELECT_ID,
   INTERVIEW_CONTINUE_BUTTON_ID,
   INTERVIEW_MODAL_ID,
 } = require('../commands/interview');
@@ -23,6 +24,12 @@ module.exports = (client) => {
       if (interaction.customId === INTERVIEW_STYLE_SELECT_ID) {
         const { interviewService } = client.services;
         interviewService.updatePendingStyle(interaction.user.id, interaction.values[0]);
+        await interaction.deferUpdate();
+      }
+
+      if (interaction.customId === INTERVIEW_LANGUAGE_SELECT_ID) {
+        const { interviewService } = client.services;
+        interviewService.updatePendingLanguage(interaction.user.id, interaction.values[0]);
         await interaction.deferUpdate();
       }
       return;
@@ -157,7 +164,7 @@ module.exports = (client) => {
         });
 
         interviewService
-          .startInterview(guild, member, voiceChannel, interaction.channel, parsedJd, company, setup.style)
+          .startInterview(guild, member, voiceChannel, interaction.channel, parsedJd, company, setup.style, setup.language)
           .catch(async (err) => {
             console.error('[interview] Unhandled error in startInterview:', err?.message);
             try {

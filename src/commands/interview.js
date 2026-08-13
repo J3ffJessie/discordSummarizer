@@ -7,13 +7,16 @@ const {
   ButtonBuilder,
   ButtonStyle,
 } = require('discord.js');
+const { LANGUAGES, DEFAULT_LANGUAGE } = require('../services/interviewService');
 
 const INTERVIEW_STYLE_SELECT_ID = 'interview_style_select';
+const INTERVIEW_LANGUAGE_SELECT_ID = 'interview_language_select';
 const INTERVIEW_CONTINUE_BUTTON_ID = 'interview_continue';
 const INTERVIEW_MODAL_ID = 'interview_modal';
 
 module.exports = {
   INTERVIEW_STYLE_SELECT_ID,
+  INTERVIEW_LANGUAGE_SELECT_ID,
   INTERVIEW_CONTINUE_BUTTON_ID,
   INTERVIEW_MODAL_ID,
 
@@ -87,6 +90,19 @@ module.exports = {
           ])
       );
 
+      const languageRow = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+          .setCustomId(INTERVIEW_LANGUAGE_SELECT_ID)
+          .setPlaceholder('Interview language (default: English)')
+          .addOptions(
+            Object.entries(LANGUAGES).map(([code, { name }]) => ({
+              label: name,
+              value: code,
+              default: code === DEFAULT_LANGUAGE,
+            }))
+          )
+      );
+
       const buttonRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
           .setCustomId(INTERVIEW_CONTINUE_BUTTON_ID)
@@ -95,8 +111,8 @@ module.exports = {
       );
 
       await interaction.reply({
-        content: '**Step 1 of 2** — Choose your interview style, then click **Continue** to enter the job details.',
-        components: [styleRow, buttonRow],
+        content: '**Step 1 of 2** — Choose your interview style and language, then click **Continue** to enter the job details.',
+        components: [styleRow, languageRow, buttonRow],
         flags: MessageFlags.Ephemeral,
       });
     }

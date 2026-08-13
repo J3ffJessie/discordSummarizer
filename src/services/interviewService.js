@@ -8,7 +8,7 @@ const {
   AudioPlayer,
   AudioPlayerStatus,
 } = require('@discordjs/voice');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, AttachmentBuilder } = require('discord.js');
 const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
 const { createChatProvider, resolveConfig } = require('../providers');
 const Groq = require('groq-sdk');
@@ -24,6 +24,28 @@ const ANSWER_SILENCE_MS = 3000; // wait for this long a pause before treating th
 const MAX_TTS_ATTEMPTS = 3;
 const TTS_RETRY_BASE_MS = 500; // exponential backoff: 500ms, 1000ms, ...
 
+const DEFAULT_LANGUAGE = 'en';
+
+// code → { name, voice }. `voice` must be a valid Microsoft Edge TTS neural voice.
+const LANGUAGES = {
+  en: { name: 'English', voice: 'en-US-AriaNeural' },
+  es: { name: 'Spanish', voice: 'es-ES-ElviraNeural' },
+  fr: { name: 'French', voice: 'fr-FR-DeniseNeural' },
+  de: { name: 'German', voice: 'de-DE-KatjaNeural' },
+  it: { name: 'Italian', voice: 'it-IT-ElsaNeural' },
+  pt: { name: 'Portuguese', voice: 'pt-BR-FranciscaNeural' },
+  ja: { name: 'Japanese', voice: 'ja-JP-NanamiNeural' },
+  ko: { name: 'Korean', voice: 'ko-KR-SunHiNeural' },
+  zh: { name: 'Chinese (Mandarin)', voice: 'zh-CN-XiaoxiaoNeural' },
+  hi: { name: 'Hindi', voice: 'hi-IN-SwaraNeural' },
+  ar: { name: 'Arabic', voice: 'ar-SA-ZariyahNeural' },
+  ru: { name: 'Russian', voice: 'ru-RU-SvetlanaNeural' },
+};
+
+function getLanguage(code) {
+  return LANGUAGES[code] || LANGUAGES[DEFAULT_LANGUAGE];
+}
+
 class InterviewService {
   constructor(client, transcriptionService, guildConfigService) {
     this.client = client;
@@ -37,6 +59,7 @@ class InterviewService {
   setPendingSetup(userId, { attachment = null } = {}) {
     this.pendingSetups.set(userId, {
       style: 'behavioral',
+      language: DEFAULT_LANGUAGE,
       attachment,
       expiresAt: Date.now() + 10 * 60 * 1000,
     });
@@ -45,6 +68,11 @@ class InterviewService {
   updatePendingStyle(userId, style) {
     const setup = this.pendingSetups.get(userId);
     if (setup) setup.style = style;
+  }
+
+  updatePendingLanguage(userId, language) {
+    const setup = this.pendingSetups.get(userId);
+    if (setup) setup.language = language;
   }
 
   getPendingSetup(userId) {
@@ -116,16 +144,36 @@ class InterviewService {
     }
   }
 
-  async generateQuestion(jdText, history, guildId, company = null, style = 'behavioral') {
+  // Translates a fixed English prompt (intro/retry lines) into the interview language.
+  // Falls back to the original English text if translation fails.
+  async _localize(text, language, guildId) {
+    if (!language || language === DEFAULT_LANGUAGE) return text;
+    try {
+      const guildConfig = this.gcs?.getConfig(guildId) || null;
+      const provider = createChatProvider('summ', guildConfig);
+      const translated = await provider.chat(
+        `Translate the user's message into ${getLanguage(language).name}. Return ONLY the translated text — no quotes, preamble, or explanation.`,
+        text,
+        { max_tokens: 200, temperature: 0.3 }
+      );
+      return translated?.trim() || text;
+    } catch (err) {
+      console.warn('[interview] Localization failed, using English fallback:', err?.message);
+      return text;
+    }
+  }
+
+  async generateQuestion(jdText, history, guildId, company = null, style = 'behavioral', language = DEFAULT_LANGUAGE) {
     const guildConfig = this.gcs?.getConfig(guildId) || null;
     const provider = createChatProvider('summ', guildConfig);
     const truncatedJd = jdText.substring(0, 3000);
     const companyContext = company ? ` The candidate is interviewing at: ${company}.` : '';
     const styleInstructions = this._styleInstructions(style);
+    const languageInstruction = language === DEFAULT_LANGUAGE ? '' : ` Ask the question in ${getLanguage(language).name}.`;
 
     const systemPrompt = history.length === 0
-      ? `You are a professional job interviewer conducting a voice interview.${companyContext} ${styleInstructions} Based on the job description, ask a single concise opening interview question directly relevant to the role. Keep it short — one sentence, no multi-part questions. Return ONLY the question — no preamble, numbering, or explanation.`
-      : `You are a professional job interviewer conducting a voice interview.${companyContext} ${styleInstructions} Based on the job description and prior Q&A history, ask a single concise follow-up question that probes deeper into the candidate's experience. Keep it short — one sentence, no multi-part questions. Return ONLY the question — no preamble, numbering, or explanation.`;
+      ? `You are a professional job interviewer conducting a voice interview.${companyContext} ${styleInstructions}${languageInstruction} Based on the job description, ask a single concise opening interview question directly relevant to the role. Keep it short — one sentence, no multi-part questions. Return ONLY the question — no preamble, numbering, or explanation.`
+      : `You are a professional job interviewer conducting a voice interview.${companyContext} ${styleInstructions}${languageInstruction} Based on the job description and prior Q&A history, ask a single concise follow-up question that probes deeper into the candidate's experience. Keep it short — one sentence, no multi-part questions. Return ONLY the question — no preamble, numbering, or explanation.`;
 
     return await provider.chat(
       systemPrompt,
@@ -134,13 +182,16 @@ class InterviewService {
     );
   }
 
-  async generateSummary(jdText, history, guildId, company = null, style = 'behavioral') {
+  async generateSummary(jdText, history, guildId, company = null, style = 'behavioral', language = DEFAULT_LANGUAGE) {
     const guildConfig = this.gcs?.getConfig(guildId) || null;
     const { apiKey } = resolveConfig('summ', guildConfig);
     const groq = new Groq({ apiKey });
     const truncatedJd = jdText.substring(0, 3000);
     const companyContext = company ? ` The candidate interviewed at: ${company}.` : '';
     const styleInstructions = this._styleInstructions(style);
+    const languageInstruction = language === DEFAULT_LANGUAGE
+      ? ''
+      : ` Write the "strengths", "gaps", and "narrative" fields in ${getLanguage(language).name}, since that is the language the candidate interviewed in.`;
 
     const completion = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
@@ -149,7 +200,7 @@ class InterviewService {
       messages: [
         {
           role: 'system',
-          content: `You are an expert hiring manager evaluating a job interview.${companyContext} The interview was conducted in the following style: ${styleInstructions} Based on the job description and the candidate's answers, return ONLY valid JSON with this exact shape: { "score": <integer 1-10>, "strengths": [<string>, ...], "gaps": [<string>, ...], "narrative": <string> }. The "narrative" should be a 3-5 sentence paragraph, written directly to the candidate, that explains their weaknesses in context and gives concrete, actionable steps they can take to make those weaknesses less impactful in future interviews. No markdown, no explanation — just JSON.`,
+          content: `You are an expert hiring manager evaluating a job interview.${companyContext} The interview was conducted in the following style: ${styleInstructions}${languageInstruction} Based on the job description and the candidate's answers, return ONLY valid JSON with this exact shape: { "score": <integer 1-10>, "strengths": [<string>, ...], "gaps": [<string>, ...], "narrative": <string> }. The "narrative" should be a 3-5 sentence paragraph, written directly to the candidate, that explains their weaknesses in context and gives concrete, actionable steps they can take to make those weaknesses less impactful in future interviews. No markdown, no explanation — just JSON.`,
         },
         {
           role: 'user',
@@ -167,18 +218,11 @@ class InterviewService {
     }
   }
 
-  // Possible options for the voice
-  // en-US-AriaNeural — current (US female)
-  // en-US-GuyNeural — US male
-  // en-US-JennyNeural — US female
-  // en-US-EricNeural — US male
-  // en-GB-SoniaNeural — British female
-  // en-GB-RyanNeural — British male
-  // en-AU-NatashaNeural — Australian female
-  async _synthesizeSpeech(tmpDir, text, userId, attempt = 1) {
+  // Voice defaults to English; pass a voice from LANGUAGES to speak in another language.
+  async _synthesizeSpeech(tmpDir, text, userId, voice = LANGUAGES[DEFAULT_LANGUAGE].voice, attempt = 1) {
     try {
       const tts = new MsEdgeTTS();
-      await tts.setMetadata('en-US-AriaNeural', OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
+      await tts.setMetadata(voice, OUTPUT_FORMAT.WEBM_24KHZ_16BIT_MONO_OPUS);
       const { audioFilePath } = await tts.toFile(tmpDir, text);
       return audioFilePath;
     } catch (err) {
@@ -189,15 +233,15 @@ class InterviewService {
       console.warn(`[interview] TTS attempt ${attempt} failed for ${userId}, retrying:`, err?.message);
       const backoffMs = TTS_RETRY_BASE_MS * 2 ** (attempt - 1);
       await new Promise((resolve) => setTimeout(resolve, backoffMs));
-      return this._synthesizeSpeech(tmpDir, text, userId, attempt + 1);
+      return this._synthesizeSpeech(tmpDir, text, userId, voice, attempt + 1);
     }
   }
 
-  async speakQuestion(connection, userId, text) {
+  async speakQuestion(connection, userId, text, voice = LANGUAGES[DEFAULT_LANGUAGE].voice) {
     const tmpDir = path.join(os.tmpdir(), `tts_${Date.now()}_${userId}`);
     fs.mkdirSync(tmpDir, { recursive: true });
     try {
-      const audioFilePath = await this._synthesizeSpeech(tmpDir, text, userId);
+      const audioFilePath = await this._synthesizeSpeech(tmpDir, text, userId, voice);
       if (!audioFilePath) return; // TTS unavailable after retries — skip this turn's audio rather than aborting the interview
 
       const resource = createAudioResource(fs.createReadStream(audioFilePath), {
@@ -223,7 +267,7 @@ class InterviewService {
     }
   }
 
-  async captureAnswer(receiver, userId, guildId) {
+  async captureAnswer(receiver, userId, guildId, language = null) {
     const opusStream = receiver.subscribe(userId, {
       end: { behavior: EndBehaviorType.AfterSilence, duration: ANSWER_SILENCE_MS },
     });
@@ -274,7 +318,7 @@ class InterviewService {
     try {
       await fs.promises.writeFile(tempPcmFile, Buffer.concat(pcmChunks));
       wavFile = await this.transcriptionService.convertPcmToWav(tempPcmFile);
-      const transcript = await this.transcriptionService.transcribe(wavFile, guildId);
+      const transcript = await this.transcriptionService.transcribe(wavFile, guildId, language);
       return transcript?.text?.trim() ?? '';
     } catch (err) {
       console.error(`[interview] transcription error for ${userId}:`, err?.message);
@@ -285,9 +329,10 @@ class InterviewService {
     }
   }
 
-  async startInterview(guild, member, voiceChannel, originalChannel, jdText, company = null, style = 'behavioral') {
+  async startInterview(guild, member, voiceChannel, originalChannel, jdText, company = null, style = 'behavioral', language = DEFAULT_LANGUAGE) {
     const userId = member.id;
     const guildId = guild.id;
+    const voice = getLanguage(language).voice;
 
     const connection = joinVoiceChannel({
       channelId: voiceChannel.id,
@@ -306,6 +351,7 @@ class InterviewService {
       member,
       company,
       style,
+      language,
       history: [],
       aborted: false,
     };
@@ -325,25 +371,29 @@ class InterviewService {
 
     try {
       const companyPhrase = company ? ` for ${company}` : '';
-      await this.speakQuestion(connection, userId,
-        `Hello! Welcome to your AI-powered job interview${companyPhrase}. I'll be asking you a series of ${MAX_QUESTIONS} questions based on the job description you provided. Please answer each question clearly after I finish speaking. Let's get started.`
+      const introText = await this._localize(
+        `Hello! Welcome to your AI-powered job interview${companyPhrase}. I'll be asking you a series of ${MAX_QUESTIONS} questions based on the job description you provided. Please answer each question clearly after I finish speaking. Let's get started.`,
+        language,
+        guildId
       );
+      await this.speakQuestion(connection, userId, introText, voice);
 
       for (let i = 0; i < MAX_QUESTIONS; i++) {
         if (session.aborted) break;
 
-        const question = await this.generateQuestion(jdText, history, guildId, company, style);
+        const question = await this.generateQuestion(jdText, history, guildId, company, style, language);
         if (session.aborted) break;
 
-        await this.speakQuestion(connection, userId, question);
+        await this.speakQuestion(connection, userId, question, voice);
         if (session.aborted) break;
 
-        let answer = await this.captureAnswer(receiver, userId, guildId);
+        let answer = await this.captureAnswer(receiver, userId, guildId, language);
 
         if (!session.aborted && answer.length <= MIN_ANSWER_CHARS) {
-          await this.speakQuestion(connection, userId, "I didn't quite catch that. Could you please repeat your answer?");
+          const retryText = await this._localize("I didn't quite catch that. Could you please repeat your answer?", language, guildId);
+          await this.speakQuestion(connection, userId, retryText, voice);
           if (!session.aborted) {
-            answer = await this.captureAnswer(receiver, userId, guildId);
+            answer = await this.captureAnswer(receiver, userId, guildId, language);
           }
         }
 
@@ -352,12 +402,13 @@ class InterviewService {
       }
 
       if (!session.aborted && history.length > 0) {
-        const summary = await this.generateSummary(jdText, history, guildId, company, style);
+        const summary = await this.generateSummary(jdText, history, guildId, company, style, language);
         const embed = this._buildSummaryEmbed(summary, history, member);
+        const transcript = this._buildTranscriptAttachment(history, member, company, language);
         try {
-          await member.send({ embeds: [embed] });
+          await member.send({ embeds: [embed], files: [transcript] });
         } catch {
-          await originalChannel.send({ content: `<@${member.id}>`, embeds: [embed] }).catch(() => {});
+          await originalChannel.send({ content: `<@${member.id}>`, embeds: [embed], files: [transcript] }).catch(() => {});
         }
       }
     } catch (err) {
@@ -377,12 +428,13 @@ class InterviewService {
 
     if (session.history.length > 0) {
       try {
-        const summary = await this.generateSummary(session.jdText, session.history, session.guildId, session.company, session.style);
+        const summary = await this.generateSummary(session.jdText, session.history, session.guildId, session.company, session.style, session.language);
         const embed = this._buildSummaryEmbed(summary, session.history, session.member);
+        const transcript = this._buildTranscriptAttachment(session.history, session.member, session.company, session.language);
         try {
-          await session.member.send({ embeds: [embed] });
+          await session.member.send({ embeds: [embed], files: [transcript] });
         } catch {
-          await session.originalChannel.send({ content: `<@${session.member.id}>`, embeds: [embed] }).catch(() => {});
+          await session.originalChannel.send({ content: `<@${session.member.id}>`, embeds: [embed], files: [transcript] }).catch(() => {});
         }
       } catch (err) {
         console.error('[interview] Failed to generate early-stop summary:', err?.message);
@@ -400,6 +452,26 @@ class InterviewService {
     }
     this.sessions.delete(userId);
     this.players.delete(userId);
+  }
+
+  _buildTranscriptAttachment(history, member, company, language) {
+    const lines = [
+      `Interview Transcript — ${member.displayName || member.user.username}`,
+      company ? `Company: ${company}` : null,
+      language && language !== DEFAULT_LANGUAGE ? `Language: ${getLanguage(language).name}` : null,
+      `Date: ${new Date().toISOString()}`,
+      '',
+    ].filter((line) => line !== null);
+
+    history.forEach(({ question, answer }, i) => {
+      lines.push(`Q${i + 1}: ${question}`);
+      lines.push(`A${i + 1}: ${answer || '(no answer captured)'}`);
+      lines.push('');
+    });
+
+    return new AttachmentBuilder(Buffer.from(lines.join('\n'), 'utf-8'), {
+      name: 'interview-transcript.txt',
+    });
   }
 
   _buildSummaryEmbed(summary, history, member) {
@@ -435,4 +507,4 @@ class InterviewService {
   }
 }
 
-module.exports = { InterviewService };
+module.exports = { InterviewService, LANGUAGES, DEFAULT_LANGUAGE };

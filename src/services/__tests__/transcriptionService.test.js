@@ -45,7 +45,15 @@ describe('TranscriptionService', () => {
 
       await transcriptionService.transcribe('test.wav');
 
-      expect(mockTranscribe).toHaveBeenCalledWith(expect.any(Readable));
+      expect(mockTranscribe).toHaveBeenCalledWith(expect.any(Readable), null);
+    });
+
+    it('should forward a language hint to the provider when given', async () => {
+      mockTranscribe.mockResolvedValue({ text: 'hola mundo' });
+
+      await transcriptionService.transcribe('test.wav', 'g1', 'es');
+
+      expect(mockTranscribe).toHaveBeenCalledWith(expect.any(Readable), 'es');
     });
 
     it('should return the transcription result', async () => {
