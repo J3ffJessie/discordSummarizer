@@ -97,7 +97,7 @@ Groq returns a transcript object containing the spoken text. If the transcript i
 
 ### 6. Translation — LLaMA (`translationService.js`)
 
-The transcript text is sent to the Groq API using the **`llama-3.1-8b-instant`** model with a strict system prompt:
+The transcript text is sent to the Groq API using the **`openai/gpt-oss-20b`** model with a strict system prompt:
 
 > *"You are a translation engine. Translate ALL input text to English. Return ONLY the translated text. Do not explain. Do not add commentary."*
 
@@ -166,7 +166,7 @@ This is the practical floor for a cloud-based pipeline. The only way to reduce i
 | Max capture duration | `voiceService.js` | 4000ms | Forces a chunk to process during continuous speech |
 | Start delay | `voiceService.js` | 100ms | Skips the corrupted first frame at speech start |
 | Whisper model | `transcriptionService.js` | `whisper-large-v3-turbo` | Groq Whisper model used |
-| Translation model | `translationService.js` | `llama-3.1-8b-instant` | Groq LLaMA model used |
+| Translation model | `translationService.js` | `openai/gpt-oss-20b` | Groq model used |
 | Session expiry | `sessionService.js` | 1 hour | Auto-stops the session and voice capture |
 
 ---

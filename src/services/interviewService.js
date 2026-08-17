@@ -194,7 +194,7 @@ class InterviewService {
       : ` Write the "strengths", "gaps", and "narrative" fields in ${getLanguage(language).name}, since that is the language the candidate interviewed in.`;
 
     const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       max_tokens: 1024,
       temperature: 0.3,
       messages: [

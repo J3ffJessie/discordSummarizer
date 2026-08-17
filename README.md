@@ -324,8 +324,8 @@ Each server configures its own AI provider through the dashboard. Three tasks ca
 
 | Task | What it does | Default model |
 |------|-------------|---------------|
-| **Summarization** | `/summarize` and scheduled weekly summaries | `llama-3.1-8b-instant` (Groq) |
-| **Translation** | Live voice caption translation | `llama-3.1-8b-instant` (Groq) |
+| **Summarization** | `/summarize` and scheduled weekly summaries | `openai/gpt-oss-20b` (Groq) |
+| **Translation** | Live voice caption translation | `openai/gpt-oss-20b` (Groq) |
 | **Transcription** | Voice-to-text (Whisper) | `whisper-large-v3-turbo` (Groq) |
 
 ### Supported providers

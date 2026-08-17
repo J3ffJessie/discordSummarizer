@@ -356,13 +356,13 @@ describe('InterviewService', () => {
       expect(result.strengths).toEqual(['Interview completed']);
     });
 
-    it('should use the llama-3.3-70b-versatile model', async () => {
+    it('should use the openai/gpt-oss-120b model', async () => {
       mockGroqCreate.mockResolvedValue({
         choices: [{ message: { content: MOCK_SUMMARY_JSON } }],
       });
       await service.generateSummary('Engineer', history, 'g1');
       expect(mockGroqCreate).toHaveBeenCalledWith(
-        expect.objectContaining({ model: 'llama-3.3-70b-versatile' })
+        expect.objectContaining({ model: 'openai/gpt-oss-120b' })
       );
     });
 

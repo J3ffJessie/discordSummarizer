@@ -159,7 +159,7 @@ module.exports = {
         .addStringOption(opt =>
           opt
             .setName('model')
-            .setDescription('Model name (e.g. llama-3.1-8b-instant, gpt-4o-mini, claude-haiku-4-5-20251001)')
+            .setDescription('Model name (e.g. openai/gpt-oss-20b, gpt-4o-mini, claude-haiku-4-5-20251001)')
             .setRequired(false)
         )
         .addStringOption(opt =>
