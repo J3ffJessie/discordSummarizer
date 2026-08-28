@@ -23,6 +23,8 @@ const MIN_ANSWER_CHARS = 5;
 const ANSWER_SILENCE_MS = 3000; // wait for this long a pause before treating the answer as done
 const MAX_TTS_ATTEMPTS = 3;
 const TTS_RETRY_BASE_MS = 500; // exponential backoff: 500ms, 1000ms, ...
+const VOICE_JOIN_TIMEOUT_MS = 5 * 60 * 1000; // how long to wait for the candidate to join before cancelling
+const VOICE_JOIN_POLL_MS = 1000;
 
 const DEFAULT_LANGUAGE = 'en';
 
@@ -329,6 +331,21 @@ class InterviewService {
     }
   }
 
+  // Polls the member's live voice state (a discord.js getter backed by the guild's
+  // voice state cache) until they join voiceChannel, the session is aborted, or we time out.
+  async _waitForMemberJoin(member, voiceChannel, session) {
+    if (member.voice?.channelId === voiceChannel.id) return true;
+
+    const deadline = Date.now() + VOICE_JOIN_TIMEOUT_MS;
+    while (Date.now() < deadline) {
+      if (session.aborted) return false;
+      await new Promise((resolve) => setTimeout(resolve, VOICE_JOIN_POLL_MS));
+      if (session.aborted) return false;
+      if (member.voice?.channelId === voiceChannel.id) return true;
+    }
+    return false;
+  }
+
   async startInterview(guild, member, voiceChannel, originalChannel, jdText, company = null, style = 'behavioral', language = DEFAULT_LANGUAGE) {
     const userId = member.id;
     const guildId = guild.id;
@@ -368,6 +385,17 @@ class InterviewService {
 
     const receiver = connection.receiver;
     const history = session.history;
+
+    const joined = await this._waitForMemberJoin(member, voiceChannel, session);
+    if (!joined) {
+      if (!session.aborted) {
+        await originalChannel.send(
+          `⏱️ <@${userId}> didn't join <#${voiceChannel.id}> in time, so the interview was cancelled.`
+        ).catch(() => {});
+      }
+      await this._cleanup(userId);
+      return;
+    }
 
     try {
       const companyPhrase = company ? ` for ${company}` : '';

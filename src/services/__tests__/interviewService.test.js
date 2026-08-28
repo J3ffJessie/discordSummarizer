@@ -76,11 +76,12 @@ const { EventEmitter } = require('events');
 
 // ─── helpers ───────────────────────────────────────────────────────────────────
 
-function makeMember(id = 'u1') {
+function makeMember(id = 'u1', voiceChannelId = 'vc1') {
   return {
     id,
     displayName: 'Alice',
     user: { id, username: 'alice' },
+    voice: { channelId: voiceChannelId },
     send: jest.fn().mockResolvedValue(undefined),
   };
 }
@@ -732,6 +733,61 @@ describe('InterviewService', () => {
     });
   });
 
+  // ── _waitForMemberJoin ─────────────────────────────────────────────────────
+
+  describe('_waitForMemberJoin', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('should resolve true immediately if the member is already in the channel', async () => {
+      const member = makeMember('u1', 'vc1');
+      const voiceChannel = makeVoiceChannel();
+      const session = { aborted: false };
+
+      await expect(service._waitForMemberJoin(member, voiceChannel, session)).resolves.toBe(true);
+    });
+
+    it('should resolve true once the member joins the channel', async () => {
+      const member = makeMember('u1', null);
+      const voiceChannel = makeVoiceChannel();
+      const session = { aborted: false };
+
+      const promise = service._waitForMemberJoin(member, voiceChannel, session);
+      member.voice.channelId = 'vc1';
+      await jest.advanceTimersByTimeAsync(1000);
+
+      await expect(promise).resolves.toBe(true);
+    });
+
+    it('should resolve false if the member never joins before the timeout', async () => {
+      const member = makeMember('u1', null);
+      const voiceChannel = makeVoiceChannel();
+      const session = { aborted: false };
+
+      const promise = service._waitForMemberJoin(member, voiceChannel, session);
+      await jest.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000);
+
+      await expect(promise).resolves.toBe(false);
+    });
+
+    it('should resolve false early if the session is aborted while waiting', async () => {
+      const member = makeMember('u1', null);
+      const voiceChannel = makeVoiceChannel();
+      const session = { aborted: false };
+
+      const promise = service._waitForMemberJoin(member, voiceChannel, session);
+      session.aborted = true;
+      await jest.advanceTimersByTimeAsync(1000);
+
+      await expect(promise).resolves.toBe(false);
+    });
+  });
+
   // ── startInterview ─────────────────────────────────────────────────────────
 
   describe('startInterview', () => {
@@ -831,6 +887,52 @@ describe('InterviewService', () => {
 
       expect(service.sessions.has('u1')).toBe(false);
       expect(service.players.has('u1')).toBe(false);
+    });
+
+    it('should not speak the intro until the member actually joins the voice channel', async () => {
+      jest.useFakeTimers();
+      try {
+        const speakQuestion = jest.spyOn(service, 'speakQuestion').mockResolvedValue(undefined);
+        jest.spyOn(service, 'captureAnswer').mockResolvedValue('Answer');
+        mockChat.mockResolvedValue('Q?');
+        mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_SUMMARY_JSON } }] });
+
+        const member = makeMember('u1', null);
+        const voiceChannel = makeVoiceChannel();
+        const promise = service.startInterview(makeGuild(), member, voiceChannel, makeOriginalChannel(), 'Engineer');
+
+        await jest.advanceTimersByTimeAsync(2000);
+        expect(speakQuestion).not.toHaveBeenCalled();
+
+        member.voice.channelId = voiceChannel.id;
+        await jest.advanceTimersByTimeAsync(1000);
+        await promise;
+
+        expect(speakQuestion).toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('should cancel and notify the channel if the member never joins', async () => {
+      jest.useFakeTimers();
+      try {
+        const speakQuestion = jest.spyOn(service, 'speakQuestion').mockResolvedValue(undefined);
+        const member = makeMember('u1', null);
+        const voiceChannel = makeVoiceChannel();
+        const originalChannel = makeOriginalChannel();
+
+        const promise = service.startInterview(makeGuild(), member, voiceChannel, originalChannel, 'Engineer');
+        await jest.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000);
+        await promise;
+
+        expect(speakQuestion).not.toHaveBeenCalled();
+        expect(originalChannel.send).toHaveBeenCalledWith(expect.stringContaining("didn't join"));
+        expect(service.sessions.has('u1')).toBe(false);
+        expect(voiceChannel.delete).toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 });
