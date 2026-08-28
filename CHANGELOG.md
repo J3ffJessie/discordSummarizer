@@ -1,7 +1,6 @@
 # Changelog
 
-## [2.0.1] - 2026-08-13
+## [2.0.12] - 2026-08-13
 
-### Interview feature updates
-- Added a transcript of the questions that were asked and the answers that were provided to the DM response after the interview has concluded so that the interviewee can see the questions and their responses. 
-- Added the ability to select a preferred language to conduct the interview in for global communities. 
+### Bug Fix - Interview Starting before user joins
+- Added delay logic to wait for user to join voice channel before interview begins. Previous iteration was skipping past the validation step of user joining and was recognizing the embed of the voice channel as sufficient. Now the interview will not start until the user has successfully joined the private voice channel.
