@@ -11,7 +11,7 @@
  */
 
 const DEFAULT_CHAT_MODELS = {
-  groq: 'openai/gpt-oss-20b',
+  groq: 'llama-3.3-70b-versatile',
   openai: 'gpt-4o-mini',
   anthropic: 'claude-haiku-4-5-20251001',
   ollama: 'llama3.2',
