@@ -17,11 +17,19 @@ jest.mock('discord.js', () => ({
   EmbedBuilder: jest.fn().mockImplementation(() => ({
     setTitle: jest.fn().mockReturnThis(),
     setColor: jest.fn().mockReturnThis(),
+    setDescription: jest.fn().mockReturnThis(),
     addFields: jest.fn().mockReturnThis(),
     setTimestamp: jest.fn().mockReturnThis(),
     setFooter: jest.fn().mockReturnThis(),
   })),
   AttachmentBuilder: jest.fn().mockImplementation((buffer, opts) => ({ buffer, ...opts })),
+  ActionRowBuilder: jest.fn().mockImplementation(() => ({ addComponents: jest.fn().mockReturnThis() })),
+  ButtonBuilder: jest.fn().mockImplementation(() => ({
+    setCustomId: jest.fn().mockReturnThis(),
+    setLabel: jest.fn().mockReturnThis(),
+    setStyle: jest.fn().mockReturnThis(),
+  })),
+  ButtonStyle: { Primary: 1 },
 }));
 
 jest.mock('msedge-tts', () => ({
@@ -61,6 +69,11 @@ jest.mock('fs', () => ({
   mkdirSync: jest.fn(),
   createReadStream: jest.fn().mockReturnValue({}),
   rm: jest.fn((_p, _opts, cb) => cb && cb()),
+}));
+
+const mockRunTestCases = jest.fn();
+jest.mock('../codeExecutionService', () => ({
+  runTestCases: (...args) => mockRunTestCases(...args),
 }));
 
 jest.mock('pdf-parse', () => jest.fn().mockResolvedValue({ text: 'PDF job description' }));
@@ -129,6 +142,17 @@ function makeOpusStream({ packets = [], error = null } = {}) {
 const MOCK_SUMMARY = { score: 7, strengths: ['Clear communicator'], gaps: ['Needs more examples'] };
 const MOCK_SUMMARY_JSON = JSON.stringify(MOCK_SUMMARY);
 
+const MOCK_PROBLEM = {
+  title: 'Two Sum',
+  prompt: 'Given an array of integers, return indices of the two numbers that add up to target.',
+  examples: ['Input: [2,7,11,15], 9 -> Output: [0,1]'],
+  constraints: ['2 <= nums.length <= 10^4'],
+  functionName: 'twoSum',
+  functionSignature: 'function twoSum(nums, target) {}',
+  testCases: [{ input: [[2, 7, 11, 15], 9], expected: [0, 1] }],
+};
+const MOCK_PROBLEM_JSON = JSON.stringify(MOCK_PROBLEM);
+
 // ─── tests ─────────────────────────────────────────────────────────────────────
 
 describe('InterviewService', () => {
@@ -184,6 +208,23 @@ describe('InterviewService', () => {
 
     it('should not throw when no pending setup exists', () => {
       expect(() => service.updatePendingLanguage('ghost', 'es')).not.toThrow();
+    });
+  });
+
+  describe('updatePendingCodeLanguage', () => {
+    it('should update the code language on an existing pending setup', () => {
+      service.setPendingSetup('u1');
+      service.updatePendingCodeLanguage('u1', 'python');
+      expect(service.getPendingSetup('u1').codeLanguage).toBe('python');
+    });
+
+    it('should default codeLanguage to javascript', () => {
+      service.setPendingSetup('u1');
+      expect(service.getPendingSetup('u1').codeLanguage).toBe('javascript');
+    });
+
+    it('should not throw when no pending setup exists', () => {
+      expect(() => service.updatePendingCodeLanguage('ghost', 'python')).not.toThrow();
     });
   });
 
@@ -261,6 +302,10 @@ describe('InterviewService', () => {
       expect(service._styleInstructions('case_based')).toContain('scenario');
     });
 
+    it('should return LeetCode-style instructions for technical_coding style', () => {
+      expect(service._styleInstructions('technical_coding')).toContain('LeetCode');
+    });
+
     it('should fall back to behavioral for an unknown style', () => {
       expect(service._styleInstructions('unknown')).toContain('STAR');
     });
@@ -322,6 +367,183 @@ describe('InterviewService', () => {
       await service.generateQuestion('Engineer', [], 'g1');
       const [systemPrompt] = mockChat.mock.calls[0];
       expect(systemPrompt).not.toContain('Ask the question in');
+    });
+  });
+
+  // ── generateCodingProblem ──────────────────────────────────────────────────
+
+  describe('generateCodingProblem', () => {
+    it('should parse and return the structured problem from Groq', async () => {
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_PROBLEM_JSON } }] });
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+      expect(result.title).toBe('Two Sum');
+      expect(result.testCases).toHaveLength(1);
+    });
+
+    it('should strip <think> tags before parsing', async () => {
+      mockGroqCreate.mockResolvedValue({
+        choices: [{ message: { content: `<think>reasoning</think>${MOCK_PROBLEM_JSON}` } }],
+      });
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+      expect(result.title).toBe('Two Sum');
+    });
+
+    it('should mention the chosen code language in the system prompt', async () => {
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_PROBLEM_JSON } }] });
+      await service.generateCodingProblem('Engineer', [], 'g1', null, 'python');
+      const call = mockGroqCreate.mock.calls[0][0];
+      expect(call.messages[0].content).toContain('Python');
+    });
+
+    it('should instruct the model to avoid repeating prior problems', async () => {
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_PROBLEM_JSON } }] });
+      const history = [{ question: 'Two Sum\n\nGiven an array...' }];
+      await service.generateCodingProblem('Engineer', history, 'g1');
+      const call = mockGroqCreate.mock.calls[0][0];
+      expect(call.messages[0].content).toContain('Do not repeat');
+    });
+
+    it('should include company name in the system prompt when provided', async () => {
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_PROBLEM_JSON } }] });
+      await service.generateCodingProblem('Engineer', [], 'g1', 'Acme Corp');
+      const call = mockGroqCreate.mock.calls[0][0];
+      expect(call.messages[0].content).toContain('Acme Corp');
+    });
+
+    it('should repair and parse JSON containing raw newlines inside string values', async () => {
+      const brokenJson = `{"title": "Two Sum", "prompt": "Line one.\nLine two.", "examples": [], "constraints": [], "functionName": "twoSum", "functionSignature": "function twoSum(nums, target) {}", "testCases": [{"input": [[2, 7], 9], "expected": [0, 1]}]}`;
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: brokenJson } }] });
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+      expect(result.title).toBe('Two Sum');
+      expect(result.prompt).toBe('Line one.\nLine two.');
+    });
+
+    it('should repair JSON with a trailing comma before a closing bracket', async () => {
+      const brokenJson = `{"title": "Two Sum", "prompt": "p", "examples": [], "constraints": [], "functionName": "twoSum", "functionSignature": "function twoSum(nums, target) {}", "testCases": [{"input": [[2, 7], 9], "expected": [0, 1]},]}`;
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: brokenJson } }] });
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+      expect(result.title).toBe('Two Sum');
+    });
+
+    it('should strip markdown code fences around the JSON', async () => {
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: `\`\`\`json\n${MOCK_PROBLEM_JSON}\n\`\`\`` } }] });
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+      expect(result.title).toBe('Two Sum');
+    });
+
+    it('should request JSON-mode output from Groq', async () => {
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_PROBLEM_JSON } }] });
+      await service.generateCodingProblem('Engineer', [], 'g1');
+      const call = mockGroqCreate.mock.calls[0][0];
+      expect(call.response_format).toEqual({ type: 'json_object' });
+    });
+
+    // Groq's own server-side JSON validation (response_format: json_object) occasionally
+    // rejects a generation outright with a 400 and code: json_validate_failed, handing back
+    // the (near-valid) text as `failed_generation` on the thrown error's `.error.error`.
+    function makeJsonValidateFailedError(failedGeneration) {
+      const err = new Error('400 json_validate_failed');
+      err.error = { error: { message: 'Failed to generate JSON.', type: 'invalid_request_error', code: 'json_validate_failed', failed_generation: failedGeneration } };
+      return err;
+    }
+
+    it('should salvage a result from failed_generation without a retry when it repairs cleanly', async () => {
+      mockGroqCreate.mockRejectedValueOnce(makeJsonValidateFailedError(MOCK_PROBLEM_JSON));
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+      expect(result.title).toBe('Two Sum');
+      expect(mockGroqCreate).toHaveBeenCalledTimes(1);
+    });
+
+    it('should retry once when failed_generation cannot be salvaged', async () => {
+      mockGroqCreate
+        .mockRejectedValueOnce(makeJsonValidateFailedError(''))
+        .mockResolvedValueOnce({ choices: [{ message: { content: MOCK_PROBLEM_JSON } }] });
+
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+
+      expect(result.title).toBe('Two Sum');
+      expect(mockGroqCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('should give up after exhausting retries on repeated json_validate_failed errors', async () => {
+      mockGroqCreate.mockRejectedValue(makeJsonValidateFailedError(''));
+      await expect(service.generateCodingProblem('Engineer', [], 'g1')).rejects.toThrow();
+      expect(mockGroqCreate).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ── generateCodeFollowupQuestion ───────────────────────────────────────────
+
+  describe('generateCodeFollowupQuestion', () => {
+    const testResult = { results: [{ pass: true }, { pass: false }], passCount: 1, total: 2 };
+
+    it('should call provider.chat and return the follow-up question text', async () => {
+      mockChat.mockResolvedValue('Walk me through your approach.');
+      const result = await service.generateCodeFollowupQuestion(MOCK_PROBLEM, 'function twoSum() {}', testResult, 'g1');
+      expect(result).toBe('Walk me through your approach.');
+    });
+
+    it('should reference the actual pass count in the system prompt', async () => {
+      mockChat.mockResolvedValue('Q?');
+      await service.generateCodeFollowupQuestion(MOCK_PROBLEM, 'code', testResult, 'g1');
+      const [systemPrompt] = mockChat.mock.calls[0];
+      expect(systemPrompt).toContain('passing 1 of them');
+    });
+
+    it('should include the code and test results in the user content', async () => {
+      mockChat.mockResolvedValue('Q?');
+      await service.generateCodeFollowupQuestion(MOCK_PROBLEM, 'function twoSum() {}', testResult, 'g1');
+      const [, userContent] = mockChat.mock.calls[0];
+      expect(JSON.parse(userContent).code).toBe('function twoSum() {}');
+    });
+  });
+
+  // ── submitCode / _waitForCodeSubmission ────────────────────────────────────
+
+  describe('submitCode / _waitForCodeSubmission', () => {
+    it('should resolve the pending wait with the submitted code', async () => {
+      const session = {};
+      const promise = service._waitForCodeSubmission(session);
+      expect(typeof session.pendingCodeResolve).toBe('function');
+
+      const resolved = service.submitCode('u1', 'function twoSum() {}');
+      service.sessions.set('u1', session); // not required for this call, but mirrors real usage
+      expect(resolved).toBe(false); // no session registered under 'u1' yet
+
+      session.pendingCodeResolve('function twoSum() {}');
+      await expect(promise).resolves.toBe('function twoSum() {}');
+    });
+
+    it('should return true and resolve via submitCode when the session is registered', async () => {
+      const session = {};
+      service.sessions.set('u1', session);
+      const promise = service._waitForCodeSubmission(session);
+
+      const resolved = service.submitCode('u1', 'my code');
+      expect(resolved).toBe(true);
+      await expect(promise).resolves.toBe('my code');
+      expect(session.pendingCodeResolve).toBeNull();
+    });
+
+    it('should return false when there is no pending submission for the user', () => {
+      service.sessions.set('u1', {});
+      expect(service.submitCode('u1', 'code')).toBe(false);
+    });
+
+    it('should return false when the user has no active session', () => {
+      expect(service.submitCode('ghost', 'code')).toBe(false);
+    });
+
+    it('should resolve with null after the timeout elapses with no submission', async () => {
+      jest.useFakeTimers();
+      try {
+        const session = {};
+        const promise = service._waitForCodeSubmission(session);
+        await jest.advanceTimersByTimeAsync(10 * 60 * 1000 + 1000);
+        await expect(promise).resolves.toBeNull();
+      } finally {
+        jest.useRealTimers();
+      }
     });
   });
 
@@ -401,6 +623,33 @@ describe('InterviewService', () => {
       await service.generateSummary('Engineer', history, 'g1');
       const call = mockGroqCreate.mock.calls[0][0];
       expect(call.messages[0].content).not.toContain('candidate interviewed in');
+    });
+
+    it('should instruct the model to weigh test results for technical_coding style', async () => {
+      mockGroqCreate.mockResolvedValue({
+        choices: [{ message: { content: MOCK_SUMMARY_JSON } }],
+      });
+      await service.generateSummary('Engineer', history, 'g1', null, 'technical_coding');
+      const call = mockGroqCreate.mock.calls[0][0];
+      expect(call.messages[0].content).toContain('testResults');
+    });
+
+    it('should include code and testResults from history entries in the user content', async () => {
+      mockGroqCreate.mockResolvedValue({
+        choices: [{ message: { content: MOCK_SUMMARY_JSON } }],
+      });
+      const codingHistory = [{
+        question: 'Two Sum',
+        code: 'function twoSum() {}',
+        codeLanguage: 'javascript',
+        testResults: { passCount: 1, total: 2, results: [] },
+        answer: 'I used a hash map.',
+      }];
+      await service.generateSummary('Engineer', codingHistory, 'g1', null, 'technical_coding');
+      const call = mockGroqCreate.mock.calls[0][0];
+      const userContent = JSON.parse(call.messages[1].content);
+      expect(userContent.interview_transcript[0].code).toBe('function twoSum() {}');
+      expect(userContent.interview_transcript[0].testResults.passCount).toBe(1);
     });
   });
 
@@ -494,6 +743,21 @@ describe('InterviewService', () => {
         expect.anything()
       );
     });
+
+    it('should add a Test Results field when history entries have testResults', () => {
+      const history = [{ question: 'Two Sum', answer: 'A.', testResults: { passCount: 3, total: 5 } }];
+      service._buildSummaryEmbed({ score: 7, strengths: [], gaps: [] }, history, member);
+      expect(EmbedBuilder.mock.results[0].value.addFields).toHaveBeenCalledWith(
+        expect.objectContaining({ name: '🧪 Test Results', value: 'Q1: 3/5 tests passed' })
+      );
+    });
+
+    it('should not add a Test Results field when no history entries have testResults', () => {
+      const history = [{ question: 'Q?', answer: 'A.' }];
+      service._buildSummaryEmbed({ score: 7, strengths: [], gaps: [] }, history, member);
+      const calls = EmbedBuilder.mock.results[0].value.addFields.mock.calls;
+      expect(calls.some(args => args[0]?.name === '🧪 Test Results')).toBe(false);
+    });
   });
 
   // ── _buildTranscriptAttachment ────────────────────────────────────────────
@@ -543,6 +807,32 @@ describe('InterviewService', () => {
     it('should omit the language line for the default English language', () => {
       const attachment = service._buildTranscriptAttachment([], member, null, 'en');
       expect(attachment.buffer.toString('utf-8')).not.toContain('Language:');
+    });
+
+    it('should include the submitted code and test pass counts when present', () => {
+      const history = [{
+        question: 'Two Sum',
+        code: 'function twoSum() {}',
+        codeLanguage: 'javascript',
+        testResults: {
+          passCount: 1,
+          total: 2,
+          results: [{ pass: true, actual: [0, 1], expected: [0, 1] }, { pass: false, actual: [1, 2], expected: [0, 1] }],
+        },
+        answer: 'I used a hash map.',
+      }];
+      const attachment = service._buildTranscriptAttachment(history, member, null);
+      const text = attachment.buffer.toString('utf-8');
+      expect(text).toContain('Submitted Code (javascript):');
+      expect(text).toContain('function twoSum() {}');
+      expect(text).toContain('Tests: 1/2 passed');
+      expect(text).toContain('Test 1: PASS');
+      expect(text).toContain('Test 2: FAIL');
+    });
+
+    it('should not include a code section when no code was submitted', () => {
+      const attachment = service._buildTranscriptAttachment([{ question: 'Q?', answer: 'A.' }], member, null);
+      expect(attachment.buffer.toString('utf-8')).not.toContain('Submitted Code');
     });
   });
 
@@ -785,6 +1075,104 @@ describe('InterviewService', () => {
       await jest.advanceTimersByTimeAsync(1000);
 
       await expect(promise).resolves.toBe(false);
+    });
+  });
+
+  // ── _runCodingQuestion ─────────────────────────────────────────────────────
+
+  describe('_runCodingQuestion', () => {
+    function makeCodingSession(overrides = {}) {
+      return {
+        guildId: 'g1',
+        company: null,
+        language: 'en',
+        codeLanguage: 'javascript',
+        jdText: 'Engineer role',
+        history: [],
+        voiceChannel: { ...makeVoiceChannel(), send: jest.fn().mockResolvedValue(undefined) },
+        aborted: false,
+        currentProblem: null,
+        pendingCodeResolve: null,
+        ...overrides,
+      };
+    }
+
+    it('should run the full flow and push a rich history entry when code is submitted', async () => {
+      const session = makeCodingSession();
+      jest.spyOn(service, 'generateCodingProblem').mockResolvedValue(MOCK_PROBLEM);
+      jest.spyOn(service, 'speakQuestion').mockResolvedValue(undefined);
+      jest.spyOn(service, '_waitForCodeSubmission').mockResolvedValue('function twoSum() {}');
+      const testResult = { results: [{ pass: true }], passCount: 1, total: 1 };
+      mockRunTestCases.mockResolvedValue(testResult);
+      jest.spyOn(service, 'generateCodeFollowupQuestion').mockResolvedValue('Walk me through it.');
+      jest.spyOn(service, 'captureAnswer').mockResolvedValue('I used a hash map.');
+
+      await service._runCodingQuestion(session, {}, {}, 'u1', 'en-US-AriaNeural');
+
+      expect(mockRunTestCases).toHaveBeenCalledWith('function twoSum() {}', 'javascript', MOCK_PROBLEM.testCases, 'twoSum');
+      expect(session.voiceChannel.send).toHaveBeenCalledWith(
+        expect.objectContaining({ embeds: expect.any(Array), components: expect.any(Array) })
+      );
+      expect(session.history).toHaveLength(1);
+      expect(session.history[0]).toMatchObject({
+        code: 'function twoSum() {}',
+        codeLanguage: 'javascript',
+        testResults: testResult,
+        answer: 'I used a hash map.',
+      });
+    });
+
+    it('should skip test execution and use a fallback follow-up when no code is submitted', async () => {
+      const session = makeCodingSession();
+      jest.spyOn(service, 'generateCodingProblem').mockResolvedValue(MOCK_PROBLEM);
+      jest.spyOn(service, 'speakQuestion').mockResolvedValue(undefined);
+      jest.spyOn(service, '_waitForCodeSubmission').mockResolvedValue(null);
+      jest.spyOn(service, 'captureAnswer').mockResolvedValue('I would use a hash map.');
+
+      await service._runCodingQuestion(session, {}, {}, 'u1', 'en-US-AriaNeural');
+
+      expect(mockRunTestCases).not.toHaveBeenCalled();
+      expect(session.history).toHaveLength(1);
+      expect(session.history[0].code).toBeNull();
+      expect(session.history[0].testResults).toBeNull();
+    });
+
+    it('should speak an apology and skip the turn when problem generation fails', async () => {
+      const session = makeCodingSession();
+      jest.spyOn(service, 'generateCodingProblem').mockRejectedValue(new Error('Unterminated string in JSON at position 1150'));
+      jest.spyOn(service, 'speakQuestion').mockResolvedValue(undefined);
+
+      await service._runCodingQuestion(session, {}, {}, 'u1', 'en-US-AriaNeural');
+
+      expect(service.speakQuestion).toHaveBeenCalledTimes(1);
+      expect(session.voiceChannel.send).not.toHaveBeenCalled();
+      expect(session.history).toHaveLength(0);
+    });
+
+    it('should not speak an apology if the session was already aborted when generation fails', async () => {
+      const session = makeCodingSession({ aborted: true });
+      jest.spyOn(service, 'generateCodingProblem').mockRejectedValue(new Error('boom'));
+      jest.spyOn(service, 'speakQuestion').mockResolvedValue(undefined);
+
+      await service._runCodingQuestion(session, {}, {}, 'u1', 'en-US-AriaNeural');
+
+      expect(service.speakQuestion).not.toHaveBeenCalled();
+    });
+
+    it('should not push to history when aborted after the code wait resolves', async () => {
+      const session = makeCodingSession();
+      jest.spyOn(service, 'generateCodingProblem').mockResolvedValue(MOCK_PROBLEM);
+      jest.spyOn(service, 'speakQuestion').mockResolvedValue(undefined);
+      jest.spyOn(service, '_waitForCodeSubmission').mockImplementation(async () => {
+        session.aborted = true;
+        return null;
+      });
+      jest.spyOn(service, 'captureAnswer').mockResolvedValue('should not be called');
+
+      await service._runCodingQuestion(session, {}, {}, 'u1', 'en-US-AriaNeural');
+
+      expect(session.history).toHaveLength(0);
+      expect(service.captureAnswer).not.toHaveBeenCalled();
     });
   });
 

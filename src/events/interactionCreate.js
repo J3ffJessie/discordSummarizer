@@ -13,8 +13,12 @@ const { MODAL_ID: STICKY_MODAL_ID } = require('../commands/sticky');
 const {
   INTERVIEW_STYLE_SELECT_ID,
   INTERVIEW_LANGUAGE_SELECT_ID,
+  INTERVIEW_CODE_LANGUAGE_SELECT_ID,
   INTERVIEW_CONTINUE_BUTTON_ID,
   INTERVIEW_MODAL_ID,
+  INTERVIEW_SUBMIT_CODE_BUTTON_ID,
+  INTERVIEW_CODE_MODAL_ID,
+  buildSetupComponents,
 } = require('../commands/interview');
 
 module.exports = (client) => {
@@ -23,13 +27,21 @@ module.exports = (client) => {
     if (interaction.isStringSelectMenu()) {
       if (interaction.customId === INTERVIEW_STYLE_SELECT_ID) {
         const { interviewService } = client.services;
-        interviewService.updatePendingStyle(interaction.user.id, interaction.values[0]);
-        await interaction.deferUpdate();
+        const style = interaction.values[0];
+        interviewService.updatePendingStyle(interaction.user.id, style);
+        const setup = interviewService.getPendingSetup(interaction.user.id);
+        await interaction.update({ components: buildSetupComponents(style, setup?.language, setup?.codeLanguage) });
       }
 
       if (interaction.customId === INTERVIEW_LANGUAGE_SELECT_ID) {
         const { interviewService } = client.services;
         interviewService.updatePendingLanguage(interaction.user.id, interaction.values[0]);
+        await interaction.deferUpdate();
+      }
+
+      if (interaction.customId === INTERVIEW_CODE_LANGUAGE_SELECT_ID) {
+        const { interviewService } = client.services;
+        interviewService.updatePendingCodeLanguage(interaction.user.id, interaction.values[0]);
         await interaction.deferUpdate();
       }
       return;
@@ -164,7 +176,7 @@ module.exports = (client) => {
         });
 
         interviewService
-          .startInterview(guild, member, voiceChannel, interaction.channel, parsedJd, company, setup.style, setup.language)
+          .startInterview(guild, member, voiceChannel, interaction.channel, parsedJd, company, setup.style, setup.language, setup.codeLanguage)
           .catch(async (err) => {
             console.error('[interview] Unhandled error in startInterview:', err?.message);
             try {
@@ -172,6 +184,20 @@ module.exports = (client) => {
             } catch {}
           });
 
+        return;
+      }
+
+      if (interaction.customId === INTERVIEW_CODE_MODAL_ID) {
+        const { interviewService } = client.services;
+        const code = interaction.fields.getTextInputValue('interview_code').trim();
+
+        const resolved = interviewService.submitCode(interaction.user.id, code);
+        await interaction.reply({
+          content: resolved
+            ? '✅ Code submitted! Running your tests now — head back to the voice channel for the follow-up.'
+            : '❌ There\'s nothing waiting for a code submission right now (the interview may have moved on or ended).',
+          ephemeral: true,
+        });
         return;
       }
 
@@ -220,6 +246,37 @@ module.exports = (client) => {
         );
 
         await interaction.showModal(modal);
+        return;
+      }
+
+      if (interaction.customId === INTERVIEW_SUBMIT_CODE_BUTTON_ID) {
+        const { interviewService } = client.services;
+        const session = interviewService.sessions.get(interaction.user.id);
+
+        if (!session || !session.pendingCodeResolve) {
+          await interaction.reply({
+            content: '❌ There\'s no coding question waiting for a submission right now.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        const codeModal = new ModalBuilder()
+          .setCustomId(INTERVIEW_CODE_MODAL_ID)
+          .setTitle('Submit Your Solution');
+
+        const codeInput = new TextInputBuilder()
+          .setCustomId('interview_code')
+          .setLabel('Your code')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true);
+
+        const signature = session.currentProblem?.functionSignature;
+        if (signature) codeInput.setValue(`${signature}\n    // your code here\n`);
+
+        codeModal.addComponents(new ActionRowBuilder().addComponents(codeInput));
+
+        await interaction.showModal(codeModal);
         return;
       }
 
