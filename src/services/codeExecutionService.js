@@ -14,8 +14,18 @@ const JUDGE0_API_KEY = process.env.JUDGE0_API_KEY || null;
 const JUDGE0_API_HOST = process.env.JUDGE0_API_HOST || null;
 const RESULTS_MARKER = '__RESULTS__';
 const EXECUTE_TIMEOUT_MS = 20000;
-const COMPILATION_ERROR_STATUS_ID = 6;
+
+// Caps a candidate submission's own resource use (an infinite loop or runaway recursion
+// otherwise runs for however long the Judge0 instance's own defaults allow). A self-hosted
+// or paid instance may permit higher ceilings; the public instance clamps to its own max
+// regardless of what's requested here.
+const CPU_TIME_LIMIT_S = 5;
+const WALL_TIME_LIMIT_S = 10;
+const MEMORY_LIMIT_KB = 128000; // 128 MB
+
 const ACCEPTED_STATUS_ID = 3;
+const TIME_LIMIT_EXCEEDED_STATUS_ID = 5;
+const COMPILATION_ERROR_STATUS_ID = 6;
 
 // Judge0 CE language IDs as of this writing — self-hosted instances can differ; check
 // {JUDGE0_URL}/languages if execution starts failing with an unrecognized-language error.
@@ -47,6 +57,9 @@ async function execute({ language_id, code, stdin = '' }) {
         source_code: Buffer.from(code, 'utf-8').toString('base64'),
         language_id,
         stdin: Buffer.from(stdin, 'utf-8').toString('base64'),
+        cpu_time_limit: CPU_TIME_LIMIT_S,
+        wall_time_limit: WALL_TIME_LIMIT_S,
+        memory_limit: MEMORY_LIMIT_KB,
       }),
       signal: controller.signal,
     });
@@ -65,6 +78,10 @@ async function execute({ language_id, code, stdin = '' }) {
 
   if (data.status?.id === COMPILATION_ERROR_STATUS_ID) {
     return { stdout: '', stderr: decodeBase64(data.compile_output) || 'Compile error', code: 1 };
+  }
+
+  if (data.status?.id === TIME_LIMIT_EXCEEDED_STATUS_ID) {
+    return { stdout: '', stderr: `Time limit exceeded (>${CPU_TIME_LIMIT_S}s CPU time) — check for an infinite loop or unbounded recursion.`, code: 1 };
   }
 
   return {
@@ -287,6 +304,28 @@ function parseResultsFromStdout(stdout, stderr, total) {
   }
 }
 
+// Phrasing each toolchain uses when the harness's call to `functionName` can't be resolved —
+// covers both a genuine compile failure (Java/C++, where the harness is compiled alongside the
+// candidate's code) and a caught runtime exception (JS/Python, where each test case's try/catch
+// swallows it into that result's `error` field instead of crashing the whole run).
+const NAME_MISMATCH_PATTERNS = [
+  /is not defined/i,                  // JS ReferenceError / Python NameError
+  /has no member named/i,             // C++ — calling a nonexistent method on the Solution instance
+  /was not declared in this scope/i,  // C++ fallback phrasing
+  /cannot find symbol/i,              // Java
+];
+
+// True only when every test case failed for what looks like the same reason: the candidate's
+// function/method isn't named what the harness expects. A mix of pass/fail or varied errors
+// means it's a real logic bug, not a naming mismatch, so this stays conservative on purpose.
+function looksLikeSignatureMismatch(results, functionName) {
+  if (!functionName || results.length === 0) return false;
+  return results.every((r) => {
+    const message = r.error || '';
+    return message.includes(functionName) && NAME_MISMATCH_PATTERNS.some((pattern) => pattern.test(message));
+  });
+}
+
 async function runTestCases(code, codeLanguage, testCases, functionName) {
   const runtime = RUNTIMES[codeLanguage];
   if (!runtime) throw new Error(`Unsupported code language: ${codeLanguage}`);
@@ -294,8 +333,13 @@ async function runTestCases(code, codeLanguage, testCases, functionName) {
   const harness = buildHarness(codeLanguage, code, testCases, functionName);
   const { stdout, stderr } = await execute({ language_id: runtime.language_id, code: harness });
 
-  const results = parseResultsFromStdout(stdout, stderr, testCases.length);
+  let results = parseResultsFromStdout(stdout, stderr, testCases.length);
   const passCount = results.filter((r) => r.pass).length;
+
+  if (passCount === 0 && looksLikeSignatureMismatch(results, functionName)) {
+    const hint = `Your solution doesn't define a function/method named "${functionName}" — check the Function Signature above and make sure the name matches exactly.`;
+    results = results.map((r) => ({ ...r, error: hint }));
+  }
 
   return { results, passCount, total: testCases.length };
 }

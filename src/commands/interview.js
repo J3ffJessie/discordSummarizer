@@ -16,6 +16,8 @@ const INTERVIEW_CONTINUE_BUTTON_ID = 'interview_continue';
 const INTERVIEW_MODAL_ID = 'interview_modal';
 const INTERVIEW_SUBMIT_CODE_BUTTON_ID = 'interview_submit_code';
 const INTERVIEW_CODE_MODAL_ID = 'interview_code_modal';
+const INTERVIEW_RUN_CODE_BUTTON_ID = 'interview_run_code';
+const INTERVIEW_RUN_CODE_MODAL_ID = 'interview_run_code_modal';
 
 const CODE_LANGUAGES = {
   javascript: 'JavaScript',
@@ -35,7 +37,7 @@ function buildSetupComponents(style, language = DEFAULT_LANGUAGE, codeLanguage =
         { label: 'Technical', description: 'Skills and knowledge assessment', value: 'technical', default: style === 'technical' },
         { label: 'Conversational', description: 'Relaxed, culture-fit focused', value: 'conversational', default: style === 'conversational' },
         { label: 'Case-based', description: 'Problem-solving scenarios', value: 'case_based', default: style === 'case_based' },
-        { label: 'Technical (Coding)', description: 'LeetCode-style problems with real test execution', value: 'technical_coding', default: style === 'technical_coding' },
+        { label: 'Leetcode', description: 'LeetCode-style problems with real test execution', value: 'leetcode', default: style === 'leetcode' },
       ])
   );
 
@@ -61,7 +63,7 @@ function buildSetupComponents(style, language = DEFAULT_LANGUAGE, codeLanguage =
 
   const rows = [styleRow, languageRow];
 
-  if (style === 'technical_coding') {
+  if (style === 'leetcode') {
     const codeLanguageRow = new ActionRowBuilder().addComponents(
       new StringSelectMenuBuilder()
         .setCustomId(INTERVIEW_CODE_LANGUAGE_SELECT_ID)
@@ -90,6 +92,8 @@ module.exports = {
   INTERVIEW_MODAL_ID,
   INTERVIEW_SUBMIT_CODE_BUTTON_ID,
   INTERVIEW_CODE_MODAL_ID,
+  INTERVIEW_RUN_CODE_BUTTON_ID,
+  INTERVIEW_RUN_CODE_MODAL_ID,
   CODE_LANGUAGES,
   DEFAULT_CODE_LANGUAGE,
   buildSetupComponents,
@@ -167,12 +171,12 @@ module.exports = {
         });
       }
 
-      await interviewService.stopInterview(userId);
-
       await interaction.reply({
         content: '✅ Your interview has been stopped.',
         flags: MessageFlags.Ephemeral,
       });
+
+      await interviewService.stopInterview(userId);
     }
   },
 };

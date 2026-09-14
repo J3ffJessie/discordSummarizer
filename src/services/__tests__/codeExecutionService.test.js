@@ -21,6 +21,7 @@ function encode(str) {
 
 const ACCEPTED = { id: 3, description: 'Accepted' };
 const RUNTIME_ERROR = { id: 4, description: 'Runtime Error' };
+const TIME_LIMIT_EXCEEDED = { id: 5, description: 'Time Limit Exceeded' };
 const COMPILATION_ERROR = { id: 6, description: 'Compilation Error' };
 
 describe('codeExecutionService', () => {
@@ -44,7 +45,7 @@ describe('codeExecutionService', () => {
       );
     });
 
-    it('should send the language_id and base64-encoded source/stdin', async () => {
+    it('should send the language_id, base64-encoded source/stdin, and resource limits', async () => {
       mockFetchOnce({ status: ACCEPTED, stdout: encode(''), stderr: null, compile_output: null });
 
       await execute({ language_id: 92, code: 'print(1)', stdin: 'input' });
@@ -54,6 +55,9 @@ describe('codeExecutionService', () => {
         source_code: encode('print(1)'),
         language_id: 92,
         stdin: encode('input'),
+        cpu_time_limit: 5,
+        wall_time_limit: 10,
+        memory_limit: 128000,
       });
     });
 
@@ -61,6 +65,15 @@ describe('codeExecutionService', () => {
       mockFetchOnce({ message: 'bad request' }, { ok: false, status: 400 });
       await expect(execute({ language_id: 93, code: 'x' }))
         .rejects.toThrow('Judge0 returned 400');
+    });
+
+    it('should return a clear message when the time limit is exceeded', async () => {
+      mockFetchOnce({ status: TIME_LIMIT_EXCEEDED, stdout: null, stderr: null, compile_output: null });
+
+      const result = await execute({ language_id: 93, code: 'while(true){}' });
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain('Time limit exceeded');
     });
 
     it('should return compile output as stderr when compilation fails', async () => {
@@ -193,13 +206,44 @@ describe('codeExecutionService', () => {
     });
 
     it('should produce failing placeholder results when the marker is missing (e.g. a crash)', async () => {
-      mockFetchOnce({ status: RUNTIME_ERROR, stdout: encode(''), stderr: encode('ReferenceError: twoSum is not defined'), compile_output: null });
+      mockFetchOnce({ status: RUNTIME_ERROR, stdout: encode(''), stderr: encode('SyntaxError: Unexpected token'), compile_output: null });
 
       const result = await runTestCases('not valid code', 'javascript', testCases, 'twoSum');
 
       expect(result.passCount).toBe(0);
       expect(result.results).toHaveLength(2);
-      expect(result.results[0].error).toContain('ReferenceError');
+      expect(result.results[0].error).toContain('SyntaxError');
+    });
+
+    it('should surface a clear hint when every result fails on a function-name mismatch', async () => {
+      mockFetchOnce({ status: RUNTIME_ERROR, stdout: encode(''), stderr: encode('ReferenceError: twoSum is not defined'), compile_output: null });
+
+      const result = await runTestCases('function twoSumm() {}', 'javascript', testCases, 'twoSum');
+
+      expect(result.passCount).toBe(0);
+      expect(result.results).toHaveLength(2);
+      expect(result.results[0].error).toContain('doesn\'t define a function/method named "twoSum"');
+      expect(result.results[1].error).toContain('doesn\'t define a function/method named "twoSum"');
+    });
+
+    it('should recognize Java\'s "cannot find symbol" as a signature mismatch', async () => {
+      mockFetchOnce({ status: COMPILATION_ERROR, stdout: null, stderr: null, compile_output: encode('error: cannot find symbol\n  symbol: method twoSum(int[],int)') });
+
+      const result = await runTestCases('class Solution {}', 'java', testCases, 'twoSum');
+
+      expect(result.results[0].error).toContain('doesn\'t define a function/method named "twoSum"');
+    });
+
+    it('should not rewrite the error when results are a mix of pass and fail', async () => {
+      const resultsPayload = [
+        { pass: true, actual: [0, 1], expected: [0, 1] },
+        { pass: false, actual: null, expected: [0, 1], error: 'twoSum is not defined' },
+      ];
+      mockFetchOnce({ status: ACCEPTED, stdout: encode(`__RESULTS__${JSON.stringify(resultsPayload)}`), stderr: null, compile_output: null });
+
+      const result = await runTestCases('function twoSum() {}', 'javascript', testCases, 'twoSum');
+
+      expect(result.results[1].error).toBe('twoSum is not defined');
     });
 
     it('should produce failing placeholder results when stdout cannot be parsed as JSON', async () => {

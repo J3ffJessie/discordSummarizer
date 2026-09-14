@@ -19,6 +19,10 @@ const path = require('path');
 const os = require('os');
 
 const MAX_QUESTIONS = 8;
+// Each leetcode question can take up to MAX_CODE_WAIT_MS (10 min) of code-wait time
+// alone, on top of the voice discussion — far heavier than a spoken Q&A turn, so it gets a
+// much smaller cap.
+const MAX_CODING_QUESTIONS = 2;
 const MAX_ANSWER_WAIT_MS = 65000;
 const MIN_ANSWER_CHARS = 5;
 const ANSWER_SILENCE_MS = 3000; // wait for this long a pause before treating the answer as done
@@ -28,6 +32,12 @@ const VOICE_JOIN_TIMEOUT_MS = 5 * 60 * 1000; // how long to wait for the candida
 const VOICE_JOIN_POLL_MS = 1000;
 const MAX_CODE_WAIT_MS = 10 * 60 * 1000; // how long to wait for a code submission before moving on
 const INTERVIEW_SUBMIT_CODE_BUTTON_ID = 'interview_submit_code';
+const INTERVIEW_RUN_CODE_BUTTON_ID = 'interview_run_code';
+// The first N generated testCases double as the visible "sample" set a candidate can Run
+// against before Submitting — mirrors LeetCode's examples-vs-hidden-tests split. The prompt
+// requires at least 4 testCases, so slicing this many is always safe.
+const SAMPLE_TEST_CASE_COUNT = 2;
+const MAX_SAMPLE_RUNS = 3; // caps Judge0 load and how long a candidate can iterate on one question
 
 const DEFAULT_LANGUAGE = 'en';
 
@@ -49,6 +59,10 @@ const LANGUAGES = {
 
 function getLanguage(code) {
   return LANGUAGES[code] || LANGUAGES[DEFAULT_LANGUAGE];
+}
+
+function questionCountFor(style) {
+  return style === 'leetcode' ? MAX_CODING_QUESTIONS : MAX_QUESTIONS;
 }
 
 // The model's "JSON" occasionally embeds raw newline/tab characters inside string values
@@ -106,6 +120,7 @@ function parseJsonResponse(raw) {
 }
 
 const MAX_JSON_GEN_ATTEMPTS = 2;
+const MAX_PROBLEM_GEN_ATTEMPTS = 2; // regenerate the whole problem if its reference solution doesn't actually run
 
 // Groq's SDK doesn't unwrap the response body before attaching it to the thrown error, so
 // `err.error` ends up as `{ error: { message, type, code, failed_generation } }` — one level
@@ -212,7 +227,7 @@ class InterviewService {
         return 'Use a relaxed, conversational style focused on culture fit and personality. Ask open-ended questions about motivations, working preferences, team dynamics, and career goals.';
       case 'case_based':
         return 'Use a case-based interview style — present realistic business or technical scenarios and ask the candidate how they would approach or solve them.';
-      case 'technical_coding':
+      case 'leetcode':
         return 'Use a LeetCode-style technical coding interview — present algorithmic coding problems and evaluate the candidate\'s written solution and their verbal explanation of it.';
       case 'behavioral':
       default:
@@ -281,11 +296,47 @@ class InterviewService {
     }
   }
 
+  // Runs the model's own reference solution (always JS, regardless of the candidate's chosen
+  // language, to keep verification to a single harness) against the testCases it generated
+  // alongside the problem. The model hand-writes "expected" values from reasoning, not
+  // execution, so they occasionally don't match what the described logic actually produces —
+  // this catches that by trusting the executed output instead and correcting testCases in
+  // place. Returns false only when the reference solution itself doesn't run cleanly (every
+  // case erroring), which means the generation can't be trusted at all and should be redone;
+  // a Judge0 hiccup here is swallowed rather than blocking problem generation on it.
+  async _verifyTestCases(problem) {
+    if (!problem?.referenceSolution || !Array.isArray(problem.testCases) || !problem.testCases.length) {
+      return true;
+    }
+
+    let verification;
+    try {
+      verification = await codeExecutionService.runTestCases(
+        problem.referenceSolution,
+        'javascript',
+        problem.testCases,
+        problem.functionName
+      );
+    } catch (err) {
+      console.warn('[interview] Could not verify generated test cases (execution service unavailable):', err?.message);
+      return true;
+    }
+
+    if (verification.results.some((r) => r.error)) return false;
+
+    verification.results.forEach((r, i) => {
+      if (!r.pass) problem.testCases[i].expected = r.actual;
+    });
+    return true;
+  }
+
   // Generates a structured LeetCode-style problem: prompt/examples/constraints/signature plus
   // language-agnostic test cases (plain JSON args/expected), which codeExecutionService later
   // serializes per the candidate's chosen coding language. Follows the same direct-Groq JSON
   // pattern as generateSummary below, since this needs structured output rather than prose.
-  async generateCodingProblem(jdText, history, guildId, company = null, codeLanguage = 'javascript', language = DEFAULT_LANGUAGE) {
+  // Also requests a JS reference solution used only to verify/correct the testCases (see
+  // _verifyTestCases) — stripped from the object before it's returned.
+  async generateCodingProblem(jdText, history, guildId, company = null, codeLanguage = 'javascript', language = DEFAULT_LANGUAGE, attempt = 1) {
     const guildConfig = this.gcs?.getConfig(guildId) || null;
     const { apiKey } = resolveConfig('summ', guildConfig);
     const groq = new Groq({ apiKey });
@@ -295,7 +346,7 @@ class InterviewService {
     const avoidRepeats = priorTitles ? ` Do not repeat or closely resemble these previously asked problems: ${priorTitles}.` : '';
     const languageLabel = codeLanguage.charAt(0).toUpperCase() + codeLanguage.slice(1);
 
-    return this._createJsonCompletion(groq, {
+    const problem = await this._createJsonCompletion(groq, {
       model: 'openai/gpt-oss-120b',
       max_tokens: 4096,
       temperature: 0.7,
@@ -305,7 +356,7 @@ class InterviewService {
       messages: [
         {
           role: 'system',
-          content: `You are a technical interviewer writing a single LeetCode-style algorithmic coding problem, informed by the given job description where relevant.${companyContext}${avoidRepeats} The candidate will write their solution in ${languageLabel}. Return ONLY valid JSON with this exact shape: { "title": <string>, "prompt": <string, the full problem statement>, "examples": [<string>, ...], "constraints": [<string>, ...], "functionName": <string, a valid ${languageLabel} identifier>, "functionSignature": <string, the function/method signature in ${languageLabel} the candidate should implement>, "testCases": [{ "input": [<arg1>, <arg2>, ...], "expected": <value> }, ...] }. Provide at least 4 testCases covering typical cases and at least one edge case. Every "input" array's values and every "expected" value must be plain JSON types only — numbers, strings, booleans, or flat arrays of those (no nested objects or nested arrays). This must be a single valid JSON object: escape every double-quote character (") and newline that appears inside a string value (e.g. in code snippets or quoted text) as \\" and \\n respectively — never a literal unescaped " or line break inside a string. No markdown, no explanation — just JSON.`,
+          content: `You are a technical interviewer writing a single LeetCode-style algorithmic coding problem, informed by the given job description where relevant.${companyContext}${avoidRepeats} The candidate will write their solution in ${languageLabel}. Return ONLY valid JSON with this exact shape: { "title": <string>, "prompt": <string, the full problem statement>, "examples": [<string>, ...], "constraints": [<string>, ...], "functionName": <string, a valid ${languageLabel} identifier>, "functionSignature": <string, the function/method signature in ${languageLabel} the candidate should implement>, "testCases": [{ "input": [<arg1>, <arg2>, ...], "expected": <value> }, ...], "referenceSolution": <string, a correct, working JavaScript function — regardless of what language the candidate will use — that solves the problem, declared with the exact same name as "functionName", used only to verify the testCases> }. Provide at least 4 testCases covering typical cases and at least one edge case. Every "input" array's values and every "expected" value must be plain JSON types only — numbers, strings, booleans, or flat arrays of those (no nested objects or nested arrays). The referenceSolution must actually run correctly against every testCase you provide — double check your own arithmetic/logic before finalizing "expected" values. This must be a single valid JSON object: escape every double-quote character (") and newline that appears inside a string value (e.g. in code snippets or quoted text) as \\" and \\n respectively — never a literal unescaped " or line break inside a string. No markdown, no explanation — just JSON.`,
         },
         {
           role: 'user',
@@ -313,6 +364,14 @@ class InterviewService {
         },
       ],
     });
+
+    const verified = await this._verifyTestCases(problem);
+    if (!verified && attempt < MAX_PROBLEM_GEN_ATTEMPTS) {
+      return this.generateCodingProblem(jdText, history, guildId, company, codeLanguage, language, attempt + 1);
+    }
+
+    delete problem.referenceSolution;
+    return problem;
   }
 
   // Generates a spoken follow-up question that references the candidate's actual test results,
@@ -354,7 +413,7 @@ class InterviewService {
         messages: [
           {
             role: 'system',
-            content: `You are an expert hiring manager evaluating a job interview.${companyContext} The interview was conducted in the following style: ${styleInstructions}${languageInstruction}${style === 'technical_coding' ? ' Some entries in the transcript include the candidate\'s submitted "code" and "testResults" (from actually executing their code against test cases) alongside their verbal "answer" explaining it — weigh the real test pass/fail results and code quality alongside the verbal explanation, not just the explanation on its own.' : ''} Based on the job description and the candidate's answers, return ONLY valid JSON with this exact shape: { "score": <integer 1-10>, "strengths": [<string>, ...], "gaps": [<string>, ...], "narrative": <string> }. The "narrative" should be a 3-5 sentence paragraph, written directly to the candidate, that explains their weaknesses in context and gives concrete, actionable steps they can take to make those weaknesses less impactful in future interviews. This must be a single valid JSON object: escape every double-quote character (") and newline that appears inside a string value as \\" and \\n respectively. No markdown, no explanation — just JSON.`,
+            content: `You are an expert hiring manager evaluating a job interview.${companyContext} The interview was conducted in the following style: ${styleInstructions}${languageInstruction}${style === 'leetcode' ? ' Some entries in the transcript include the candidate\'s submitted "code" and "testResults" (from actually executing their code against test cases) alongside their verbal "answer" explaining it — weigh the real test pass/fail results and code quality alongside the verbal explanation, not just the explanation on its own.' : ''} Based on the job description and the candidate's answers, return ONLY valid JSON with this exact shape: { "score": <integer 1-10>, "strengths": [<string>, ...], "gaps": [<string>, ...], "narrative": <string> }. The "narrative" should be a 3-5 sentence paragraph, written directly to the candidate, that explains their weaknesses in context and gives concrete, actionable steps they can take to make those weaknesses less impactful in future interviews. This must be a single valid JSON object: escape every double-quote character (") and newline that appears inside a string value as \\" and \\n respectively. No markdown, no explanation — just JSON.`,
           },
           {
             role: 'user',
@@ -488,6 +547,47 @@ class InterviewService {
     return true;
   }
 
+  // Runs a candidate's in-progress code against the visible "sample" test cases (the first
+  // SAMPLE_TEST_CASE_COUNT of the generated set — the rest stay hidden until Submit) without
+  // resolving the pending Submit wait, so they can iterate before committing. Capped at
+  // MAX_SAMPLE_RUNS per question. Called from the Run Code modal-submit handler; returns the
+  // fully-formed message to show back to the candidate.
+  async runSampleCode(userId, code) {
+    const session = this.sessions.get(userId);
+    if (!session || !session.currentProblem) {
+      return { ok: false, content: '❌ There\'s no coding question waiting for a submission right now (the interview may have moved on or ended).' };
+    }
+
+    session.runCount = (session.runCount || 0) + 1;
+    if (session.runCount > MAX_SAMPLE_RUNS) {
+      session.runCount = MAX_SAMPLE_RUNS;
+      return { ok: false, content: `❌ You've used all ${MAX_SAMPLE_RUNS} sample runs for this question — go ahead and Submit Code when you're ready.` };
+    }
+
+    const { currentProblem, codeLanguage } = session;
+    const sampleCases = currentProblem.testCases.slice(0, SAMPLE_TEST_CASE_COUNT);
+
+    let result;
+    try {
+      result = await codeExecutionService.runTestCases(code, codeLanguage, sampleCases, currentProblem.functionName);
+    } catch (err) {
+      console.error(`[interview] Sample run failed for ${userId}:`, err?.message);
+      return { ok: false, content: '❌ Something went wrong running your code against the sample tests. You can try again or just submit when ready.' };
+    }
+
+    const lines = result.results.map((r, i) => {
+      if (r.pass) return `Sample ${i + 1}: ✅ Passed`;
+      const detail = r.error || `expected ${JSON.stringify(r.expected)}, got ${JSON.stringify(r.actual)}`;
+      return `Sample ${i + 1}: ❌ Failed — ${detail}`;
+    });
+    const runsLeft = MAX_SAMPLE_RUNS - session.runCount;
+
+    return {
+      ok: true,
+      content: `**${result.passCount}/${result.total} sample tests passed**\n${lines.join('\n')}\n\n_${runsLeft} run(s) remaining before you submit._`,
+    };
+  }
+
   // Waits (self-paced, no polling) for a Submit Code modal to resolve session.pendingCodeResolve,
   // racing against MAX_CODE_WAIT_MS. Unlike captureAnswer, this deliberately does not hold any
   // voice capture open — the interviewee can take as long as they need up to the timeout.
@@ -522,7 +622,7 @@ class InterviewService {
       embed.addFields({ name: 'Function Signature', value: `\`\`\`\n${problem.functionSignature.slice(0, 1000)}\n\`\`\`` });
     }
 
-    return embed.setFooter({ text: 'Click "Submit Code" below when you\'re ready.' });
+    return embed.setFooter({ text: `Click "Run Code" to test against the first ${SAMPLE_TEST_CASE_COUNT} example(s) (up to ${MAX_SAMPLE_RUNS} times), or "Submit Code" when you're ready for the real thing.` });
   }
 
   // Runs one full coding-style question: generate problem -> post it (text, not voice) ->
@@ -559,6 +659,10 @@ class InterviewService {
     const embed = this._buildProblemEmbed(problem);
     const buttonRow = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
+        .setCustomId(INTERVIEW_RUN_CODE_BUTTON_ID)
+        .setLabel('Run Code')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
         .setCustomId(INTERVIEW_SUBMIT_CODE_BUTTON_ID)
         .setLabel('Submit Code')
         .setStyle(ButtonStyle.Primary)
@@ -571,6 +675,7 @@ class InterviewService {
     }
 
     session.currentProblem = problem;
+    session.runCount = 0;
     const code = await this._waitForCodeSubmission(session);
     session.currentProblem = null;
     if (session.aborted) return;
@@ -684,19 +789,21 @@ class InterviewService {
       return;
     }
 
+    const questionCount = questionCountFor(style);
+
     try {
       const companyPhrase = company ? ` for ${company}` : '';
       const introText = await this._localize(
-        `Hello! Welcome to your AI-powered job interview${companyPhrase}. I'll be asking you a series of ${MAX_QUESTIONS} questions based on the job description you provided. Please answer each question clearly after I finish speaking. Let's get started.`,
+        `Hello! Welcome to your AI-powered job interview${companyPhrase}. I'll be asking you a series of ${questionCount} questions based on the job description you provided. Please answer each question clearly after I finish speaking. Let's get started.`,
         language,
         guildId
       );
       await this.speakQuestion(connection, userId, introText, voice);
 
-      for (let i = 0; i < MAX_QUESTIONS; i++) {
+      for (let i = 0; i < questionCount; i++) {
         if (session.aborted) break;
 
-        if (style === 'technical_coding') {
+        if (style === 'leetcode') {
           await this._runCodingQuestion(session, connection, receiver, userId, voice);
           continue;
         }
@@ -723,7 +830,7 @@ class InterviewService {
 
       if (!session.aborted && history.length > 0) {
         const summary = await this.generateSummary(jdText, history, guildId, company, style, language);
-        const embed = this._buildSummaryEmbed(summary, history, member);
+        const embed = this._buildSummaryEmbed(summary, history, member, style);
         const transcript = this._buildTranscriptAttachment(history, member, company, language);
         try {
           await member.send({ embeds: [embed], files: [transcript] });
@@ -750,7 +857,7 @@ class InterviewService {
     if (session.history.length > 0) {
       try {
         const summary = await this.generateSummary(session.jdText, session.history, session.guildId, session.company, session.style, session.language);
-        const embed = this._buildSummaryEmbed(summary, session.history, session.member);
+        const embed = this._buildSummaryEmbed(summary, session.history, session.member, session.style);
         const transcript = this._buildTranscriptAttachment(session.history, session.member, session.company, session.language);
         try {
           await session.member.send({ embeds: [embed], files: [transcript] });
@@ -807,7 +914,7 @@ class InterviewService {
     });
   }
 
-  _buildSummaryEmbed(summary, history, member) {
+  _buildSummaryEmbed(summary, history, member, style = 'behavioral') {
     const { score, strengths, gaps, narrative } = summary;
 
     const strengthsText = Array.isArray(strengths) && strengths.length
@@ -825,7 +932,7 @@ class InterviewService {
       .setColor(scoreColor)
       .addFields(
         { name: '🏆 Score', value: `${score}/10`, inline: true },
-        { name: '📊 Questions Answered', value: `${history.length}/${MAX_QUESTIONS}`, inline: true },
+        { name: '📊 Questions Answered', value: `${history.length}/${questionCountFor(style)}`, inline: true },
         { name: '✅ Strengths', value: strengthsText },
         { name: '🔍 Areas for Improvement', value: gapsText },
       );

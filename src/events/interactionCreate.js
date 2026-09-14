@@ -18,6 +18,8 @@ const {
   INTERVIEW_MODAL_ID,
   INTERVIEW_SUBMIT_CODE_BUTTON_ID,
   INTERVIEW_CODE_MODAL_ID,
+  INTERVIEW_RUN_CODE_BUTTON_ID,
+  INTERVIEW_RUN_CODE_MODAL_ID,
   buildSetupComponents,
 } = require('../commands/interview');
 
@@ -201,6 +203,16 @@ module.exports = (client) => {
         return;
       }
 
+      if (interaction.customId === INTERVIEW_RUN_CODE_MODAL_ID) {
+        const { interviewService } = client.services;
+        const code = interaction.fields.getTextInputValue('interview_run_code').trim();
+
+        await interaction.deferReply({ ephemeral: true });
+        const outcome = await interviewService.runSampleCode(interaction.user.id, code);
+        await interaction.editReply({ content: outcome.content });
+        return;
+      }
+
       return;
     }
 
@@ -277,6 +289,37 @@ module.exports = (client) => {
         codeModal.addComponents(new ActionRowBuilder().addComponents(codeInput));
 
         await interaction.showModal(codeModal);
+        return;
+      }
+
+      if (interaction.customId === INTERVIEW_RUN_CODE_BUTTON_ID) {
+        const { interviewService } = client.services;
+        const session = interviewService.sessions.get(interaction.user.id);
+
+        if (!session || !session.currentProblem) {
+          await interaction.reply({
+            content: '❌ There\'s no coding question waiting for a submission right now.',
+            ephemeral: true,
+          });
+          return;
+        }
+
+        const runModal = new ModalBuilder()
+          .setCustomId(INTERVIEW_RUN_CODE_MODAL_ID)
+          .setTitle('Run Against Sample Tests');
+
+        const codeInput = new TextInputBuilder()
+          .setCustomId('interview_run_code')
+          .setLabel('Your code')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true);
+
+        const signature = session.currentProblem?.functionSignature;
+        if (signature) codeInput.setValue(`${signature}\n    // your code here\n`);
+
+        runModal.addComponents(new ActionRowBuilder().addComponents(codeInput));
+
+        await interaction.showModal(runModal);
         return;
       }
 

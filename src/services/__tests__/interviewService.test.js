@@ -153,6 +153,13 @@ const MOCK_PROBLEM = {
 };
 const MOCK_PROBLEM_JSON = JSON.stringify(MOCK_PROBLEM);
 
+const MOCK_PROBLEM_WITH_REF = {
+  ...MOCK_PROBLEM,
+  title: 'Broken Problem',
+  referenceSolution: 'function twoSum(nums, target) { return [1, 0]; }',
+};
+const MOCK_PROBLEM_WITH_REF_JSON = JSON.stringify(MOCK_PROBLEM_WITH_REF);
+
 // ─── tests ─────────────────────────────────────────────────────────────────────
 
 describe('InterviewService', () => {
@@ -302,8 +309,8 @@ describe('InterviewService', () => {
       expect(service._styleInstructions('case_based')).toContain('scenario');
     });
 
-    it('should return LeetCode-style instructions for technical_coding style', () => {
-      expect(service._styleInstructions('technical_coding')).toContain('LeetCode');
+    it('should return LeetCode-style instructions for leetcode style', () => {
+      expect(service._styleInstructions('leetcode')).toContain('LeetCode');
     });
 
     it('should fall back to behavioral for an unknown style', () => {
@@ -470,6 +477,80 @@ describe('InterviewService', () => {
       await expect(service.generateCodingProblem('Engineer', [], 'g1')).rejects.toThrow();
       expect(mockGroqCreate).toHaveBeenCalledTimes(2);
     });
+
+    // ── test-case verification against the model's own reference solution ────
+
+    it('should correct a testCase\'s expected value when the reference solution disagrees', async () => {
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_PROBLEM_WITH_REF_JSON } }] });
+      mockRunTestCases.mockResolvedValue({
+        results: [{ pass: false, actual: [1, 0], expected: [0, 1] }],
+        passCount: 0,
+        total: 1,
+      });
+
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+
+      expect(mockRunTestCases).toHaveBeenCalledWith(
+        MOCK_PROBLEM_WITH_REF.referenceSolution,
+        'javascript',
+        result.testCases,
+        'twoSum'
+      );
+      expect(result.testCases[0].expected).toEqual([1, 0]);
+    });
+
+    it('should strip the referenceSolution field from the returned problem', async () => {
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_PROBLEM_WITH_REF_JSON } }] });
+      mockRunTestCases.mockResolvedValue({
+        results: [{ pass: true, actual: [0, 1], expected: [0, 1] }],
+        passCount: 1,
+        total: 1,
+      });
+
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+
+      expect(result.referenceSolution).toBeUndefined();
+    });
+
+    it('should leave testCases untouched when the reference solution already matches', async () => {
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_PROBLEM_WITH_REF_JSON } }] });
+      mockRunTestCases.mockResolvedValue({
+        results: [{ pass: true, actual: [0, 1], expected: [0, 1] }],
+        passCount: 1,
+        total: 1,
+      });
+
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+
+      expect(result.testCases[0].expected).toEqual([0, 1]);
+    });
+
+    it('should regenerate the problem when the reference solution errors on every test case', async () => {
+      mockGroqCreate
+        .mockResolvedValueOnce({ choices: [{ message: { content: MOCK_PROBLEM_WITH_REF_JSON } }] })
+        .mockResolvedValueOnce({ choices: [{ message: { content: MOCK_PROBLEM_JSON } }] });
+      mockRunTestCases.mockResolvedValueOnce({
+        results: [{ pass: false, actual: null, expected: [0, 1], error: 'ReferenceError: twoSum is not defined' }],
+        passCount: 0,
+        total: 1,
+      });
+
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+
+      expect(mockGroqCreate).toHaveBeenCalledTimes(2);
+      expect(mockRunTestCases).toHaveBeenCalledTimes(1); // second attempt's problem has no referenceSolution to verify
+      expect(result.title).toBe('Two Sum');
+    });
+
+    it('should not block problem generation when the execution service itself fails', async () => {
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_PROBLEM_WITH_REF_JSON } }] });
+      mockRunTestCases.mockRejectedValue(new Error('Judge0 request failed: ECONNREFUSED'));
+
+      const result = await service.generateCodingProblem('Engineer', [], 'g1');
+
+      expect(mockGroqCreate).toHaveBeenCalledTimes(1);
+      expect(result.title).toBe('Broken Problem');
+    });
   });
 
   // ── generateCodeFollowupQuestion ───────────────────────────────────────────
@@ -544,6 +625,118 @@ describe('InterviewService', () => {
       } finally {
         jest.useRealTimers();
       }
+    });
+  });
+
+  // ── runSampleCode ─────────────────────────────────────────────────────────
+
+  describe('runSampleCode', () => {
+    function makeCodingProblemSession(overrides = {}) {
+      return {
+        codeLanguage: 'javascript',
+        currentProblem: {
+          functionName: 'twoSum',
+          testCases: [
+            { input: [[2, 7], 9], expected: [0, 1] },
+            { input: [[3, 3], 6], expected: [0, 1] },
+            { input: [[1, 1], 2], expected: [0, 1] }, // hidden — should never be sent to Run
+          ],
+        },
+        runCount: 0,
+        ...overrides,
+      };
+    }
+
+    it('should return an error message when the user has no active problem', async () => {
+      const result = await service.runSampleCode('ghost', 'code');
+      expect(result.ok).toBe(false);
+      expect(result.content).toContain('no coding question waiting');
+      expect(mockRunTestCases).not.toHaveBeenCalled();
+    });
+
+    it('should run only the first SAMPLE_TEST_CASE_COUNT test cases', async () => {
+      const session = makeCodingProblemSession();
+      service.sessions.set('u1', session);
+      mockRunTestCases.mockResolvedValue({
+        results: [{ pass: true, actual: [0, 1], expected: [0, 1] }, { pass: true, actual: [0, 1], expected: [0, 1] }],
+        passCount: 2,
+        total: 2,
+      });
+
+      await service.runSampleCode('u1', 'function twoSum() {}');
+
+      expect(mockRunTestCases).toHaveBeenCalledWith(
+        'function twoSum() {}',
+        'javascript',
+        session.currentProblem.testCases.slice(0, 2),
+        'twoSum'
+      );
+    });
+
+    it('should report pass/fail counts and detail for failures', async () => {
+      const session = makeCodingProblemSession();
+      service.sessions.set('u1', session);
+      mockRunTestCases.mockResolvedValue({
+        results: [
+          { pass: true, actual: [0, 1], expected: [0, 1] },
+          { pass: false, actual: [1, 0], expected: [0, 1] },
+        ],
+        passCount: 1,
+        total: 2,
+      });
+
+      const result = await service.runSampleCode('u1', 'function twoSum() {}');
+
+      expect(result.ok).toBe(true);
+      expect(result.content).toContain('1/2 sample tests passed');
+      expect(result.content).toContain('Sample 1: ✅ Passed');
+      expect(result.content).toContain('Sample 2: ❌ Failed');
+    });
+
+    it('should count down remaining runs and block after MAX_SAMPLE_RUNS', async () => {
+      const session = makeCodingProblemSession();
+      service.sessions.set('u1', session);
+      mockRunTestCases.mockResolvedValue({
+        results: [{ pass: true, actual: [0, 1], expected: [0, 1] }, { pass: true, actual: [0, 1], expected: [0, 1] }],
+        passCount: 2,
+        total: 2,
+      });
+
+      const first = await service.runSampleCode('u1', 'code');
+      const second = await service.runSampleCode('u1', 'code');
+      const third = await service.runSampleCode('u1', 'code');
+      const fourth = await service.runSampleCode('u1', 'code');
+
+      expect(first.content).toContain('2 run(s) remaining');
+      expect(second.content).toContain('1 run(s) remaining');
+      expect(third.content).toContain('0 run(s) remaining');
+      expect(fourth.ok).toBe(false);
+      expect(fourth.content).toContain('used all 3 sample runs');
+      expect(mockRunTestCases).toHaveBeenCalledTimes(3);
+    });
+
+    it('should not resolve the pending Submit wait', async () => {
+      const session = makeCodingProblemSession();
+      service.sessions.set('u1', session);
+      const waitPromise = service._waitForCodeSubmission(session);
+      mockRunTestCases.mockResolvedValue({ results: [], passCount: 0, total: 0 });
+
+      await service.runSampleCode('u1', 'code');
+
+      expect(session.pendingCodeResolve).not.toBeNull();
+      service.submitCode('u1', 'final code');
+      await expect(waitPromise).resolves.toBe('final code');
+    });
+
+    it('should return a friendly error when execution fails', async () => {
+      const session = makeCodingProblemSession();
+      service.sessions.set('u1', session);
+      mockRunTestCases.mockRejectedValue(new Error('Judge0 down'));
+
+      const result = await service.runSampleCode('u1', 'code');
+
+      expect(result.ok).toBe(false);
+      expect(result.content).toContain('Something went wrong');
     });
   });
 
@@ -625,11 +818,11 @@ describe('InterviewService', () => {
       expect(call.messages[0].content).not.toContain('candidate interviewed in');
     });
 
-    it('should instruct the model to weigh test results for technical_coding style', async () => {
+    it('should instruct the model to weigh test results for leetcode style', async () => {
       mockGroqCreate.mockResolvedValue({
         choices: [{ message: { content: MOCK_SUMMARY_JSON } }],
       });
-      await service.generateSummary('Engineer', history, 'g1', null, 'technical_coding');
+      await service.generateSummary('Engineer', history, 'g1', null, 'leetcode');
       const call = mockGroqCreate.mock.calls[0][0];
       expect(call.messages[0].content).toContain('testResults');
     });
@@ -645,7 +838,7 @@ describe('InterviewService', () => {
         testResults: { passCount: 1, total: 2, results: [] },
         answer: 'I used a hash map.',
       }];
-      await service.generateSummary('Engineer', codingHistory, 'g1', null, 'technical_coding');
+      await service.generateSummary('Engineer', codingHistory, 'g1', null, 'leetcode');
       const call = mockGroqCreate.mock.calls[0][0];
       const userContent = JSON.parse(call.messages[1].content);
       expect(userContent.interview_transcript[0].code).toBe('function twoSum() {}');
@@ -739,6 +932,17 @@ describe('InterviewService', () => {
       expect(EmbedBuilder.mock.results[0].value.addFields).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ value: '2/8' }),
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
+    it('should show questions answered out of the coding-specific cap for leetcode', () => {
+      const history = [{ question: 'Two Sum', answer: 'A.' }];
+      service._buildSummaryEmbed({ score: 7, strengths: [], gaps: [] }, history, member, 'leetcode');
+      expect(EmbedBuilder.mock.results[0].value.addFields).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ value: '1/2' }),
         expect.anything(),
         expect.anything()
       );
@@ -1190,6 +1394,36 @@ describe('InterviewService', () => {
       expect(joinVoiceChannel).toHaveBeenCalledWith(
         expect.objectContaining({ channelId: 'vc1', guildId: 'g1' })
       );
+    });
+
+    it('should dispatch to _runCodingQuestion for the leetcode style', async () => {
+      jest.spyOn(service, 'speakQuestion').mockResolvedValue(undefined);
+      const runCodingQuestion = jest.spyOn(service, '_runCodingQuestion').mockResolvedValue(undefined);
+
+      await service.startInterview(makeGuild(), makeMember(), makeVoiceChannel(), makeOriginalChannel(), 'Engineer', null, 'leetcode');
+
+      expect(runCodingQuestion).toHaveBeenCalled();
+    });
+
+    it('should cap leetcode interviews at 2 questions instead of the usual 8', async () => {
+      jest.spyOn(service, 'speakQuestion').mockResolvedValue(undefined);
+      const runCodingQuestion = jest.spyOn(service, '_runCodingQuestion').mockResolvedValue(undefined);
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_SUMMARY_JSON } }] });
+
+      await service.startInterview(makeGuild(), makeMember(), makeVoiceChannel(), makeOriginalChannel(), 'Engineer', null, 'leetcode');
+
+      expect(runCodingQuestion).toHaveBeenCalledTimes(2);
+    });
+
+    it('should mention the correct question count in the spoken intro for leetcode', async () => {
+      const speakQuestion = jest.spyOn(service, 'speakQuestion').mockResolvedValue(undefined);
+      jest.spyOn(service, '_runCodingQuestion').mockResolvedValue(undefined);
+      mockGroqCreate.mockResolvedValue({ choices: [{ message: { content: MOCK_SUMMARY_JSON } }] });
+
+      await service.startInterview(makeGuild(), makeMember(), makeVoiceChannel(), makeOriginalChannel(), 'Engineer', null, 'leetcode');
+
+      const introText = speakQuestion.mock.calls[0][2];
+      expect(introText).toContain('a series of 2 questions');
     });
 
     it('should DM the summary embed to the member after all questions', async () => {
