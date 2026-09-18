@@ -19,6 +19,7 @@ function makeInteraction({ sub = 'set', content = 'Hello!', isAdmin = true, chan
     deferReply: jest.fn().mockResolvedValue(undefined),
     editReply: jest.fn().mockResolvedValue(undefined),
     reply: jest.fn().mockResolvedValue(undefined),
+    showModal: jest.fn().mockResolvedValue(undefined),
   };
 }
 
@@ -47,22 +48,37 @@ describe('/sticky command', () => {
   });
 
   describe('set subcommand', () => {
-    it('should send sticky message and save to service', async () => {
-      const interaction = makeInteraction({ sub: 'set', content: 'Pinned!' });
+    // "set" only opens the modal that collects the sticky text — the actual save/send/delete
+    // happens in interactionCreate.js's modal-submit handler once the user submits it.
+    it('should show the sticky modal', async () => {
+      const interaction = makeInteraction({ sub: 'set' });
       const services = makeServices();
       await stickyCmd.execute(interaction, services);
-      expect(interaction.channel.send).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining('Pinned!') }));
-      expect(services.stickyService.setSticky).toHaveBeenCalled();
-      expect(interaction.editReply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringContaining('set') }));
+
+      expect(interaction.showModal).toHaveBeenCalledTimes(1);
+      const modalJson = interaction.showModal.mock.calls[0][0].toJSON();
+      expect(modalJson.custom_id).toBe(stickyCmd.MODAL_ID);
+      expect(services.stickyService.setSticky).not.toHaveBeenCalled();
     });
 
-    it('should delete old sticky message if one exists', async () => {
-      const mockDelete = jest.fn().mockResolvedValue(undefined);
+    it('should pre-fill the modal with the existing sticky content when one is set', async () => {
       const interaction = makeInteraction({ sub: 'set' });
-      interaction.channel.messages.fetch.mockResolvedValue({ delete: mockDelete });
-      const services = makeServices({ sticky: { message_id: 'old-msg' } });
+      const services = makeServices({ sticky: { content: 'Old sticky text', message_id: 'old-msg' } });
       await stickyCmd.execute(interaction, services);
-      expect(mockDelete).toHaveBeenCalled();
+
+      const modalJson = interaction.showModal.mock.calls[0][0].toJSON();
+      const contentInput = modalJson.components[0].components[0];
+      expect(contentInput.value).toBe('Old sticky text');
+    });
+
+    it('should leave the modal input blank when no sticky is set yet', async () => {
+      const interaction = makeInteraction({ sub: 'set' });
+      const services = makeServices({ sticky: null });
+      await stickyCmd.execute(interaction, services);
+
+      const modalJson = interaction.showModal.mock.calls[0][0].toJSON();
+      const contentInput = modalJson.components[0].components[0];
+      expect(contentInput.value).toBeUndefined();
     });
   });
 

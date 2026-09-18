@@ -1,6 +1,7 @@
 # Changelog
 
-## [2.0.12] - 2026-08-13
+## [2.1.0] - 2026-09-14
 
-### Bug Fix - Interview Starting before user joins
-- Added delay logic to wait for user to join voice channel before interview begins. Previous iteration was skipping past the validation step of user joining and was recognizing the embed of the voice channel as sufficient. Now the interview will not start until the user has successfully joined the private voice channel.
+### New Feature - LeetCode interview
+
+Leetcode style interview now available for interview practice. Selectable at interview type, only supporting the following languages currently (JavaScript, Python, Java, C++). Users join the voice call and are prompted in the voice channel chat with the scenario and the formatting of the prompt. Users can run their code against the tests 2 times before they must submit. There are only 3 questions for the leetcode style interviews to keep the time of interview consistent with real world style interviews. After each code submission, the user is then asked to explain their decision making just like a real interview.

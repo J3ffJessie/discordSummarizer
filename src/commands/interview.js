@@ -11,14 +11,92 @@ const { LANGUAGES, DEFAULT_LANGUAGE } = require('../services/interviewService');
 
 const INTERVIEW_STYLE_SELECT_ID = 'interview_style_select';
 const INTERVIEW_LANGUAGE_SELECT_ID = 'interview_language_select';
+const INTERVIEW_CODE_LANGUAGE_SELECT_ID = 'interview_code_language_select';
 const INTERVIEW_CONTINUE_BUTTON_ID = 'interview_continue';
 const INTERVIEW_MODAL_ID = 'interview_modal';
+const INTERVIEW_SUBMIT_CODE_BUTTON_ID = 'interview_submit_code';
+const INTERVIEW_CODE_MODAL_ID = 'interview_code_modal';
+const INTERVIEW_RUN_CODE_BUTTON_ID = 'interview_run_code';
+const INTERVIEW_RUN_CODE_MODAL_ID = 'interview_run_code_modal';
+
+const CODE_LANGUAGES = {
+  javascript: 'JavaScript',
+  python: 'Python',
+  java: 'Java',
+  cpp: 'C++',
+};
+const DEFAULT_CODE_LANGUAGE = 'javascript';
+
+function buildSetupComponents(style, language = DEFAULT_LANGUAGE, codeLanguage = DEFAULT_CODE_LANGUAGE) {
+  const styleRow = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(INTERVIEW_STYLE_SELECT_ID)
+      .setPlaceholder('Interview style (default: Behavioral)')
+      .addOptions([
+        { label: 'Behavioral', description: 'STAR-method — past situations and actions', value: 'behavioral', default: style === 'behavioral' },
+        { label: 'Technical', description: 'Skills and knowledge assessment', value: 'technical', default: style === 'technical' },
+        { label: 'Conversational', description: 'Relaxed, culture-fit focused', value: 'conversational', default: style === 'conversational' },
+        { label: 'Case-based', description: 'Problem-solving scenarios', value: 'case_based', default: style === 'case_based' },
+        { label: 'Leetcode', description: 'LeetCode-style problems with real test execution', value: 'leetcode', default: style === 'leetcode' },
+      ])
+  );
+
+  const languageRow = new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(INTERVIEW_LANGUAGE_SELECT_ID)
+      .setPlaceholder('Interview language (default: English)')
+      .addOptions(
+        Object.entries(LANGUAGES).map(([code, { name }]) => ({
+          label: name,
+          value: code,
+          default: code === language,
+        }))
+      )
+  );
+
+  const buttonRow = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(INTERVIEW_CONTINUE_BUTTON_ID)
+      .setLabel('Continue →')
+      .setStyle(ButtonStyle.Primary)
+  );
+
+  const rows = [styleRow, languageRow];
+
+  if (style === 'leetcode') {
+    const codeLanguageRow = new ActionRowBuilder().addComponents(
+      new StringSelectMenuBuilder()
+        .setCustomId(INTERVIEW_CODE_LANGUAGE_SELECT_ID)
+        .setPlaceholder('Coding language')
+        .addOptions(
+          Object.entries(CODE_LANGUAGES).map(([value, label]) => ({
+            label,
+            value,
+            default: value === codeLanguage,
+          }))
+        )
+    );
+    rows.push(codeLanguageRow);
+  }
+
+  rows.push(buttonRow);
+
+  return rows;
+}
 
 module.exports = {
   INTERVIEW_STYLE_SELECT_ID,
   INTERVIEW_LANGUAGE_SELECT_ID,
+  INTERVIEW_CODE_LANGUAGE_SELECT_ID,
   INTERVIEW_CONTINUE_BUTTON_ID,
   INTERVIEW_MODAL_ID,
+  INTERVIEW_SUBMIT_CODE_BUTTON_ID,
+  INTERVIEW_CODE_MODAL_ID,
+  INTERVIEW_RUN_CODE_BUTTON_ID,
+  INTERVIEW_RUN_CODE_MODAL_ID,
+  CODE_LANGUAGES,
+  DEFAULT_CODE_LANGUAGE,
+  buildSetupComponents,
 
   data: new SlashCommandBuilder()
     .setName('interview')
@@ -78,41 +156,9 @@ module.exports = {
           : null,
       });
 
-      const styleRow = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(INTERVIEW_STYLE_SELECT_ID)
-          .setPlaceholder('Interview style (default: Behavioral)')
-          .addOptions([
-            { label: 'Behavioral', description: 'STAR-method — past situations and actions', value: 'behavioral', default: true },
-            { label: 'Technical', description: 'Skills and knowledge assessment', value: 'technical' },
-            { label: 'Conversational', description: 'Relaxed, culture-fit focused', value: 'conversational' },
-            { label: 'Case-based', description: 'Problem-solving scenarios', value: 'case_based' },
-          ])
-      );
-
-      const languageRow = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-          .setCustomId(INTERVIEW_LANGUAGE_SELECT_ID)
-          .setPlaceholder('Interview language (default: English)')
-          .addOptions(
-            Object.entries(LANGUAGES).map(([code, { name }]) => ({
-              label: name,
-              value: code,
-              default: code === DEFAULT_LANGUAGE,
-            }))
-          )
-      );
-
-      const buttonRow = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-          .setCustomId(INTERVIEW_CONTINUE_BUTTON_ID)
-          .setLabel('Continue →')
-          .setStyle(ButtonStyle.Primary)
-      );
-
       await interaction.reply({
         content: '**Step 1 of 2** — Choose your interview style and language, then click **Continue** to enter the job details.',
-        components: [styleRow, languageRow, buttonRow],
+        components: buildSetupComponents('behavioral'),
         flags: MessageFlags.Ephemeral,
       });
     }
@@ -125,12 +171,12 @@ module.exports = {
         });
       }
 
-      await interviewService.stopInterview(userId);
-
       await interaction.reply({
         content: '✅ Your interview has been stopped.',
         flags: MessageFlags.Ephemeral,
       });
+
+      await interviewService.stopInterview(userId);
     }
   },
 };
