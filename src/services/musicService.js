@@ -26,6 +26,26 @@ class MusicService {
     return null;
   }
 
+  // Returns the video ID for youtube.com / music.youtube.com / youtu.be links, else null.
+  // Playlist-only links (no v= param) return null so they fall through to song.link.
+  extractYoutubeVideoId(url) {
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+
+    const host = parsed.hostname.replace(/^www\./, '');
+    let id = null;
+    if (host === 'youtu.be') {
+      id = parsed.pathname.split('/')[1];
+    } else if (host === 'youtube.com' || host === 'music.youtube.com') {
+      id = parsed.searchParams.get('v');
+    }
+    return id && /^[\w-]{11}$/.test(id) ? id : null;
+  }
+
   async resolveViaOdesli(url) {
     try {
       const resp = await axios.get(ODESLI_BASE, { params: { url } });
