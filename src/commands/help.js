@@ -19,6 +19,7 @@ module.exports = {
             '`/interview start` — Start an AI-powered voice interview based on a job description',
             '`/interview stop` — End your current AI voice interview',
             '`/resume-review` — Upload your resume (and optional target role) for private AI feedback in your DMs',
+            '`/torc-review` — Share your torc.dev profile link for private, step-by-step feedback in your DMs',
             '`/summarize` — Summarize recent messages in this channel',
             '`/remindme` — Set a personal reminder',
             '`/listreminders` — View your pending reminders',

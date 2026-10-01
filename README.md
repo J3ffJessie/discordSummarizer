@@ -13,6 +13,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 - **Coffee chat pairing** — Randomly pairs members with a designated role and announces pairings in a configured channel (falls back to DMs if no channel is set)
 - **Web dashboard** — Admins configure all settings and AI provider keys through a browser UI (no slash commands required for setup)
 - **Resume review** — `/resume-review` lets members upload a resume (with an optional target role) anywhere in the server and receive structured AI feedback by DM covering summary, skills, experience, education, formatting, and top improvements
+- **Torc profile review** — `/torc-review` reviews a member's torc.dev profile against the profile workshop rubric and DMs a scorecard plus step-by-step fixes
 - **Sticky messages** — Admins can pin a persistent message to the bottom of any channel; the bot automatically reposts it whenever a new message is sent so it always stays visible
 - **Member profiles** — Members can set a public profile (bio, role/title, skills, timezone) and opt in to bi-weekly coffee chat pairings directly from their profile
 - **Reminders** — Set, list, and cancel personal reminders delivered via DM
@@ -296,6 +297,28 @@ Get private AI feedback on your resume. Usable in any channel once an admin enab
 **Supported file types:** PDF, DOCX, TXT, and images (PNG, JPG, GIF, WEBP — requires a vision-capable provider such as Anthropic or OpenAI)
 
 The review uses your server's configured **summarization** AI provider. If no provider is configured, it defaults to Groq.
+
+---
+
+### `/torc-review`
+Get private feedback on your Torc profile, scored against the "Build a Profile That Gets Noticed" workshop rubric ([src/rubric/torcProfileRubric.js](src/rubric/torcProfileRubric.js)). Only Torc profiles are accepted, since that's what the rubric covers. Nothing is stored.
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `url` | Yes | Link to your public Torc profile, e.g. `https://platform.torc.dev/#/profile/your-username` |
+
+**How Torc review works:**
+1. A member runs `/torc-review` with their torc.dev profile link
+2. The bot takes the username from the link and opens that profile in headless Chrome (Torc profiles are rendered by JavaScript, so a plain HTTP fetch gets an empty page). It expands the collapsed bio and role details before reading the text. Unknown usernames get a clear "profile not found" reply
+3. The configured summarization AI provider scores each rubric item: headline, summary, skills, experience, preferences, assessments, resume
+4. The bot DMs the member two messages:
+   - **Scorecard**: an overall read plus ✅ / 🟡 / ❌ / ❔ for each item, with the evidence it found
+   - **Step-by-step fixes**: a numbered instruction for every item that needs work, the top three actions, a suggested headline, tips for career changers / new grads / people returning after a gap, and where to get more help
+5. If the member's DMs are closed, the same feedback is shown privately (ephemeral) in the channel instead
+
+Each member can run one review every 10 minutes (the cooldown is cleared if the review fails on the bot's side). At most two profiles render at once; a review usually takes 10–20 seconds.
+
+**Deployment note:** rendering uses [Puppeteer](https://pptr.dev). `npm install` downloads Chrome into `.cache/puppeteer` inside the project (configured in `.puppeteerrc.cjs`) so it ships with the Render build. Each render uses a few hundred MB of memory while it runs.
 
 ---
 

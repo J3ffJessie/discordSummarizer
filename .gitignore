@@ -65,3 +65,6 @@ jest-stare/
 # Oh My Claude Code
 .omc/
 >>>>>>> origin/main
+
+# Puppeteer Chrome download (see .puppeteerrc.cjs)
+.cache/
