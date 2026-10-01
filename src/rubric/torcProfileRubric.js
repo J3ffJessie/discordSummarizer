@@ -1,7 +1,7 @@
 // Evaluation rubric based on the "Build a Profile That Gets Noticed" workshop deck
 // (randstad digital powered by torc x TAG-Ed). Edit freely; the command reads this at startup.
 
-const RUBRIC_VERSION = '2026-10-workshop-v1';
+const RUBRIC_VERSION = '2026-10-workshop-v3';
 
 // The seven checklist items from the deck, expanded with the guidance from the walkthrough slides.
 const CRITERIA = [
@@ -10,7 +10,10 @@ const CRITERIA = [
     name: 'Headline names role and level',
     lookFor:
       'One clear line built as role + specialty + level + one proof point ' +
-      '(e.g. "Full-stack engineer · React, Node, Postgres · 5 years"). ' +
+      '(e.g. "Full-stack engineer · React, Node, Postgres · 5 years" or ' +
+      '"Product designer · Design systems & accessibility · 6 years · Led a checkout redesign"). ' +
+      'Level means years of experience or scope (e.g. "led a team of 6"), not necessarily a formal title; ' +
+      'seniority words like "Senior", "Lead", "Head of" or "Leader" also count. ' +
       'Vague labels like "Passionate developer" fail. For career changers, it should name the role they want.',
   },
   {
@@ -32,8 +35,10 @@ const CRITERIA = [
     id: 'experience',
     name: 'Roles show stack and results',
     lookFor:
-      'Each role describes the stack + what they owned + the result, ideally quantified ' +
-      '(e.g. "Owned the deploy pipeline for a Python and AWS payments API and cut release time from 40 to 12 minutes"). ' +
+      'Each role describes the tools, methods or tech stack + what they owned + the result, ideally quantified ' +
+      '(e.g. "Owned the deploy pipeline for a Python and AWS payments API and cut release time from 40 to 12 minutes" or ' +
+      '"Ran usability testing in Figma and Maze for the onboarding flow and lifted completion from 52% to 71%"). ' +
+      'For non-engineering roles, judge the tools and methods they name, not a programming stack. ' +
       'Vague lines like "Worked on backend services" are partial at best.',
   },
   {
@@ -41,7 +46,8 @@ const CRITERIA = [
     name: 'Preferences filled in',
     lookFor:
       'Location (where they are and where they can work), target role, availability ' +
-      '(full time, part time, open to offers, unavailable), and languages with honest levels.',
+      '(full time, part time, open to offers, unavailable), and languages with honest levels. ' +
+      'These are personal choices: only the candidate can fill them in.',
   },
   {
     id: 'assessments',
