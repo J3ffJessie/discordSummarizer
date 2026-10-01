@@ -57,6 +57,21 @@ describe('MusicService', () => {
     });
   });
 
+  describe('extractYoutubeVideoId', () => {
+    it('should extract the ID from youtube.com, music.youtube.com and youtu.be links', () => {
+      expect(service.extractYoutubeVideoId('https://www.youtube.com/watch?v=dQw4w9WgXcQ&list=PL1')).toBe('dQw4w9WgXcQ');
+      expect(service.extractYoutubeVideoId('https://music.youtube.com/watch?v=dQw4w9WgXcQ')).toBe('dQw4w9WgXcQ');
+      expect(service.extractYoutubeVideoId('https://youtu.be/dQw4w9WgXcQ?si=abc')).toBe('dQw4w9WgXcQ');
+    });
+
+    it('should return null for non-YouTube or ID-less links', () => {
+      expect(service.extractYoutubeVideoId('https://open.spotify.com/track/abc123')).toBeNull();
+      expect(service.extractYoutubeVideoId('https://www.youtube.com/playlist?list=PL1')).toBeNull();
+      expect(service.extractYoutubeVideoId('https://music.youtube.com/watch?v=abc')).toBeNull();
+      expect(service.extractYoutubeVideoId('not a url')).toBeNull();
+    });
+  });
+
   describe('resolveViaOdesli', () => {
     it('should return track info when Odesli responds', async () => {
       axios.get.mockResolvedValue({

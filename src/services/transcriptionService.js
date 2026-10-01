@@ -24,11 +24,11 @@ class TranscriptionService {
     });
   }
 
-  async transcribe(filePath, guildId = null) {
+  async transcribe(filePath, guildId = null, language = null) {
     if (!filePath) throw new Error('Invalid file path');
     const guildConfig = this.gcs?.getConfig(guildId) || null;
     const provider = createTranscriptionProvider(guildConfig);
-    return await provider.transcribe(fs.createReadStream(filePath));
+    return await provider.transcribe(fs.createReadStream(filePath), language);
   }
 }
 

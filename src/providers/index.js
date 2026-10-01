@@ -11,7 +11,7 @@
  */
 
 const DEFAULT_CHAT_MODELS = {
-  groq: 'llama-3.1-8b-instant',
+  groq: 'openai/gpt-oss-120b',
   openai: 'gpt-4o-mini',
   anthropic: 'claude-haiku-4-5-20251001',
   ollama: 'llama3.2',
@@ -134,11 +134,10 @@ class GroqTranscriptionAdapter {
     this.model = model;
   }
 
-  async transcribe(fileStream) {
-    return await this.client.audio.transcriptions.create({
-      file: fileStream,
-      model: this.model,
-    });
+  async transcribe(fileStream, language = null) {
+    const params = { file: fileStream, model: this.model };
+    if (language) params.language = language;
+    return await this.client.audio.transcriptions.create(params);
   }
 }
 
@@ -149,11 +148,10 @@ class OpenAITranscriptionAdapter {
     this.model = model;
   }
 
-  async transcribe(fileStream) {
-    return await this.client.audio.transcriptions.create({
-      file: fileStream,
-      model: this.model,
-    });
+  async transcribe(fileStream, language = null) {
+    const params = { file: fileStream, model: this.model };
+    if (language) params.language = language;
+    return await this.client.audio.transcriptions.create(params);
   }
 }
 

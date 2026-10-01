@@ -1,6 +1,7 @@
 # Changelog
 
-## [2.0.0] - 2026-08-11
+## [2.1.0] - 2026-09-14
 
-### AI Interview Feature
-Added AI voice interview feature. Users can now conduct private voice interview practice using AI built into Torcbot. Users will be able to provide the job description as well as the type of interview they would like to go through, i.e., behavioral, technical, conversational or case-based. The user can also provide the company and the bot will attempt to conduct the interview in that companies style if data is available for how the provided company conducts their interviews.
+### New Feature - LeetCode interview
+
+Leetcode style interview now available for interview practice. Selectable at interview type, only supporting the following languages currently (JavaScript, Python, Java, C++). Users join the voice call and are prompted in the voice channel chat with the scenario and the formatting of the prompt. Users can run their code against the tests 2 times before they must submit. There are only 3 questions for the leetcode style interviews to keep the time of interview consistent with real world style interviews. After each code submission, the user is then asked to explain their decision making just like a real interview.

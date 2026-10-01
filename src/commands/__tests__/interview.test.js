@@ -153,6 +153,23 @@ describe('/interview command', () => {
       );
     });
 
+    it('should include a language selector with English as the default option', async () => {
+      const { StringSelectMenuBuilder } = require('discord.js');
+      const interaction = makeInteraction();
+      await command.execute(interaction, { interviewService: makeInterviewService() });
+
+      // Second StringSelectMenuBuilder instance created is the language selector (style is first)
+      const languageSelect = StringSelectMenuBuilder.mock.results[1].value;
+      expect(languageSelect.setPlaceholder).toHaveBeenCalledWith(
+        expect.stringContaining('English')
+      );
+      const options = languageSelect.addOptions.mock.calls[0][0];
+      expect(options).toEqual(
+        expect.arrayContaining([expect.objectContaining({ label: 'English', value: 'en', default: true })])
+      );
+      expect(options.length).toBeGreaterThan(1);
+    });
+
     it('should send the reply as ephemeral', async () => {
       const interaction = makeInteraction();
       await command.execute(interaction, { interviewService: makeInterviewService() });

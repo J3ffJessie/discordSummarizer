@@ -11,20 +11,25 @@ module.exports = (client) => {
     const detected = musicService.detectMusicLink(message.content);
     if (!detected) return;
 
-    let resolved;
-    try {
-      resolved = await musicService.resolveViaOdesli(detected.url);
-    } catch (err) {
-      await message.reply(err.message);
-      return;
-    }
+    // Already a YouTube video: add it directly, skip song.link / YT Music search
+    let videoId = musicService.extractYoutubeVideoId(detected.url);
+    let resolved = { title: 'this video', artist: 'YouTube' };
 
-    if (!resolved) {
-      await message.reply('Could not identify this track via song.link.');
-      return;
-    }
+    if (!videoId) {
+      try {
+        resolved = await musicService.resolveViaOdesli(detected.url);
+      } catch (err) {
+        await message.reply(err.message);
+        return;
+      }
 
-    let videoId = resolved.youtubeVideoId;
+      if (!resolved) {
+        await message.reply('Could not identify this track via song.link.');
+        return;
+      }
+
+      videoId = resolved.youtubeVideoId;
+    }
 
     if (!videoId) {
       try {
@@ -59,21 +64,24 @@ module.exports = (client) => {
     const detected = musicService.detectMusicLink(message.content);
     if (!detected) return;
 
-    let resolved;
-    try {
-      resolved = await musicService.resolveViaOdesli(detected.url);
-    } catch {
-      return;
-    }
-
-    if (!resolved) return;
-
-    let videoId = resolved.youtubeVideoId;
+    let videoId = musicService.extractYoutubeVideoId(detected.url);
     if (!videoId) {
+      let resolved;
       try {
-        videoId = await musicService.searchYoutubeMusic(resolved.title, resolved.artist, message.guildId);
+        resolved = await musicService.resolveViaOdesli(detected.url);
       } catch {
         return;
+      }
+
+      if (!resolved) return;
+
+      videoId = resolved.youtubeVideoId;
+      if (!videoId) {
+        try {
+          videoId = await musicService.searchYoutubeMusic(resolved.title, resolved.artist, message.guildId);
+        } catch {
+          return;
+        }
       }
     }
 

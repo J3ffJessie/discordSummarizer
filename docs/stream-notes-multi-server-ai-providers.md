@@ -85,7 +85,7 @@ For any service call, the provider is resolved in this priority order:
 
 ```javascript
 // Chat (summarization + translation)
-groq:       'llama-3.1-8b-instant'
+groq:       'openai/gpt-oss-20b'
 openai:     'gpt-4o-mini'
 anthropic:  'claude-haiku-4-5-20251001'
 ollama:     'llama3.2'
