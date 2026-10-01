@@ -738,22 +738,13 @@
     <!-- Resume Review -->
     <div class="settings-card">
       <div class="settings-card-title">Resume Review</div>
-      <div class="settings-card-sub">AI feedback on resumes uploaded as threads under the selected channel.</div>
+      <div class="settings-card-sub">Private AI feedback on resumes, delivered by DM.</div>
       <div class="toggle-row">
         <div>
           <div class="toggle-label">Enable resume review</div>
-          <div class="toggle-sub">Automatically review resume attachments posted in threads under the selected channel.</div>
+          <div class="toggle-sub">Allow members to use <code>/resume-review</code> anywhere in the server. Feedback is sent to their DMs.</div>
         </div>
         <label class="toggle"><input type="checkbox" id="cfg-resume-enabled"><span class="toggle-slider"></span></label>
-      </div>
-      <div class="field-row">
-        <div class="field-group">
-          <div class="field-label">Resume Channel</div>
-          <select id="cfg-resume-channel">
-            <option value="">— Select a channel —</option>
-          </select>
-          <div class="field-hint">Reviews only trigger on threads whose parent is this channel (e.g. a forum channel).</div>
-        </div>
       </div>
       <div class="save-row">
         <button class="btn-primary" id="btn-save-resume">Save Resume Review Settings</button>
@@ -1607,22 +1598,15 @@
         const channels = await res.json();
         const selSummary = document.getElementById('cfg-summary-channel');
         const selCoffee  = document.getElementById('cfg-coffee-channel');
-        const selResume  = document.getElementById('cfg-resume-channel');
         channels.forEach(c => {
-          const isForum = c.type === 15;
-          if (!isForum) {
-            const opt1 = document.createElement('option');
-            opt1.value = c.id; opt1.textContent = '#' + c.name;
-            selSummary.appendChild(opt1);
+          if (c.type === 15) return; // forum channels can't host summaries or pairings
+          const opt1 = document.createElement('option');
+          opt1.value = c.id; opt1.textContent = '#' + c.name;
+          selSummary.appendChild(opt1);
 
-            const opt2 = document.createElement('option');
-            opt2.value = c.id; opt2.textContent = '#' + c.name;
-            selCoffee.appendChild(opt2);
-          }
-          // Resume review threads commonly live under a forum channel, so allow those too
-          const opt3 = document.createElement('option');
-          opt3.value = c.id; opt3.textContent = (isForum ? '# (forum) ' : '#') + c.name;
-          selResume.appendChild(opt3);
+          const opt2 = document.createElement('option');
+          opt2.value = c.id; opt2.textContent = '#' + c.name;
+          selCoffee.appendChild(opt2);
         });
       } catch(err) { console.error('Channels fetch error:', err); }
     }
@@ -1642,7 +1626,6 @@
       setVal('cfg-coffee-cooldown',   cfg.coffee_cooldown_days || '');
 
       setCheck('cfg-resume-enabled',  cfg.resume_review_enabled);
-      setVal('cfg-resume-channel',    cfg.resume_channel_id || '');
 
       // Providers
       setVal('cfg-summ-provider',  cfg.summ_provider  || 'groq');
@@ -1753,7 +1736,6 @@
     document.getElementById('btn-save-resume').addEventListener('click', () => {
       saveConfig({
         resume_review_enabled: getCheck('cfg-resume-enabled'),
-        resume_channel_id:     getVal('cfg-resume-channel') || null,
       }, 'status-resume');
     });
 

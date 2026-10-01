@@ -2,6 +2,7 @@ const { createChatProvider, resolveConfig, supportsVision } = require('../provid
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
+const TEXT_EXTENSIONS  = new Set(['.pdf', '.docx', '.txt']);
 const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp']);
 const IMAGE_MIME_TYPES = {
   '.png':  'image/png',
@@ -11,87 +12,66 @@ const IMAGE_MIME_TYPES = {
   '.webp': 'image/webp',
 };
 
+const DEFAULT_ROLE = 'a general professional role';
+
+/** Error whose message is safe to show directly to the user. */
+class ResumeReviewError extends Error {}
+
 class ResumeReviewService {
-  async handleMessage(message, guildConfig) {
-    const attachment = message.attachments.first();
-    if (!attachment) return;
+  /**
+   * Downloads and reviews a resume attachment. Returns the full review text
+   * (preface included). Throws ResumeReviewError for user-facing failures.
+   */
+  async review({ url, size, filename = '', guildConfig, targetRole = DEFAULT_ROLE }) {
+    const ext = this._getExtension(filename);
+    if (!TEXT_EXTENSIONS.has(ext) && !IMAGE_EXTENSIONS.has(ext)) {
+      throw new ResumeReviewError(
+        'Unsupported file type. Please upload a PDF, DOCX, TXT, or image (PNG, JPG, GIF, WEBP).'
+      );
+    }
 
-    const multipleNote = message.attachments.size > 1
-      ? '\n\n> Note: multiple attachments were found — only the first was reviewed.'
-      : '';
-
-    // Pre-flight: ask for target role before running the review
-    const collectorChannel = message.channel;
-    await message.reply(
-      `What role or position are you targeting with this resume? ` +
-      `*(You have 2 minutes to reply — or I'll proceed with a general review.)*`
-    );
-
-    let timedOut = false;
-    const collector = collectorChannel.createMessageCollector({
-      filter: m => m.author.id === message.author.id,
-      max: 1,
-      time: 120_000,
-    });
-
-    const targetRole = await new Promise(resolve => {
-      collector.on('collect', m => resolve(m.content.trim()));
-      collector.on('end', (collected, reason) => {
-        if (reason !== 'limit') {
-          timedOut = true;
-          resolve('a general professional role');
-        }
-      });
-    });
-
-    if (timedOut) {
-      try {
-        await message.reply(
-          `No response received — proceeding with the review assuming **a general professional role**.`
+    if (IMAGE_EXTENSIONS.has(ext)) {
+      const { provider } = resolveConfig('summ', guildConfig);
+      if (!supportsVision(provider)) {
+        throw new ResumeReviewError(
+          `I can't review image resumes with the current AI provider (\`${provider}\`). ` +
+          `Ask a server admin to configure Anthropic or OpenAI via \`/setup ai\`, ` +
+          `or resubmit the resume as a PDF, DOCX, or TXT file.`
         );
-      } catch { /* ignore secondary failure */ }
+      }
     }
 
     try {
-      await message.channel.sendTyping();
-
-      const buffer = await this.downloadAttachment(attachment.url, attachment.size);
-      const ext    = this._getExtension(attachment.name || '');
+      const buffer = await this.downloadAttachment(url, size);
 
       if (IMAGE_EXTENSIONS.has(ext)) {
-        const { provider } = resolveConfig('summ', guildConfig);
-        if (!supportsVision(provider)) {
-          await message.reply(
-            `I can't review image resumes with the current AI provider (\`${provider}\`). ` +
-            `Ask a server admin to configure Anthropic or OpenAI via \`/setup ai\`, ` +
-            `or resubmit the resume as a PDF, DOCX, or TXT file.`
-          );
-          return;
-        }
-        const mimeType   = IMAGE_MIME_TYPES[ext] || 'image/png';
-        const reviewText = await this.reviewImage(buffer, mimeType, guildConfig, targetRole);
-        await this._sendChunked(message, this._buildPreface() + reviewText + multipleNote);
-        return;
+        const mimeType = IMAGE_MIME_TYPES[ext] || 'image/png';
+        return this._buildPreface() + await this.reviewImage(buffer, mimeType, guildConfig, targetRole);
       }
 
-      const text = await this.extractText(buffer, attachment.name || '');
+      const text = await this.extractText(buffer, filename);
       if (!text || text.trim().length < 50) {
-        await message.reply(
+        throw new ResumeReviewError(
           `I wasn't able to extract readable text from this file. ` +
           `If this is a scanned PDF, try exporting it as a text-based PDF, or resubmit as DOCX or TXT.`
         );
-        return;
       }
 
-      const reviewText = await this.reviewText(text, guildConfig, targetRole);
-      await this._sendChunked(message, this._buildPreface() + reviewText + multipleNote);
-
+      return this._buildPreface() + await this.reviewText(text, guildConfig, targetRole);
     } catch (err) {
-      console.error('[resume-review] Error:', err.message);
-      const userMsg = (err.message?.includes('API key') || err.message?.includes('No API key'))
-        ? `Resume review isn't configured — ${err.message}`
-        : `There was an error reviewing this resume. Please try again or contact a server admin.`;
-      try { await message.reply(userMsg); } catch { /* ignore secondary failure */ }
+      if (err instanceof ResumeReviewError) throw err;
+      if (err.message?.includes('too large')) throw new ResumeReviewError(err.message);
+      if (err.message?.includes('API key')) {
+        throw new ResumeReviewError(`Resume review isn't configured — ${err.message}`);
+      }
+      if (err.status === 404) {
+        const { model } = resolveConfig('summ', guildConfig);
+        throw new ResumeReviewError(
+          `The AI model configured for this server (\`${model}\`) is unavailable or has been retired. ` +
+          `Ask a server admin to choose a current model via \`/setup ai\`.`
+        );
+      }
+      throw err;
     }
   }
 
@@ -122,7 +102,7 @@ class ResumeReviewService {
     return buffer.toString('utf8');
   }
 
-  async reviewText(text, guildConfig, targetRole = 'a general professional role') {
+  async reviewText(text, guildConfig, targetRole = DEFAULT_ROLE) {
     const provider = createChatProvider('summ', guildConfig);
     const truncated = text.slice(0, 12000);
     return provider.chat(
@@ -132,7 +112,7 @@ class ResumeReviewService {
     );
   }
 
-  async reviewImage(buffer, mimeType, guildConfig, targetRole = 'a general professional role') {
+  async reviewImage(buffer, mimeType, guildConfig, targetRole = DEFAULT_ROLE) {
     const provider = createChatProvider('summ', guildConfig);
     return provider.chatWithVision(
       this._buildSystemPrompt(targetRole),
@@ -142,7 +122,7 @@ class ResumeReviewService {
     );
   }
 
-  _buildSystemPrompt(targetRole = 'a general professional role') {
+  _buildSystemPrompt(targetRole = DEFAULT_ROLE) {
     return `You are an expert resume reviewer with deep knowledge of hiring practices, ATS systems, and career coaching. The candidate is targeting: ${targetRole}. Tailor your feedback to this specific role. Review the resume and give structured, actionable feedback covering these 6 sections:
 
 **1. Summary/Objective**
@@ -176,24 +156,25 @@ Be direct, specific, and constructive. Reference specific sections or bullet poi
     return `> **Note:** This is an auto generated review from the AI Bot in this server. These suggestions are to be taken into consideration to make adjustments to your resume based on feedback from recruiters and resume reviewers.\n\n`;
   }
 
-  async _sendChunked(message, text) {
-    const MAX_LEN = 1900;
-    if (text.length <= MAX_LEN) {
-      await message.reply(text);
-      return;
-    }
+  /** Splits text into Discord-sized chunks, preferring line breaks. */
+  _chunk(text, maxLen = 1900) {
+    const chunks = [];
     let remaining = text;
-    while (remaining.length > 0) {
-      if (remaining.length <= MAX_LEN) {
-        await message.reply(remaining);
-        break;
-      }
-      let cut = remaining.lastIndexOf('\n', MAX_LEN);
-      if (cut < MAX_LEN / 2) cut = MAX_LEN;
-      await message.reply(remaining.slice(0, cut));
+    while (remaining.length > maxLen) {
+      let cut = remaining.lastIndexOf('\n', maxLen);
+      if (cut < maxLen / 2) cut = maxLen;
+      chunks.push(remaining.slice(0, cut));
       remaining = remaining.slice(cut).trimStart();
+    }
+    if (remaining.length > 0) chunks.push(remaining);
+    return chunks;
+  }
+
+  async sendToUser(user, text) {
+    for (const chunk of this._chunk(text)) {
+      await user.send(chunk);
     }
   }
 }
 
-module.exports = { ResumeReviewService };
+module.exports = { ResumeReviewService, ResumeReviewError, DEFAULT_ROLE, MAX_FILE_SIZE };
