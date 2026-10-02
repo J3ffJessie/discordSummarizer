@@ -735,6 +735,23 @@
       </div>
     </div>
 
+    <!-- Resume Review -->
+    <div class="settings-card">
+      <div class="settings-card-title">Resume Review</div>
+      <div class="settings-card-sub">Private AI feedback on resumes, delivered by DM.</div>
+      <div class="toggle-row">
+        <div>
+          <div class="toggle-label">Enable resume review</div>
+          <div class="toggle-sub">Allow members to use <code>/resume-review</code> anywhere in the server. Feedback is sent to their DMs.</div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="cfg-resume-enabled"><span class="toggle-slider"></span></label>
+      </div>
+      <div class="save-row">
+        <button class="btn-primary" id="btn-save-resume">Save Resume Review Settings</button>
+        <span class="save-status" id="status-resume"></span>
+      </div>
+    </div>
+
     <!-- AI Providers -->
     <div class="settings-card">
       <div class="settings-card-title">AI Providers</div>
@@ -1582,16 +1599,14 @@
         const selSummary = document.getElementById('cfg-summary-channel');
         const selCoffee  = document.getElementById('cfg-coffee-channel');
         channels.forEach(c => {
-          const isForum = c.type === 15;
-          if (!isForum) {
-            const opt1 = document.createElement('option');
-            opt1.value = c.id; opt1.textContent = '#' + c.name;
-            selSummary.appendChild(opt1);
+          if (c.type === 15) return; // forum channels can't host summaries or pairings
+          const opt1 = document.createElement('option');
+          opt1.value = c.id; opt1.textContent = '#' + c.name;
+          selSummary.appendChild(opt1);
 
-            const opt2 = document.createElement('option');
-            opt2.value = c.id; opt2.textContent = '#' + c.name;
-            selCoffee.appendChild(opt2);
-          }
+          const opt2 = document.createElement('option');
+          opt2.value = c.id; opt2.textContent = '#' + c.name;
+          selCoffee.appendChild(opt2);
         });
       } catch(err) { console.error('Channels fetch error:', err); }
     }
@@ -1609,6 +1624,8 @@
       setVal('cfg-coffee-role',       cfg.coffee_role_name || '');
       setVal('cfg-coffee-cron',       cfg.coffee_cron || '');
       setVal('cfg-coffee-cooldown',   cfg.coffee_cooldown_days || '');
+
+      setCheck('cfg-resume-enabled',  cfg.resume_review_enabled);
 
       // Providers
       setVal('cfg-summ-provider',  cfg.summ_provider  || 'groq');
@@ -1714,6 +1731,12 @@
         coffee_cron:          getVal('cfg-coffee-cron'),
         coffee_cooldown_days: Number(getVal('cfg-coffee-cooldown')) || 30,
       }, 'status-coffee');
+    });
+
+    document.getElementById('btn-save-resume').addEventListener('click', () => {
+      saveConfig({
+        resume_review_enabled: getCheck('cfg-resume-enabled'),
+      }, 'status-resume');
     });
 
     document.getElementById('btn-save-ai').addEventListener('click', () => {

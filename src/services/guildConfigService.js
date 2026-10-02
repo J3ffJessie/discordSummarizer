@@ -53,6 +53,8 @@ const AI_COLUMNS = [
   'youtube_playlist_id     TEXT',
   'google_client_id        TEXT',
   'google_client_secret    TEXT',
+  'resume_channel_id       TEXT',
+  'resume_review_enabled   INTEGER DEFAULT 0',
 ];
 
 class GuildConfigService {

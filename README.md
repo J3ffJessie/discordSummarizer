@@ -12,7 +12,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 - **Automated weekly summaries** — Scheduled AI-generated server summaries posted to a configured channel
 - **Coffee chat pairing** — Randomly pairs members with a designated role and announces pairings in a configured channel (falls back to DMs if no channel is set)
 - **Web dashboard** — Admins configure all settings and AI provider keys through a browser UI (no slash commands required for setup)
-- **Resume review** — Automatically reviews resumes posted as attachments in a designated channel; the bot replies in the thread with structured AI feedback covering summary, skills, experience, education, formatting, and top improvements
+- **Resume review** — `/resume-review` lets members upload a resume (with an optional target role) anywhere in the server and receive structured AI feedback by DM covering summary, skills, experience, education, formatting, and top improvements
 - **Sticky messages** — Admins can pin a persistent message to the bottom of any channel; the bot automatically reposts it whenever a new message is sent so it always stays visible
 - **Member profiles** — Members can set a public profile (bio, role/title, skills, timezone) and opt in to bi-weekly coffee chat pairings directly from their profile
 - **Reminders** — Set, list, and cancel personal reminders delivered via DM
@@ -273,14 +273,19 @@ Fetches and DMs you the next 7 days of scheduled server events (up to 10).
 
 ---
 
-### `/setup resume-channel`
-*(Admin only)* Designates a text or forum channel as the resume review channel. Once set, the bot monitors all threads in that channel and automatically reviews any resume attachment posted there.
+### `/resume-review`
+Get private AI feedback on your resume. Usable in any channel once an admin enables **Resume Review** in the web dashboard (or `RESUME_REVIEW_ENABLED=true` is set).
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `file` | Yes | Your resume file |
+| `role` | No | The role or position you're targeting — defaults to a general professional review |
 
 **How resume review works:**
-1. An admin runs `/setup resume-channel #channel` to enable the feature
-2. A member creates a thread in that channel and posts their resume as an attachment
+1. A member runs `/resume-review`, attaches their resume, and optionally enters a target role
+2. The bot confirms it can DM the member (if DMs are closed, it says so and stops)
 3. The bot downloads the attachment, extracts the text, and sends it to the configured summarization AI provider
-4. The bot replies in the thread with a structured review covering:
+4. The bot DMs the member a structured review covering:
    - **Summary/Objective** — clarity, tailoring, and impact
    - **Skills** — relevance, specificity, and organization
    - **Experience** — action verbs, quantified achievements, and relevance
@@ -291,11 +296,6 @@ Fetches and DMs you the next 7 days of scheduled server events (up to 10).
 **Supported file types:** PDF, DOCX, TXT, and images (PNG, JPG, GIF, WEBP — requires a vision-capable provider such as Anthropic or OpenAI)
 
 The review uses your server's configured **summarization** AI provider. If no provider is configured, it defaults to Groq.
-
----
-
-### `/setup resume-disable`
-*(Admin only)* Turns off automated resume review for the server.
 
 ---
 
@@ -420,7 +420,7 @@ discord-summarizer/
 │   │   ├── httpServer.js           # HTTP server — dashboard API, static files, health check
 │   │   ├── coffee.js               # Coffee pairing logic (matching algorithm, channel announcements, DM fallback)
 │   │   ├── profileService.js        # SQLite store for member profiles + buildProfileEmbed helper
-│   │   ├── resumeReviewService.js  # Resume review — attachment download, text extraction, AI review, chunked reply
+│   │   ├── resumeReviewService.js  # Resume review — attachment download, text extraction, AI review, chunked DM delivery
 │   │   └── gather.js               # Message gathering and summarization for server summary
 │   └── utils/
 │       ├── helpers.js              # Shared utilities (delay, ensureDataDir)

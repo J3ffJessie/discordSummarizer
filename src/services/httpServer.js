@@ -12,6 +12,7 @@ const ALLOWED_CONFIG_FIELDS = new Set([
   'admin_user_ids',
   'google_client_id',
   'google_client_secret',
+  'resume_channel_id', 'resume_review_enabled',
 ]);
 
 function readBody(req) {
