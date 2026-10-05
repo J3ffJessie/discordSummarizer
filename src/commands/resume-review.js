@@ -21,6 +21,14 @@ module.exports = {
         .setDescription('The role or position you are targeting (optional)')
         .setMaxLength(200)
         .setRequired(false))
+    .addStringOption(opt =>
+      opt.setName('level')
+        .setDescription('Your experience level — junior resumes are judged on potential and projects (optional)')
+        .addChoices(
+          { name: 'Junior / early-career', value: 'junior' },
+          { name: 'Experienced', value: 'experienced' },
+        )
+        .setRequired(false))
     .toJSON(),
 
   async execute(interaction, services) {
@@ -42,6 +50,7 @@ module.exports = {
 
     const attachment = interaction.options.getAttachment('file', true);
     const targetRole = interaction.options.getString('role')?.trim() || DEFAULT_ROLE;
+    const level = interaction.options.getString('level') || null;
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -67,6 +76,7 @@ module.exports = {
         filename: attachment.name,
         guildConfig,
         targetRole,
+        level,
       });
       await resumeReviewService.sendToUser(interaction.user, review);
       await interaction.editReply({ content: '✅ Your resume review has been sent to your DMs!' });

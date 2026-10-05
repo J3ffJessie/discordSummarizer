@@ -22,7 +22,7 @@ class ResumeReviewService {
    * Downloads and reviews a resume attachment. Returns the full review text
    * (preface included). Throws ResumeReviewError for user-facing failures.
    */
-  async review({ url, size, filename = '', guildConfig, targetRole = DEFAULT_ROLE }) {
+  async review({ url, size, filename = '', guildConfig, targetRole = DEFAULT_ROLE, level = null }) {
     const ext = this._getExtension(filename);
     if (!TEXT_EXTENSIONS.has(ext) && !IMAGE_EXTENSIONS.has(ext)) {
       throw new ResumeReviewError(
@@ -46,7 +46,7 @@ class ResumeReviewService {
 
       if (IMAGE_EXTENSIONS.has(ext)) {
         const mimeType = IMAGE_MIME_TYPES[ext] || 'image/png';
-        return this._buildPreface() + await this.reviewImage(buffer, mimeType, guildConfig, targetRole);
+        return this._buildPreface() + await this.reviewImage(buffer, mimeType, guildConfig, targetRole, level);
       }
 
       const text = await this.extractText(buffer, filename);
@@ -57,7 +57,7 @@ class ResumeReviewService {
         );
       }
 
-      return this._buildPreface() + await this.reviewText(text, guildConfig, targetRole);
+      return this._buildPreface() + await this.reviewText(text, guildConfig, targetRole, level);
     } catch (err) {
       if (err instanceof ResumeReviewError) throw err;
       if (err.message?.includes('too large')) throw new ResumeReviewError(err.message);
@@ -102,46 +102,65 @@ class ResumeReviewService {
     return buffer.toString('utf8');
   }
 
-  async reviewText(text, guildConfig, targetRole = DEFAULT_ROLE) {
+  async reviewText(text, guildConfig, targetRole = DEFAULT_ROLE, level = null) {
     const provider = createChatProvider('summ', guildConfig);
     const truncated = text.slice(0, 12000);
     return provider.chat(
-      this._buildSystemPrompt(targetRole),
+      this._buildSystemPrompt(targetRole, level),
       `Here is the resume to review:\n\n${truncated}`,
       { max_tokens: 2048 }
     );
   }
 
-  async reviewImage(buffer, mimeType, guildConfig, targetRole = DEFAULT_ROLE) {
+  async reviewImage(buffer, mimeType, guildConfig, targetRole = DEFAULT_ROLE, level = null) {
     const provider = createChatProvider('summ', guildConfig);
     return provider.chatWithVision(
-      this._buildSystemPrompt(targetRole),
+      this._buildSystemPrompt(targetRole, level),
       'Please review this resume image.',
       buffer,
       mimeType
     );
   }
 
-  _buildSystemPrompt(targetRole = DEFAULT_ROLE) {
-    return `You are an expert resume reviewer with deep knowledge of hiring practices, ATS systems, and career coaching. The candidate is targeting: ${targetRole}. Tailor your feedback to this specific role. Review the resume and give structured, actionable feedback covering these 6 sections:
+  _buildSystemPrompt(targetRole = DEFAULT_ROLE, level = null) {
+    const junior = level === 'junior';
+    const levelNote = junior
+      ? ` The candidate is junior / early-career, so judge them on potential and evidence of ability rather than years of experience. Do not penalize a short or non-traditional work history.`
+      : '';
+
+    const experience = junior
+      ? `**3. Experience & Projects**
+Count internships, part-time jobs, volunteering, and personal/academic/open-source projects as valid experience. Check for strong action verbs and a clear description of what the candidate built or did. For projects, look for the tech stack, what was built, and a link to the repo or live demo. Quantified results are a bonus, not a requirement, so suggest them only where they plausibly exist (users, performance, scope). Flag bullet points that only list duties or vague tasks.`
+      : `**3. Experience**
+Check for strong action verbs, quantified achievements (numbers, percentages, outcomes), and relevance. Flag bullet points that only describe duties without showing impact.`;
+
+    const education = junior
+      ? `**4. Education**
+Education is a core section for this candidate and should appear near the top. Check for degree, school, and graduation date, plus relevant coursework, bootcamps, certifications, honors, and GPA (only if 3.5 or higher). Flag anything relevant that is missing.`
+      : `**4. Education**
+Review completeness and formatting. Note if certifications or relevant coursework are missing.`;
+
+    const length = junior
+      ? 'appropriate length (strictly 1 page)'
+      : 'appropriate length (1–2 pages for most roles)';
+
+    return `You are an expert resume reviewer with deep knowledge of hiring practices, ATS systems, and career coaching. The candidate is targeting: ${targetRole}. Tailor your feedback to this specific role.${levelNote} Review the resume and give structured, actionable feedback covering these 6 sections:
 
 **1. Summary/Objective**
 Evaluate clarity, tailoring to a target role, and impact. Note if it's missing or too generic. Ensure that the Summary is in bullet format.
 
 **2. Skills**
-Assess relevance, specificity, and organization. Flag missing hard skills or overly vague soft skills. Do not suggest soft skills be listed in the skills section.
+Assess relevance, specificity, and organization. Flag missing hard skills or overly vague soft skills. Do not suggest soft skills be listed in the skills section.${junior ? ' Skills should be backed up by a project, course, or job elsewhere on the resume.' : ''}
 
-**3. Experience**
-Check for strong action verbs, quantified achievements (numbers, percentages, outcomes), and relevance. Flag bullet points that only describe duties without showing impact.
+${experience}
 
-**4. Education**
-Review completeness and formatting. Note if certifications or relevant coursework are missing.
+${education}
 
 **5. Formatting & Length**
-Evaluate ATS compatibility (avoid tables, columns, images, headers/footers), readability, and appropriate length (1–2 pages for most roles).
+Evaluate ATS compatibility (avoid tables, columns, images, headers/footers), readability, and ${length}.
 
 **6. Top 3 Improvements**
-List the 3 highest-priority changes the candidate should make, in order of impact.
+List the 3 highest-priority changes the candidate should make, in order of impact.${junior ? ' Prioritize changes that better demonstrate ability and potential.' : ''}
 
 Be direct, specific, and constructive. Reference specific sections or bullet points when possible.`;
   }

@@ -12,7 +12,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 - **Automated weekly summaries** — Scheduled AI-generated server summaries posted to a configured channel
 - **Coffee chat pairing** — Randomly pairs members with a designated role and announces pairings in a configured channel (falls back to DMs if no channel is set)
 - **Web dashboard** — Admins configure all settings and AI provider keys through a browser UI (no slash commands required for setup)
-- **Resume review** — `/resume-review` lets members upload a resume (with an optional target role) anywhere in the server and receive structured AI feedback by DM covering summary, skills, experience, education, formatting, and top improvements
+- **Resume review** — `/resume-review` lets members upload a resume (with an optional target role and junior/experienced level) anywhere in the server and receive structured AI feedback by DM covering summary, skills, experience, education, formatting, and top improvements
 - **Torc profile review** — `/torc-review` reviews a member's torc.dev profile against the profile workshop rubric and DMs a scorecard plus step-by-step fixes
 - **Sticky messages** — Admins can pin a persistent message to the bottom of any channel; the bot automatically reposts it whenever a new message is sent so it always stays visible
 - **Member profiles** — Members can set a public profile (bio, role/title, skills, timezone) and opt in to bi-weekly coffee chat pairings directly from their profile
@@ -281,9 +281,10 @@ Get private AI feedback on your resume. Usable in any channel once an admin enab
 |--------|----------|-------------|
 | `file` | Yes | Your resume file |
 | `role` | No | The role or position you're targeting — defaults to a general professional review |
+| `level` | No | `Junior / early-career` or `Experienced` — leave blank for the standard review (same as `Experienced`) |
 
 **How resume review works:**
-1. A member runs `/resume-review`, attaches their resume, and optionally enters a target role
+1. A member runs `/resume-review`, attaches their resume, and optionally enters a target role and experience level
 2. The bot confirms it can DM the member (if DMs are closed, it says so and stops)
 3. The bot downloads the attachment, extracts the text, and sends it to the configured summarization AI provider
 4. The bot DMs the member a structured review covering:
@@ -293,6 +294,8 @@ Get private AI feedback on your resume. Usable in any channel once an admin enab
    - **Education** — completeness and formatting
    - **Formatting & Length** — ATS compatibility and readability
    - **Top 3 Improvements** — highest-priority changes in order of impact
+
+**Junior / early-career level:** judges the resume on potential rather than years of experience. Internships, volunteering, and personal or academic projects count as experience (with tech stack and repo/demo links expected for projects), quantified results are a bonus rather than a requirement, Education is treated as a core section (coursework, bootcamps, certifications, honors, GPA of 3.5+), skills should be backed by a project or course, and length is strictly 1 page.
 
 **Supported file types:** PDF, DOCX, TXT, and images (PNG, JPG, GIF, WEBP — requires a vision-capable provider such as Anthropic or OpenAI)
 

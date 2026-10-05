@@ -4,6 +4,7 @@ jest.mock('discord.js', () => {
     setDescription: jest.fn().mockReturnThis(),
     setRequired: jest.fn().mockReturnThis(),
     setMaxLength: jest.fn().mockReturnThis(),
+    addChoices: jest.fn().mockReturnThis(),
   });
   return {
     SlashCommandBuilder: jest.fn().mockImplementation(function () {
@@ -23,14 +24,14 @@ jest.mock('discord.js', () => {
 const command = require('../resume-review');
 const { ResumeReviewError, DEFAULT_ROLE } = require('../../services/resumeReviewService');
 
-function makeInteraction({ inGuild = true, role = null, sendImpl } = {}) {
+function makeInteraction({ inGuild = true, role = null, level = null, sendImpl } = {}) {
   return {
     guildId: 'guild-1',
     inGuild: jest.fn().mockReturnValue(inGuild),
     user: { send: jest.fn(sendImpl || (() => Promise.resolve())) },
     options: {
       getAttachment: jest.fn().mockReturnValue({ url: 'https://cdn/resume.pdf', size: 1234, name: 'resume.pdf' }),
-      getString: jest.fn().mockReturnValue(role),
+      getString: jest.fn(name => (name === 'level' ? level : role)),
     },
     reply: jest.fn().mockResolvedValue(),
     deferReply: jest.fn().mockResolvedValue(),
@@ -105,6 +106,7 @@ describe('/resume-review', () => {
       filename: 'resume.pdf',
       guildConfig: { resume_review_enabled: 1 },
       targetRole: 'Data Analyst',
+      level: null,
     });
     expect(services.resumeReviewService.sendToUser).toHaveBeenCalledWith(interaction.user, 'REVIEW TEXT');
     expect(lastEdit(interaction)).toMatch(/sent to your DMs/);
@@ -117,6 +119,15 @@ describe('/resume-review', () => {
     await command.execute(interaction, services);
 
     expect(services.resumeReviewService.review.mock.calls[0][0].targetRole).toBe(DEFAULT_ROLE);
+  });
+
+  it('passes the selected experience level to the review', async () => {
+    const interaction = makeInteraction({ level: 'junior' });
+    const services = makeServices();
+
+    await command.execute(interaction, services);
+
+    expect(services.resumeReviewService.review.mock.calls[0][0].level).toBe('junior');
   });
 
   it('stops before reviewing when the user has DMs closed', async () => {

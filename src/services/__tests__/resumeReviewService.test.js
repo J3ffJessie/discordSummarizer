@@ -49,6 +49,31 @@ describe('ResumeReviewService', () => {
       expect(provider.chat.mock.calls[0][0]).toContain(DEFAULT_ROLE);
     });
 
+    it('uses junior criteria when level is junior', async () => {
+      await service.review({ url: 'u', size: 100, filename: 'resume.txt', level: 'junior' });
+      const prompt = provider.chat.mock.calls[0][0];
+
+      expect(prompt).toContain('junior / early-career');
+      expect(prompt).toContain('Experience & Projects');
+      expect(prompt).toContain('strictly 1 page');
+      expect(prompt).not.toContain('quantified achievements (numbers');
+    });
+
+    it('keeps the standard criteria when no level or experienced is given', async () => {
+      await service.review({ url: 'u', size: 100, filename: 'resume.txt' });
+      await service.review({ url: 'u', size: 100, filename: 'resume.txt', level: 'experienced' });
+
+      for (const call of provider.chat.mock.calls) {
+        expect(call[0]).toContain('quantified achievements (numbers');
+        expect(call[0]).not.toContain('junior / early-career');
+      }
+    });
+
+    it('applies the level to image reviews too', async () => {
+      await service.review({ url: 'u', size: 100, filename: 'resume.png', level: 'junior' });
+      expect(provider.chatWithVision.mock.calls[0][0]).toContain('junior / early-career');
+    });
+
     it('reviews image resumes with a vision-capable provider', async () => {
       const result = await service.review({ url: 'u', size: 100, filename: 'Resume.PNG' });
 
