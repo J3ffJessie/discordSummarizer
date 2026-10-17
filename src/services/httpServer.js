@@ -36,11 +36,87 @@ function sanitizeConfig(config) {
   return out;
 }
 
-function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildConfigService, giveawayService, discordClient, musicService } = {}) {
+const PUBLIC_DIR = path.join(process.cwd(), 'public');
+const DUCKHUNT_HTML = path.join(PUBLIC_DIR, 'duckhunt', 'index.html');
+
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(body));
+}
+
+function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildConfigService, giveawayService, discordClient, musicService, duckHuntService } = {}) {
   return http.createServer(async (req, res) => {
     const [pathname, search] = req.url.split('?');
     const params = new URLSearchParams(search || '');
     const guildId = params.get('guildId') || undefined;
+
+    // Duck Hunt Activity. Discord loads the URL-mapped root ("/") with a
+    // frame_id query param; plain "/" stays the health-check response below.
+    if (req.method === 'GET' && (pathname === '/duckhunt' || (pathname === '/' && params.has('frame_id')))) {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(fs.readFileSync(DUCKHUNT_HTML));
+      return;
+    }
+
+    if (pathname === '/api/duckhunt/config' && req.method === 'GET') {
+      sendJson(res, 200, { clientId: process.env.CLIENT_ID || null });
+      return;
+    }
+
+    if (pathname === '/api/duckhunt/token' && req.method === 'POST' && duckHuntService) {
+      const body = await readBody(req);
+      if (typeof body.code !== 'string' || !body.code) {
+        sendJson(res, 400, { error: 'code required' });
+        return;
+      }
+      try {
+        const accessToken = await duckHuntService.exchangeCode(body.code);
+        sendJson(res, 200, { access_token: accessToken });
+      } catch (err) {
+        console.error('Duck Hunt token exchange failed:', err.response?.data || err.message);
+        sendJson(res, 502, { error: 'Token exchange failed' });
+      }
+      return;
+    }
+
+    if (pathname === '/api/duckhunt/score' && req.method === 'POST' && duckHuntService && discordClient) {
+      const body = await readBody(req);
+      const result = { score: body.score, ducks: body.ducks, round: body.round };
+      if (typeof body.access_token !== 'string' || typeof body.guildId !== 'string' || !duckHuntService.isValidResult(result)) {
+        sendJson(res, 400, { error: 'Invalid score submission' });
+        return;
+      }
+
+      let user;
+      try {
+        user = await duckHuntService.fetchUser(body.access_token);
+      } catch {
+        sendJson(res, 401, { error: 'Invalid access token' });
+        return;
+      }
+
+      // Only record scores for servers the bot is in and the player belongs to
+      const guild = discordClient.guilds.cache.get(body.guildId);
+      const member = guild && await guild.members.fetch(user.id).catch(() => null);
+      if (!member) {
+        sendJson(res, 403, { error: 'Not a member of this server' });
+        return;
+      }
+
+      const username = member.displayName || user.global_name || user.username;
+      const { player, isPersonalBest } = duckHuntService.recordGame(body.guildId, user.id, username, result);
+      sendJson(res, 200, { player, isPersonalBest });
+      return;
+    }
+
+    if (pathname === '/api/duckhunt/leaderboard' && req.method === 'GET' && duckHuntService) {
+      if (!guildId) {
+        sendJson(res, 400, { error: 'guildId required' });
+        return;
+      }
+      sendJson(res, 200, duckHuntService.getLeaderboard(guildId));
+      return;
+    }
 
     // Dashboard redirect
     if (pathname === '/dashboard') {
@@ -248,6 +324,13 @@ function createHttpServer({ getStats, getGuild, getMembers, getChannels, guildCo
 
     if (pathname.startsWith('/public/')) {
       const filePath = path.join(process.cwd(), pathname);
+
+      // Reject "/public/../" traversal out of the public directory
+      if (!filePath.startsWith(PUBLIC_DIR + path.sep)) {
+        res.writeHead(404);
+        res.end('File not found');
+        return;
+      }
 
       if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
         const ext = path.extname(filePath);

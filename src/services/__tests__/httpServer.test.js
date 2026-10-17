@@ -137,3 +137,169 @@ describe('createHttpServer', () => {
     expect(JSON.parse(res.body)[0].winnerName).toBe('Alice');
   });
 });
+
+describe('static files', () => {
+  let server;
+
+  afterEach((done) => {
+    if (server?.listening) server.close(done);
+    else done();
+  });
+
+  // Raw request: URL() would normalize the ".." away before it's sent
+  function rawGet(path) {
+    return new Promise((resolve, reject) => {
+      http.get({ hostname: '127.0.0.1', port: server.address().port, path }, (res) => {
+        res.resume();
+        res.on('end', () => resolve(res.statusCode));
+      }).on('error', reject);
+    });
+  }
+
+  it('should serve files inside /public', async () => {
+    server = createHttpServer({}).listen(0);
+    expect(await rawGet('/public/dashboard.html')).toBe(200);
+  });
+
+  it('should not serve files outside /public via path traversal', async () => {
+    server = createHttpServer({}).listen(0);
+    expect(await rawGet('/public/../package.json')).toBe(404);
+    expect(await rawGet('/public/../src/data/guild_config.db')).toBe(404);
+  });
+});
+
+describe('Duck Hunt routes', () => {
+  let server;
+  const env = process.env;
+
+  function makeDuckHuntService() {
+    return {
+      isValidResult: jest.fn().mockReturnValue(true),
+      exchangeCode: jest.fn().mockResolvedValue('access-tok'),
+      fetchUser: jest.fn().mockResolvedValue({ id: 'u1', username: 'jeff', global_name: 'Jeff' }),
+      recordGame: jest.fn().mockReturnValue({ player: { best_score: 5000 }, isPersonalBest: true }),
+      getLeaderboard: jest.fn().mockReturnValue([{ user_id: 'u1', best_score: 5000 }]),
+    };
+  }
+
+  function makeDiscordClient(member = { displayName: 'Jeffy' }) {
+    const guild = { members: { fetch: member ? jest.fn().mockResolvedValue(member) : jest.fn().mockRejectedValue(new Error('Unknown Member')) } };
+    return { guilds: { cache: { get: jest.fn(id => (id === 'g1' ? guild : undefined)) } } };
+  }
+
+  const validScore = { access_token: 'tok', guildId: 'g1', score: 5000, ducks: 8, round: 2 };
+
+  beforeEach(() => {
+    process.env = { ...env, CLIENT_ID: 'client-id' };
+  });
+
+  afterEach((done) => {
+    process.env = env;
+    if (server?.listening) server.close(done);
+    else done();
+  });
+
+  it('should serve the game at /duckhunt', async () => {
+    server = createHttpServer({}).listen(0);
+    const res = await request(server, 'GET', '/duckhunt');
+    expect(res.status).toBe(200);
+    expect(res.body).toContain('/public/duckhunt/game.js');
+  });
+
+  it('should serve the game at the root when Discord loads it with a frame_id', async () => {
+    server = createHttpServer({}).listen(0);
+    const res = await request(server, 'GET', '/?frame_id=abc&instance_id=i1');
+    expect(res.status).toBe(200);
+    expect(res.body).toContain('/public/duckhunt/game.js');
+  });
+
+  it('should return the public client ID from /api/duckhunt/config', async () => {
+    server = createHttpServer({}).listen(0);
+    const res = await request(server, 'GET', '/api/duckhunt/config');
+    expect(JSON.parse(res.body)).toEqual({ clientId: 'client-id' });
+  });
+
+  it('should exchange an auth code for an access token', async () => {
+    const dh = makeDuckHuntService();
+    server = createHttpServer({ duckHuntService: dh }).listen(0);
+    const res = await request(server, 'POST', '/api/duckhunt/token', { code: 'abc' });
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({ access_token: 'access-tok' });
+    expect(dh.exchangeCode).toHaveBeenCalledWith('abc');
+  });
+
+  it('should return 400 when no code is given', async () => {
+    server = createHttpServer({ duckHuntService: makeDuckHuntService() }).listen(0);
+    const res = await request(server, 'POST', '/api/duckhunt/token', {});
+    expect(res.status).toBe(400);
+  });
+
+  it('should return 502 when the token exchange fails', async () => {
+    jest.spyOn(console, 'error').mockImplementation(() => {});
+    const dh = makeDuckHuntService();
+    dh.exchangeCode.mockRejectedValue(new Error('invalid_grant'));
+    server = createHttpServer({ duckHuntService: dh }).listen(0);
+    const res = await request(server, 'POST', '/api/duckhunt/token', { code: 'bad' });
+    expect(res.status).toBe(502);
+    console.error.mockRestore();
+  });
+
+  it('should record a score for the verified user', async () => {
+    const dh = makeDuckHuntService();
+    server = createHttpServer({ duckHuntService: dh, discordClient: makeDiscordClient() }).listen(0);
+    const res = await request(server, 'POST', '/api/duckhunt/score', validScore);
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.body)).toEqual({ player: { best_score: 5000 }, isPersonalBest: true });
+    expect(dh.fetchUser).toHaveBeenCalledWith('tok');
+    expect(dh.recordGame).toHaveBeenCalledWith('g1', 'u1', 'Jeffy', { score: 5000, ducks: 8, round: 2 });
+  });
+
+  it('should reject invalid score values', async () => {
+    const dh = makeDuckHuntService();
+    dh.isValidResult.mockReturnValue(false);
+    server = createHttpServer({ duckHuntService: dh, discordClient: makeDiscordClient() }).listen(0);
+    const res = await request(server, 'POST', '/api/duckhunt/score', validScore);
+    expect(res.status).toBe(400);
+    expect(dh.recordGame).not.toHaveBeenCalled();
+  });
+
+  it('should return 401 for an invalid access token', async () => {
+    const dh = makeDuckHuntService();
+    dh.fetchUser.mockRejectedValue(new Error('401'));
+    server = createHttpServer({ duckHuntService: dh, discordClient: makeDiscordClient() }).listen(0);
+    const res = await request(server, 'POST', '/api/duckhunt/score', validScore);
+    expect(res.status).toBe(401);
+    expect(dh.recordGame).not.toHaveBeenCalled();
+  });
+
+  it('should return 403 for a guild the bot is not in', async () => {
+    const dh = makeDuckHuntService();
+    server = createHttpServer({ duckHuntService: dh, discordClient: makeDiscordClient() }).listen(0);
+    const res = await request(server, 'POST', '/api/duckhunt/score', { ...validScore, guildId: 'other' });
+    expect(res.status).toBe(403);
+    expect(dh.recordGame).not.toHaveBeenCalled();
+  });
+
+  it('should return 403 when the player is not a member of the guild', async () => {
+    const dh = makeDuckHuntService();
+    server = createHttpServer({ duckHuntService: dh, discordClient: makeDiscordClient(null) }).listen(0);
+    const res = await request(server, 'POST', '/api/duckhunt/score', validScore);
+    expect(res.status).toBe(403);
+    expect(dh.recordGame).not.toHaveBeenCalled();
+  });
+
+  it('should return the guild leaderboard', async () => {
+    const dh = makeDuckHuntService();
+    server = createHttpServer({ duckHuntService: dh }).listen(0);
+    const res = await request(server, 'GET', '/api/duckhunt/leaderboard?guildId=g1');
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.body)).toEqual([{ user_id: 'u1', best_score: 5000 }]);
+    expect(dh.getLeaderboard).toHaveBeenCalledWith('g1');
+  });
+
+  it('should require a guildId for the leaderboard', async () => {
+    server = createHttpServer({ duckHuntService: makeDuckHuntService() }).listen(0);
+    const res = await request(server, 'GET', '/api/duckhunt/leaderboard');
+    expect(res.status).toBe(400);
+  });
+});

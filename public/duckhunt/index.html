@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Duck Hunt</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #game {
+      display: block;
+      image-rendering: pixelated;
+      cursor: none;
+      outline: none;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" tabindex="0" aria-label="Duck Hunt game: aim with the mouse or arrow keys, click or press Space to shoot"></canvas>
+  <!-- Absolute paths: Discord serves this page at the URL-mapped root ("/") -->
+  <script type="module" src="/public/duckhunt/game.js"></script>
+</body>
+</html>
