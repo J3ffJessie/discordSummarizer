@@ -7,7 +7,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 ## Features
 
 - **Live voice translation** — Captures voice channel audio, transcribes with Whisper, translates via your chosen AI provider, and streams captions to a web page in near real-time
-- **AI voice interview practice** — `/interview start` conducts a live, spoken mock interview in a private voice channel based on a job description, then DMs a scored summary plus a full Q&A transcript
+- **AI voice interview practice** — `/interview start` conducts a live, spoken mock interview (including LeetCode-style coding rounds with real test execution) in a private voice channel based on a job description, then DMs a scored summary plus a full Q&A transcript
 - **Server summarization** — Summarizes recent messages across all text channels using your configured AI provider
 - **Automated weekly summaries** — Scheduled AI-generated server summaries posted to a configured channel
 - **Coffee chat pairing** — Randomly pairs members with a designated role and announces pairings in a configured channel (falls back to DMs if no channel is set)
@@ -17,7 +17,14 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 - **Sticky messages** — Admins can pin a persistent message to the bottom of any channel; the bot automatically reposts it whenever a new message is sent so it always stays visible
 - **Member profiles** — Members can set a public profile (bio, role/title, skills, timezone) and opt in to bi-weekly coffee chat pairings directly from their profile
 - **Reminders** — Set, list, and cancel personal reminders delivered via DM
-- **Events** — Fetch and display upcoming server events
+- **Events** — Fetch and display upcoming server events (via the Luma calendar API)
+- **Music playlist** — Spotify, Apple Music, and YouTube links shared in a configured channel are automatically added to a YouTube Music playlist
+- **Duck Hunt** — `/duckhunt play` launches a mouse-and-keyboard Duck Hunt game as a Discord Activity, with a per-server leaderboard
+- **Giveaways** — Run a giveaway with button-based entry and a live spinning-wheel page, with winner history per server
+- **Location logging** — Admins can scan channel messages for city/country mentions and download a sorted list
+- **Server analytics** — Message, member join/leave, and voice-minute statistics shown on the dashboard
+- **Release announcements** — On a new version, the bot DMs the server installer(s) the matching [CHANGELOG.md](CHANGELOG.md) section
+- **Help** — `/help` lists every command by category
 
 ---
 
@@ -77,9 +84,23 @@ These are the only variables you need to set. Per-server settings (AI provider, 
 | Variable | Description |
 |----------|-------------|
 | `ADMIN_USER_ID` | Your Discord user ID — the bot will DM you error alerts |
-| `ALLOWED_USER_IDS` | Comma-separated user IDs permitted to run bot-owner commands (`/server-summary`, `/paircoffee`, etc.) |
+| `ALLOWED_USER_IDS` | Comma-separated user IDs permitted to run bot-owner commands (`/server`, `/paircoffee`, etc.) |
 | `CAPTION_URL` | Public URL for the live captions page — only needed if using the voice translation feature. Can be the same as `PUBLIC_URL`. |
 | `PORT` | HTTP server port — set automatically by Render, defaults to `3000` |
+| `GUILD_ID` | Test server ID, used only by `npm run register-commands -- --guild` |
+| `RESUME_REVIEW_ENABLED` | Set to `true` to enable `/resume-review` without using the dashboard toggle |
+| `LUMA_API_KEY` | Luma API key used by `/events` to fetch upcoming events |
+| `DISCORD_CLIENT_SECRET` | Discord OAuth2 client secret (Developer Portal → OAuth2). Only needed for the Duck Hunt Activity — used server-side to sign players in |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth credentials for the music playlist feature. Fallback only — each server can enter its own in the dashboard's **Music** section |
+| `JUDGE0_URL` | Judge0 CE endpoint used to run candidate code in LeetCode-style interviews. Defaults to the free public instance `https://ce.judge0.com` |
+| `JUDGE0_API_KEY` / `JUDGE0_API_HOST` | Optional RapidAPI-style auth headers if your Judge0 instance requires them |
+| `RELEASE_NOTIFY_CHANNEL_ID` | Channel to post release notes in when no installer can be DMed |
+| `TARGET_CHANNEL_ID` | Fallback summary channel for `/server` when a guild has none configured |
+| `CRON_TIMEZONE` | Fallback timezone for scheduled tasks (overridden by `/setup timezone`) |
+| `SERVER_SUMMARY_CRON` | Default cron for weekly summaries (default `0 10 * * 1`) |
+| `COFFEE_CRON_SCHEDULE`, `COFFEE_BIWEEKLY`, `COFFEE_ROLE_NAME`, `COFFEE_PAIRING_COOLDOWN_DAYS` | Default coffee pairing settings, overridden per server |
+| `COFFEE_FETCH_MEMBERS`, `COFFEE_FETCH_TIMEOUT_MS` | Control full member fetching during coffee pairing (default timeout 10000 ms) |
+| `SUMM_*`, `TRANS_*`, `STT_*` (`PROVIDER`, `API_KEY`, `MODEL`) | Bot-level fallback AI provider settings for summarization, translation, and transcription |
 
 > **No AI keys needed at the bot level.** Each server admin provides their own API key through the dashboard. If you want a fallback key for testing, you can set `GROQ_API_KEY` — but this is not required and should not be used in production to avoid unexpected costs.
 
@@ -93,7 +114,15 @@ Run this once after setup, and again any time commands change:
 npm run register-commands
 ```
 
-By default this registers commands globally. For local testing against a single server only, edit [src/commands/register.js](src/commands/register.js) line 27-28 to use `Routes.applicationGuildCommands` with your `GUILD_ID` — guild commands register instantly without the 1-hour global propagation delay.
+By default this registers commands globally (can take up to an hour to propagate). For local testing, pass `--guild` to register only to the server in `GUILD_ID` — guild commands appear instantly:
+
+```bash
+npm run register-commands -- --guild
+```
+
+The script ([src/commands/register.js](src/commands/register.js)) registers every command file in `src/commands/`. Global registration also includes the Activity's Entry Point command (see [`/duckhunt`](#duckhunt)).
+
+The bot does **not** register commands on startup, so run this whenever a command is added or changed — for example from the Render **Shell**, which already has the live credentials. Don't add it to Render's build command: the persistent disk (`/data`) isn't mounted during builds and loading the command files fails.
 
 ---
 
@@ -104,21 +133,43 @@ By default this registers commands globally. For local testing against a single 
 npm start
 ```
 
-**Development:**
+**Development (auto-restart):**
 ```bash
-node src/index.js
+npm run dev
 ```
+`npm run dev` uses [nodemon](https://nodemon.io), which isn't a project dependency. Install it globally (`npm i -g nodemon`) or use `node src/index.js`.
+
+**Tests:**
+```bash
+npm test
+```
+Runs Jest with coverage (output in `coverage/` and `jest-stare/`).
 
 ---
 
 ## Local Testing
 
 1. Fill in `.env` with your `DISCORD_TOKEN`, `CLIENT_ID`, and set `PUBLIC_URL=http://localhost:3000`
-2. In [src/commands/register.js](src/commands/register.js), temporarily switch to guild-only registration (see comment on line 27) and add `GUILD_ID` to your `.env`
-3. Run `npm run register-commands` — commands appear in your test server instantly
+2. Add `GUILD_ID` to your `.env`
+3. Run `npm run register-commands -- --guild` — commands appear in your test server instantly
 4. Run `node src/index.js`
 5. In your test server, run `/setup dashboard` — open the link and configure settings
-6. When done testing, switch register.js back to global, run `npm run register-commands`, then push to production
+6. When done testing, run `npm run register-commands` (global) before pushing to production
+
+See also [docs/multi-server-testing.md](docs/multi-server-testing.md).
+
+### Testing the Duck Hunt Activity locally
+
+Discord loads Activities over public HTTPS, so local testing needs a tunnel. Use a **separate dev application** in the Developer Portal: running locally with the live bot's token makes both bots answer every command, and the Activity URL mapping belongs to the app, so pointing the live app at a tunnel breaks the game for everyone.
+
+1. Set up the dev app: enable the **Server Members** and **Message Content** intents (Bot tab), add `https://127.0.0.1` as an OAuth2 redirect, enable Activities, and invite it to your test server with the `bot` and `applications.commands` scopes
+2. Put the dev app's values in `.env`: `DISCORD_TOKEN`, `CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `GUILD_ID`
+3. Start a tunnel: `cloudflared tunnel --url http://localhost:3000`
+4. Set `PUBLIC_URL` to the tunnel URL, and set the dev app's **Activities → URL Mappings** `/` target to the tunnel host (no `https://`)
+5. Run `npm run register-commands -- --guild`, then `node src/index.js`
+6. Run `/duckhunt play` in your test server
+
+Quick tunnels get a new URL on every start, so repeat step 4 (and restart the bot) each time. To test gameplay without Discord, open `http://localhost:3000/duckhunt` in a browser; scores aren't saved in this offline mode.
 
 ---
 
@@ -136,6 +187,24 @@ node src/index.js
 
 ### `/setup summary`
 *(Admin only)* Set the channel where automated server summaries are posted and enable the feature.
+
+---
+
+### `/setup summary-schedule` / `/setup summary-disable`
+*(Admin only)* Set the cron schedule for automated weekly summaries (default `0 10 * * 1`), or turn automated summaries off.
+
+---
+
+### `/setup ai`
+*(Admin only)* Configure the AI provider for one service — see [AI Provider Configuration](#ai-provider-configuration).
+
+| Option | Description |
+|--------|-------------|
+| `service` | `summarization`, `translation`, or `transcription` |
+| `provider` | `groq`, `openai`, `anthropic`, `ollama`, or `custom` |
+| `key` | API key |
+| `model` | Model name (optional) |
+| `url` | Base URL (Ollama / custom endpoints) |
 
 ---
 
@@ -201,7 +270,7 @@ Start or stop a private, AI-powered voice interview for practice.
 
 **How it works:**
 1. Run `/interview start` (optionally attach a PDF/DOCX job description)
-2. Pick an interview style — **Behavioral** (STAR-method, default), **Technical**, **Conversational**, or **Case-based**
+2. Pick an interview style — **Behavioral** (STAR-method, default), **Technical**, **Conversational**, **Case-based**, or **Leetcode**
 3. Pick an interview language — English (default), Spanish, French, German, Italian, Portuguese, Japanese, Korean, Chinese, Hindi, Arabic, or Russian
 4. Click **Continue** and fill in the company name (optional) and job description in the modal (skip the text field if you attached a file)
 5. The bot creates a private voice channel (only you and the bot can join) and joins it
@@ -209,6 +278,8 @@ Start or stop a private, AI-powered voice interview for practice.
 7. When the interview ends — either after all questions or via `/interview stop` — the bot DMs you:
    - A scored summary embed (1–10) with strengths, gaps, and coaching notes (written in your chosen language)
    - A `.txt` file attachment with the full transcript of every question and answer
+
+**LeetCode style:** pick a coding language (JavaScript, Python, Java, or C++). The bot posts each problem (statement, examples, constraints, and function signature) in the voice channel's text chat. Use **Run** to test against the sample cases (up to 3 runs per question), then **Submit** to run the full hidden test set; afterwards the bot asks you to explain your approach aloud. LeetCode interviews have 2 problems (up to 10 minutes to submit each), and scoring weighs real test results alongside your explanation. Code runs on [Judge0](https://ce.judge0.com) — see `JUDGE0_URL` above.
 
 Spoken questions use a language-matched Microsoft Edge TTS voice, and your answers are transcribed with a Whisper language hint for better accuracy — no extra setup needed.
 
@@ -221,7 +292,7 @@ Summarizes the last 100 messages in the current channel and DMs the result to yo
 
 ---
 
-### `/server-summary`
+### `/server`
 *(Admin only)* Gathers recent messages from all visible text channels and posts an AI-generated summary to the configured summary channel.
 
 ---
@@ -344,6 +415,68 @@ Each member can run one review every 10 minutes (the cooldown is cleared if the 
 
 ---
 
+### `/help`
+Shows every available command grouped by category (ephemeral).
+
+---
+
+### `/music`
+*(Admin only)* Configure automatic music playlist building.
+
+| Subcommand | Description |
+|-----------|-------------|
+| `setup channel:#channel` | Choose the channel to watch for music links |
+| `auth` | Get a private OAuth link to authorize YouTube Music for this server |
+| `status` | Show YouTube Music authentication and playlist status |
+| `reset` | Clear the stored playlist ID so a fresh playlist is created on the next song post |
+
+**How it works:** when someone posts a Spotify, Apple Music, YouTube, or YouTube Music link in the configured channel, the bot adds the song to the server's YouTube Music playlist. Plain YouTube links are added directly; other links are resolved through [song.link](https://song.link) and matched on YouTube Music. Each server needs Google OAuth credentials (Client ID/Secret) entered in the dashboard's **Music** section, with `PUBLIC_URL/oauth/youtube/callback` added as an authorized redirect URI.
+
+---
+
+### `/giveaway`
+*(Admin only)* Run a giveaway with a spinning wheel.
+
+| Subcommand | Description |
+|-----------|-------------|
+| `start title:<text> [prize:<text>]` | Posts a giveaway embed with an **Enter Giveaway** button and a **Watch the Wheel** link. The host receives a private link (containing a secret token) that controls the spin. Only one giveaway can be active per server. |
+| `end` | Closes entries and disables the entry button |
+
+The wheel page is served at `/giveaway` ([public/giveaway.html](public/giveaway.html)); winner history is kept per server.
+
+---
+
+### `/duckhunt`
+Play Duck Hunt inside Discord as an [Activity](https://discord.com/developers/docs/activities/overview).
+
+| Subcommand | Description |
+|-----------|-------------|
+| `play` | Launches the game for you in the current channel. It can also be started from the App Launcher (rocket button) in a voice or text channel. |
+| `leaderboard` | Shows the server's top 10 hunters by best score |
+
+**Controls:** mouse to aim and click to shoot, or arrow keys/WASD to aim (hold Shift for faster aiming) and Space/Enter to shoot. `P` pauses, `M` mutes. Each wave has two ducks and three shells; hit the quota for the round to advance. Touch works on mobile.
+
+Scores are saved per server when the game is played inside Discord. The server verifies the player's identity with their Discord access token and checks they're a member of the server before saving. The game runs client-side, so scores aren't cheat-proof.
+
+**One-time setup (bot owner):**
+1. Developer Portal → **OAuth2**: copy the **Client Secret** into `DISCORD_CLIENT_SECRET`, and add `https://127.0.0.1` as a redirect URI (required by Discord, unused by the Activity).
+2. **Activities → URL Mappings**: map `/` to your `PUBLIC_URL` host with no `https://`, e.g. `your-app.onrender.com`.
+3. **Activities → Settings**: enable Activities. This creates the App Launcher's Entry Point command, which `npm run register-commands` now keeps when it overwrites global commands.
+
+The game lives in [public/duckhunt/](public/duckhunt/). Discord loads it at `/?frame_id=…` through the URL mapping, while plain `/` remains the health check. Outside Discord you can open `PUBLIC_URL/duckhunt` in a browser to play offline (scores aren't saved). The Embedded App SDK is vendored as [public/duckhunt/vendor/discord-sdk.js](public/duckhunt/vendor/discord-sdk.js) because Discord's proxy blocks third-party CDNs; rebuild it with `npm run build:duckhunt-sdk` after upgrading `@discord/embedded-app-sdk`.
+
+---
+
+### `/location`
+*(Admin only)* Scans recent messages in the current channel (`limit` option, default and max 100) for city and country mentions and appends new ones to a `locations.log` file.
+
+---
+
+### `/downloadlocations`
+*(Admin only)* DMs you a JSON file of the de-duplicated, sorted cities and countries from the log.
+
+---
+
 ## AI Provider Configuration
 
 Each server configures its own AI provider through the dashboard. Three tasks can each use a different provider and model:
@@ -393,13 +526,15 @@ DISCORD_TOKEN=your-bot-token
 CLIENT_ID=your-client-id
 PUBLIC_URL=https://your-app.onrender.com
 DATA_DIR=/data
+DISCORD_CLIENT_SECRET=your-client-secret   # for the Duck Hunt Activity
 ADMIN_USER_ID=your-discord-user-id    # optional
 ALLOWED_USER_IDS=id1,id2              # optional
 CAPTION_URL=https://your-app.onrender.com  # optional, for voice translation
 ```
 
-7. Run `npm run register-commands` once to register slash commands globally
-8. Invite the bot to servers — each admin runs `/setup dashboard` to configure their server
+7. Run `npm run register-commands` once to register slash commands globally (again whenever commands change)
+8. For Duck Hunt, configure the Activity in the Developer Portal (see [`/duckhunt`](#duckhunt) one-time setup)
+9. Invite the bot to servers — each admin runs `/setup dashboard` to configure their server
 
 The bot uses no native binaries (`opusscript` is WASM, `@noble/ciphers` is pure JS) — builds and runs on Render without any extra configuration.
 
@@ -413,40 +548,66 @@ discord-summarizer/
 │   ├── index.js                    # Entry point — bootstraps all services and the Discord client
 │   ├── commands/                   # One file per slash command
 │   │   ├── setup.js                # /setup — dashboard link, view config, channel/schedule/AI/admin config
-│   │   ├── translate.js
-│   │   ├── interview.js
-│   │   ├── summarize.js
-│   │   ├── server-summary.js
-│   │   ├── paircoffee.js
-│   │   ├── coffee-list.js
-│   │   ├── sticky.js
-│   │   ├── remindme.js
-│   │   ├── listreminders.js
-│   │   ├── cancelreminder.js
-│   │   ├── profile.js
-│   │   ├── events.js
-│   │   ├── location.js
-│   │   └── downloadlocations.js
-│   ├── events/
-│   │   └── interactionCreate.js    # Routes slash command interactions to the right command file
+│   │   ├── help.js                 # /help
+│   │   ├── translate.js            # /translate start|stop
+│   │   ├── interview.js            # /interview start|stop
+│   │   ├── summarize.js            # /summarize
+│   │   ├── server-summary.js       # /server
+│   │   ├── resume-review.js        # /resume-review
+│   │   ├── torc-review.js          # /torc-review
+│   │   ├── paircoffee.js           # /paircoffee
+│   │   ├── coffee-list.js          # /coffee-list
+│   │   ├── sticky.js               # /sticky set|remove|view
+│   │   ├── remindme.js             # /remindme
+│   │   ├── listreminders.js        # /listreminders
+│   │   ├── cancelreminder.js       # /cancelreminder
+│   │   ├── profile.js              # /profile edit|view
+│   │   ├── events.js               # /events
+│   │   ├── music.js                # /music setup|auth|status|reset
+│   │   ├── giveaway.js             # /giveaway start|end
+│   │   ├── duckhunt.js             # /duckhunt play|leaderboard
+│   │   ├── location.js             # /location
+│   │   ├── downloadlocations.js    # /downloadlocations
+│   │   └── register.js             # Registers slash commands with Discord (globally, or --guild)
+│   ├── events/                     # Discord gateway event handlers
+│   │   ├── interactionCreate.js    # Routes slash commands, buttons, modals, and select menus
+│   │   ├── messageCreate.js        # Message stats + sticky message reposting
+│   │   ├── musicRecs.js            # Watches the music channel and adds songs to the playlist
+│   │   ├── voiceStateUpdate.js     # Tracks voice minutes for analytics
+│   │   ├── guildMemberAdd.js       # Records member joins
+│   │   ├── guildMemberRemove.js    # Records member leaves
+│   │   ├── guildCreate.js          # Records who installed the bot in a new server
+│   │   └── ready.js                # Startup — backfills installers, announces new releases
 │   ├── providers/
-│   │   └── index.js                # AI provider abstraction — adapters for Groq, OpenAI, Anthropic, Ollama
+│   │   └── index.js                # AI provider abstraction — adapters for Groq, OpenAI, Anthropic, Ollama, custom
+│   ├── rubric/
+│   │   └── torcProfileRubric.js    # Scoring rubric for /torc-review
 │   ├── services/
 │   │   ├── voiceService.js         # Voice capture and per-frame Opus decoding
 │   │   ├── transcriptionService.js # PCM→WAV conversion and Whisper API calls (provider-aware)
 │   │   ├── translationService.js   # Text translation (provider-aware)
 │   │   ├── interviewService.js     # AI voice interview — question generation, TTS, answer capture, scored summary + transcript
+│   │   ├── codeExecutionService.js # Runs candidate code against test cases via Judge0 (JS, Python, Java, C++)
 │   │   ├── groq.js                 # SummarizationService — provider-aware summarization
 │   │   ├── streamingService.js     # WebSocket server — broadcasts captions to browser clients
 │   │   ├── sessionService.js       # Per-guild session management with token auth
 │   │   ├── guildConfigService.js   # SQLite config store — per-guild settings and AI provider config
 │   │   ├── stickyService.js        # SQLite store for per-channel sticky messages
-│   │   ├── messageStatsService.js  # Per-guild message statistics tracking
+│   │   ├── messageStatsService.js  # Per-guild message, member, and voice statistics
 │   │   ├── schedulerService.js     # Cron job management (summary + coffee pairing)
-│   │   ├── httpServer.js           # HTTP server — dashboard API, static files, health check
+│   │   ├── httpServer.js           # HTTP server — dashboard API, giveaway API, OAuth callbacks, static files, health check
 │   │   ├── coffee.js               # Coffee pairing logic (matching algorithm, channel announcements, DM fallback)
-│   │   ├── profileService.js        # SQLite store for member profiles + buildProfileEmbed helper
+│   │   ├── profileService.js       # SQLite store for member profiles + buildProfileEmbed helper
 │   │   ├── resumeReviewService.js  # Resume review — attachment download, text extraction, AI review, chunked DM delivery
+│   │   ├── torcReviewService.js    # Torc profile review — renders profile, scores against rubric, builds DMs
+│   │   ├── pageRenderer.js         # Headless Chrome (Puppeteer) page-text renderer for JS-driven pages
+│   │   ├── musicService.js         # Music link detection, song.link resolution, YouTube Music OAuth + playlist management
+│   │   ├── giveawayService.js      # In-memory giveaway state, participants, and winner history
+│   │   ├── duckHuntService.js      # Duck Hunt leaderboard (SQLite) + Activity OAuth token exchange
+│   │   ├── reminders.js            # Personal reminders — persistence and DM delivery
+│   │   ├── events.js               # Fetches upcoming events from the Luma API
+│   │   ├── installerService.js     # Finds who installed the bot via the audit log
+│   │   ├── releaseNotifier.js      # DMs installers the CHANGELOG section on new versions
 │   │   └── gather.js               # Message gathering and summarization for server summary
 │   └── utils/
 │       ├── helpers.js              # Shared utilities (delay, ensureDataDir)
@@ -454,8 +615,16 @@ discord-summarizer/
 ├── public/
 │   ├── dashboard.html              # Web configuration dashboard and analytics
 │   ├── captions.html               # Live captions web page (WebSocket client)
+│   ├── giveaway.html               # Giveaway spinning-wheel page
+│   ├── duckhunt/                   # Duck Hunt Activity (index.html, game.js, vendored Discord SDK)
 │   └── torc-logo.png
-├── src/commands/register.js        # Run this to register slash commands with Discord
+├── docs/                           # Multi-server testing and AI provider notes
+├── tools/                          # Dev scripts (backtick scanning, command-file checks, Duck Hunt SDK bundling)
+├── locations.js                    # City/country matching used by /location
+├── register-commands.js            # Wrapper for `npm run register-commands`
+├── CHANGELOG.md                    # Release notes (also sent to installers on update)
+├── TRANSLATION.md                  # Notes on the voice translation pipeline
+├── .puppeteerrc.cjs                # Keeps Puppeteer's Chrome inside the project for deployment
 ├── package.json
 └── .env.example                    # Template for environment variables
 ```

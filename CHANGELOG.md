@@ -1,6 +1,6 @@
 # Changelog
 
-## [2.2.0] - 2026-10-05
+## [2.3.0] - 2026-10-17
 
 ### New Feature - Junior-level resume review
 
@@ -14,8 +14,10 @@ New `/torc-review` command reviews a member's torc.dev profile against the profi
 
 Resume review now runs through the `/resume-review` slash command instead of the forum channel, so members can get feedback privately by DM without posting their resume in Discord.
 
-## [2.1.0] - 2026-09-14
+## [2.2.0] - 2026-10-17
 
-### New Feature - LeetCode interview
+### New Feature - Duck Hunt
 
-Leetcode style interview now available for interview practice. Selectable at interview type, only supporting the following languages currently (JavaScript, Python, Java, C++). Users join the voice call and are prompted in the voice channel chat with the scenario and the formatting of the prompt. Users can run their code against the tests 2 times before they must submit. There are only 3 questions for the leetcode style interviews to keep the time of interview consistent with real world style interviews. After each code submission, the user is then asked to explain their decision making just like a real interview.
+Duck Hunt is now playable right inside Discord. Run `/duckhunt play` (or open the App Launcher with the rocket button in a voice or text channel) to launch the game as a Discord Activity. Aim with your mouse and click to shoot, or use the arrow keys/WASD to aim and Space to shoot. Each wave has two ducks and three shells, and you need to hit enough ducks each round to advance. Faster, rarer ducks are worth more points, and hitting all 10 ducks in a round earns a perfect bonus. It also works on mobile with touch.
+
+Scores are saved per server. Use `/duckhunt leaderboard` to see the top 10 hunters in your server. No setup is needed from server admins.

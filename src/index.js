@@ -35,6 +35,7 @@ const { MusicService } = require('./services/musicService');
 const { ResumeReviewService } = require('./services/resumeReviewService');
 const { TorcReviewService } = require('./services/torcReviewService');
 const { InterviewService } = require('./services/interviewService');
+const { DuckHuntService } = require('./services/duckHuntService');
 
 const logger = require('./utils/logger');
 
@@ -103,10 +104,12 @@ const profileService       = new ProfileService();
 const musicService = new MusicService(guildConfigService);
 const resumeReviewService  = new ResumeReviewService();
 const torcReviewService    = new TorcReviewService();
+const duckHuntService      = new DuckHuntService();
 const server = createHttpServer({
   guildConfigService,
   giveawayService,
   musicService,
+  duckHuntService,
   discordClient: client,
   getStats: (guildId) => messageStatsService.getStats(guildId),
   getGuild: (guildId) => {
@@ -194,6 +197,7 @@ client.services = {
   musicService,
   resumeReviewService,
   torcReviewService,
+  duckHuntService,
 };
 
 server.listen(PORT, () => {
