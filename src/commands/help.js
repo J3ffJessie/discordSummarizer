@@ -38,6 +38,8 @@ module.exports = {
         {
           name: '🎉 Community',
           value: [
+            '`/duckhunt play` — Play Duck Hunt in Discord (mouse to aim, click to shoot)',
+            '`/duckhunt leaderboard` — Show the server\'s top Duck Hunt scores',
             '`/giveaway start` — Start a new giveaway with a spinning wheel',
             '`/giveaway end` — Close entries and end the active giveaway',
           ].join('\n'),

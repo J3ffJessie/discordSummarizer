@@ -26,6 +26,17 @@ for (const file of commandFiles) {
   if (cmd && cmd.data) commands.push(cmd.data);
 }
 
+// Enabling Activities in the Developer Portal creates a global Entry Point
+// command (the App Launcher's "Launch" button). A global bulk overwrite must
+// include it or Discord rejects the whole request. handler 2 = Discord launches
+// the Activity itself, so it never reaches interactionCreate.
+const ENTRY_POINT_COMMAND = {
+  name: 'launch',
+  description: 'Launch Duck Hunt',
+  type: 4,     // PRIMARY_ENTRY_POINT
+  handler: 2,  // DISCORD_LAUNCH_ACTIVITY
+};
+
 const rest = new REST({ version: '10' }).setToken(TOKEN);
 
 (async () => {
@@ -35,7 +46,7 @@ const rest = new REST({ version: '10' }).setToken(TOKEN);
       await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), { body: commands });
     } else {
       console.log('Registering commands globally (~1 hour to propagate)...');
-      await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
+      await rest.put(Routes.applicationCommands(CLIENT_ID), { body: [...commands, ENTRY_POINT_COMMAND] });
     }
 
     console.log('Commands registered');

@@ -19,6 +19,7 @@ A Discord bot with live voice translation, server summarization, coffee chat pai
 - **Reminders** — Set, list, and cancel personal reminders delivered via DM
 - **Events** — Fetch and display upcoming server events (via the Luma calendar API)
 - **Music playlist** — Spotify, Apple Music, and YouTube links shared in a configured channel are automatically added to a YouTube Music playlist
+- **Duck Hunt** — `/duckhunt play` launches a mouse-and-keyboard Duck Hunt game as a Discord Activity, with a per-server leaderboard
 - **Giveaways** — Run a giveaway with button-based entry and a live spinning-wheel page, with winner history per server
 - **Location logging** — Admins can scan channel messages for city/country mentions and download a sorted list
 - **Server analytics** — Message, member join/leave, and voice-minute statistics shown on the dashboard
@@ -89,6 +90,7 @@ These are the only variables you need to set. Per-server settings (AI provider, 
 | `GUILD_ID` | Test server ID, used only by `npm run register-commands -- --guild` |
 | `RESUME_REVIEW_ENABLED` | Set to `true` to enable `/resume-review` without using the dashboard toggle |
 | `LUMA_API_KEY` | Luma API key used by `/events` to fetch upcoming events |
+| `DISCORD_CLIENT_SECRET` | Discord OAuth2 client secret (Developer Portal → OAuth2). Only needed for the Duck Hunt Activity — used server-side to sign players in |
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Google OAuth credentials for the music playlist feature. Fallback only — each server can enter its own in the dashboard's **Music** section |
 | `JUDGE0_URL` | Judge0 CE endpoint used to run candidate code in LeetCode-style interviews. Defaults to the free public instance `https://ce.judge0.com` |
 | `JUDGE0_API_KEY` / `JUDGE0_API_HOST` | Optional RapidAPI-style auth headers if your Judge0 instance requires them |
@@ -118,7 +120,9 @@ By default this registers commands globally (can take up to an hour to propagate
 npm run register-commands -- --guild
 ```
 
-The script ([src/commands/register.js](src/commands/register.js)) registers every command file in `src/commands/`.
+The script ([src/commands/register.js](src/commands/register.js)) registers every command file in `src/commands/`. Global registration also includes the Activity's Entry Point command (see [`/duckhunt`](#duckhunt)).
+
+The bot does **not** register commands on startup, so run this whenever a command is added or changed — for example from the Render **Shell**, which already has the live credentials. Don't add it to Render's build command: the persistent disk (`/data`) isn't mounted during builds and loading the command files fails.
 
 ---
 
@@ -133,6 +137,7 @@ npm start
 ```bash
 npm run dev
 ```
+`npm run dev` uses [nodemon](https://nodemon.io), which isn't a project dependency. Install it globally (`npm i -g nodemon`) or use `node src/index.js`.
 
 **Tests:**
 ```bash
@@ -147,11 +152,24 @@ Runs Jest with coverage (output in `coverage/` and `jest-stare/`).
 1. Fill in `.env` with your `DISCORD_TOKEN`, `CLIENT_ID`, and set `PUBLIC_URL=http://localhost:3000`
 2. Add `GUILD_ID` to your `.env`
 3. Run `npm run register-commands -- --guild` — commands appear in your test server instantly
-4. Run `npm run dev`
+4. Run `node src/index.js`
 5. In your test server, run `/setup dashboard` — open the link and configure settings
 6. When done testing, run `npm run register-commands` (global) before pushing to production
 
 See also [docs/multi-server-testing.md](docs/multi-server-testing.md).
+
+### Testing the Duck Hunt Activity locally
+
+Discord loads Activities over public HTTPS, so local testing needs a tunnel. Use a **separate dev application** in the Developer Portal: running locally with the live bot's token makes both bots answer every command, and the Activity URL mapping belongs to the app, so pointing the live app at a tunnel breaks the game for everyone.
+
+1. Set up the dev app: enable the **Server Members** and **Message Content** intents (Bot tab), add `https://127.0.0.1` as an OAuth2 redirect, enable Activities, and invite it to your test server with the `bot` and `applications.commands` scopes
+2. Put the dev app's values in `.env`: `DISCORD_TOKEN`, `CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `GUILD_ID`
+3. Start a tunnel: `cloudflared tunnel --url http://localhost:3000`
+4. Set `PUBLIC_URL` to the tunnel URL, and set the dev app's **Activities → URL Mappings** `/` target to the tunnel host (no `https://`)
+5. Run `npm run register-commands -- --guild`, then `node src/index.js`
+6. Run `/duckhunt play` in your test server
+
+Quick tunnels get a new URL on every start, so repeat step 4 (and restart the bot) each time. To test gameplay without Discord, open `http://localhost:3000/duckhunt` in a browser; scores aren't saved in this offline mode.
 
 ---
 
@@ -425,6 +443,27 @@ The wheel page is served at `/giveaway` ([public/giveaway.html](public/giveaway.
 
 ---
 
+### `/duckhunt`
+Play Duck Hunt inside Discord as an [Activity](https://discord.com/developers/docs/activities/overview).
+
+| Subcommand | Description |
+|-----------|-------------|
+| `play` | Launches the game for you in the current channel. It can also be started from the App Launcher (rocket button) in a voice or text channel. |
+| `leaderboard` | Shows the server's top 10 hunters by best score |
+
+**Controls:** mouse to aim and click to shoot, or arrow keys/WASD to aim (hold Shift for faster aiming) and Space/Enter to shoot. `P` pauses, `M` mutes. Each wave has two ducks and three shells; hit the quota for the round to advance. Touch works on mobile.
+
+Scores are saved per server when the game is played inside Discord. The server verifies the player's identity with their Discord access token and checks they're a member of the server before saving. The game runs client-side, so scores aren't cheat-proof.
+
+**One-time setup (bot owner):**
+1. Developer Portal → **OAuth2**: copy the **Client Secret** into `DISCORD_CLIENT_SECRET`, and add `https://127.0.0.1` as a redirect URI (required by Discord, unused by the Activity).
+2. **Activities → URL Mappings**: map `/` to your `PUBLIC_URL` host with no `https://`, e.g. `your-app.onrender.com`.
+3. **Activities → Settings**: enable Activities. This creates the App Launcher's Entry Point command, which `npm run register-commands` now keeps when it overwrites global commands.
+
+The game lives in [public/duckhunt/](public/duckhunt/). Discord loads it at `/?frame_id=…` through the URL mapping, while plain `/` remains the health check. Outside Discord you can open `PUBLIC_URL/duckhunt` in a browser to play offline (scores aren't saved). The Embedded App SDK is vendored as [public/duckhunt/vendor/discord-sdk.js](public/duckhunt/vendor/discord-sdk.js) because Discord's proxy blocks third-party CDNs; rebuild it with `npm run build:duckhunt-sdk` after upgrading `@discord/embedded-app-sdk`.
+
+---
+
 ### `/location`
 *(Admin only)* Scans recent messages in the current channel (`limit` option, default and max 100) for city and country mentions and appends new ones to a `locations.log` file.
 
@@ -484,13 +523,15 @@ DISCORD_TOKEN=your-bot-token
 CLIENT_ID=your-client-id
 PUBLIC_URL=https://your-app.onrender.com
 DATA_DIR=/data
+DISCORD_CLIENT_SECRET=your-client-secret   # for the Duck Hunt Activity
 ADMIN_USER_ID=your-discord-user-id    # optional
 ALLOWED_USER_IDS=id1,id2              # optional
 CAPTION_URL=https://your-app.onrender.com  # optional, for voice translation
 ```
 
-7. Run `npm run register-commands` once to register slash commands globally
-8. Invite the bot to servers — each admin runs `/setup dashboard` to configure their server
+7. Run `npm run register-commands` once to register slash commands globally (again whenever commands change)
+8. For Duck Hunt, configure the Activity in the Developer Portal (see [`/duckhunt`](#duckhunt) one-time setup)
+9. Invite the bot to servers — each admin runs `/setup dashboard` to configure their server
 
 The bot uses no native binaries (`opusscript` is WASM, `@noble/ciphers` is pure JS) — builds and runs on Render without any extra configuration.
 
@@ -521,6 +562,7 @@ discord-summarizer/
 │   │   ├── events.js               # /events
 │   │   ├── music.js                # /music setup|auth|status|reset
 │   │   ├── giveaway.js             # /giveaway start|end
+│   │   ├── duckhunt.js             # /duckhunt play|leaderboard
 │   │   ├── location.js             # /location
 │   │   ├── downloadlocations.js    # /downloadlocations
 │   │   └── register.js             # Registers slash commands with Discord (globally, or --guild)
@@ -558,6 +600,7 @@ discord-summarizer/
 │   │   ├── pageRenderer.js         # Headless Chrome (Puppeteer) page-text renderer for JS-driven pages
 │   │   ├── musicService.js         # Music link detection, song.link resolution, YouTube Music OAuth + playlist management
 │   │   ├── giveawayService.js      # In-memory giveaway state, participants, and winner history
+│   │   ├── duckHuntService.js      # Duck Hunt leaderboard (SQLite) + Activity OAuth token exchange
 │   │   ├── reminders.js            # Personal reminders — persistence and DM delivery
 │   │   ├── events.js               # Fetches upcoming events from the Luma API
 │   │   ├── installerService.js     # Finds who installed the bot via the audit log
@@ -570,9 +613,10 @@ discord-summarizer/
 │   ├── dashboard.html              # Web configuration dashboard and analytics
 │   ├── captions.html               # Live captions web page (WebSocket client)
 │   ├── giveaway.html               # Giveaway spinning-wheel page
+│   ├── duckhunt/                   # Duck Hunt Activity (index.html, game.js, vendored Discord SDK)
 │   └── torc-logo.png
 ├── docs/                           # Multi-server testing and AI provider notes
-├── tools/                          # Dev scripts (backtick scanning, command-file checks)
+├── tools/                          # Dev scripts (backtick scanning, command-file checks, Duck Hunt SDK bundling)
 ├── locations.js                    # City/country matching used by /location
 ├── register-commands.js            # Wrapper for `npm run register-commands`
 ├── CHANGELOG.md                    # Release notes (also sent to installers on update)
