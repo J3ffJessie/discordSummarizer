@@ -12,7 +12,7 @@ jest.mock('wav', () => ({
 }));
 
 const wav = require('wav');
-const { TranscriptionService } = require('../TranscriptionService');
+const { TranscriptionService } = require('../transcriptionService');
 
 describe('TranscriptionService', () => {
   let transcriptionService;
