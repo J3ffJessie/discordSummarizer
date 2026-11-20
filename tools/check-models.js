@@ -32,28 +32,27 @@ function resolveStt(gc = {}) {
 
 async function checkModel({ provider, apiKey, model, baseUrl }) {
   if (!apiKey && provider !== 'ollama') return 'NO KEY (cannot check)';
-  const id = encodeURIComponent(model);
+  // Fetch the provider's full model list and look for an exact id match. (Looking a model up by
+  // id in the URL breaks for ids containing "/", e.g. Groq's "openai/gpt-oss-120b".)
   let url, headers;
   switch (provider) {
-    case 'groq':      url = `https://api.groq.com/openai/v1/models/${id}`; headers = { Authorization: `Bearer ${apiKey}` }; break;
-    case 'openai':    url = `https://api.openai.com/v1/models/${id}`;      headers = { Authorization: `Bearer ${apiKey}` }; break;
-    case 'anthropic': url = `https://api.anthropic.com/v1/models/${id}`;   headers = { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }; break;
+    case 'groq':      url = 'https://api.groq.com/openai/v1/models'; headers = { Authorization: `Bearer ${apiKey}` }; break;
+    case 'openai':    url = 'https://api.openai.com/v1/models';      headers = { Authorization: `Bearer ${apiKey}` }; break;
+    case 'anthropic': url = 'https://api.anthropic.com/v1/models?limit=1000'; headers = { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' }; break;
     case 'ollama':
-    case 'custom': {
-      // OpenAI-compatible servers don't all support GET /models/{id}, so search the list instead.
-      const base = (baseUrl || 'http://localhost:11434/v1').replace(/\/$/, '');
-      const res = await fetch(`${base}/models`, { headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {} });
-      if (!res.ok) return `ERROR ${res.status}`;
-      const { data = [] } = await res.json();
-      return data.some((m) => m.id === model || m.id === `${model}:latest`) ? 'OK' : 'NOT FOUND on server';
-    }
+    case 'custom':
+      url = `${(baseUrl || 'http://localhost:11434/v1').replace(/\/$/, '')}/models`;
+      headers = apiKey ? { Authorization: `Bearer ${apiKey}` } : {};
+      break;
     default: return `unknown provider "${provider}"`;
   }
   const res = await fetch(url, { headers });
-  if (res.ok) return 'OK';
-  if (res.status === 404) return 'RETIRED / NOT FOUND';
   if (res.status === 401 || res.status === 403) return `KEY REJECTED (${res.status})`;
-  return `ERROR ${res.status}`;
+  if (!res.ok) return `ERROR ${res.status} listing models`;
+  const { data = [] } = await res.json();
+  const ids = data.map((m) => m.id);
+  if (ids.includes(model) || ids.includes(`${model}:latest`)) return 'OK';
+  return `NOT IN ${provider}'s model list (${ids.length} models listed) — likely retired or misspelled`;
 }
 
 function loadGuilds() {
